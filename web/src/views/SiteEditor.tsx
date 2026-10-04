@@ -8,19 +8,24 @@ import { upload } from '@/views/BusinessForm.tsx';
 
 type Item = { id?: string; name: string; price?: string; note?: string; category?: string };
 type Bank = { bank: string; accountName: string; accountNumber: string; note?: string };
+type Notice = { text: string; from?: string; until?: string; closed?: boolean; link?: 'whatsapp' | 'order' };
+type PosterInfo = { html: string; format: string; target: string; targets: { id: string; label: string; headline: string; sub: string }[]; formats: { id: string; label: string; print: boolean }[]; scans: Scans };
+type Scans = { total: number; week: number; today: number };
 type Facts = {
   name: string; offer: string; phone?: string; whatsapp?: string; email?: string; address?: string; area?: string; city?: string; landmark?: string;
-  hoursText?: string; delivery?: string; instagram?: string; tiktok?: string; facebook?: string; items: Item[]; links: Record<string, string>; bank: Bank | null; kind: string;
+  hoursText?: string; delivery?: string; instagram?: string; tiktok?: string; facebook?: string; items: Item[]; links: Record<string, string>; bank: Bank | null; notice: Notice | null; kind: string;
 };
 type Look = { theme: string; brand: string; headline: string; sub: string; eyebrow?: string; heroPhoto?: string; gallery: string[]; whatsappText: string; sections: string[]; hidden: string[] };
 type View = {
   slug: string; url: string; updatedAt: string; canUndo: boolean; facts: Facts; plan: Look;
   photos: { id: string; file: string; subject: string }[]; themes: { id: string; mood: string }[];
-  integrations: { id: string; label: string; group: string; hint: string }[];
+  integrations: { id: string; label: string; group: string; hint: string }[]; scans?: Scans;
 };
-type Tab = 'sell' | 'menu' | 'details' | 'photos' | 'look';
+type Tab = 'sell' | 'menu' | 'notice' | 'details' | 'photos' | 'look' | 'poster';
 
-const TABS: [Tab, string][] = [['sell', 'Orders & payments'], ['menu', 'Menu & prices'], ['details', 'Details & hours'], ['photos', 'Photos'], ['look', 'Look']];
+const TABS: [Tab, string][] = [['sell', 'Orders & payments'], ['menu', 'Menu & prices'], ['notice', 'Announcement'], ['poster', 'QR poster'], ['details', 'Details & hours'], ['photos', 'Photos'], ['look', 'Look']];
+const NOTICE_IDEAS = ['Closed on Monday for the public holiday', 'Weekend special: 2 for ₦5,000', 'Now delivering to Lekki and Ajah', 'New menu out now'];
+const lagosToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos' }).format(new Date());
 const GROUPS: [string, string, string][] = [
   ['order', 'Order online', 'Food delivery apps. Your page gets an “Order on Chowdeck” button next to WhatsApp.'],
   ['shop', 'Shop & take payments', 'Payment pages and online stores. Shown as “Pay online” or “Shop online”.'],
@@ -44,6 +49,7 @@ function diff(base: View, f: Facts, p: Look) {
   if (!same(f.items, base.facts.items)) facts.items = f.items;
   if (!same(f.links, base.facts.links)) facts.links = f.links;
   if (!same(f.bank, base.facts.bank)) facts.bank = f.bank && (f.bank.accountNumber || f.bank.bank) ? f.bank : null;
+  if (!same(f.notice, base.facts.notice)) facts.notice = f.notice?.text.trim() ? f.notice : null;
   for (const k of LOOK_KEYS) if ((p[k] ?? '') !== (base.plan[k] ?? '')) plan[k] = p[k] ?? '';
   if (!same(p.gallery, base.plan.gallery)) plan.gallery = p.gallery;
   if (!same(p.hidden, base.plan.hidden)) plan.hidden = p.hidden;
@@ -62,9 +68,11 @@ export default function SiteEditor({ token }: { token: string }) {
   const [err, setErr] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const [notes, setNotes] = useState<string[]>([]);
+  const [po, setPo] = useState<{ format: string; target: string; headline: string; sub: string; photo: boolean; bank: boolean }>({ format: 'a4', target: 'site', headline: '', sub: '', photo: true, bank: false });
+  const [poster, setPoster] = useState<PosterInfo | null>(null);
   const [chow, setChow] = useState<{ url: string; name?: string; phone?: string; phoneMatches: boolean; items: Item[]; hoursText?: string } | null>(null);
 
-  const load = useCallback((v: View) => { setBase(v); setF({ ...v.facts, bank: v.facts.bank ?? null }); setP({ ...v.plan }); }, []);
+  const load = useCallback((v: View) => { setBase((b) => ({ ...v, scans: v.scans ?? b?.scans })); setF({ ...v.facts, bank: v.facts.bank ?? null, notice: v.facts.notice ?? null }); setP({ ...v.plan }); }, []);
   useEffect(() => { api<View>(`/api/site-edit/${token}`).then(load).catch((e) => setErr(e.message)); }, [token, load]);
 
   const patch = useMemo(() => (base && f && p ? diff(base, f, p) : null), [base, f, p]);
@@ -80,6 +88,18 @@ export default function SiteEditor({ token }: { token: string }) {
     }, html ? 450 : 0);
     return () => clearTimeout(t);
   }, [patch, token]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The poster preview follows its options (and unpublished edits) while its tab is open.
+  const pseq = useRef(0);
+  useEffect(() => {
+    if (tab !== 'poster' || !patch) return;
+    const n = ++pseq.current;
+    const t = setTimeout(() => {
+      api<PosterInfo>(`/api/site-edit/${token}/poster`, { method: 'POST', body: JSON.stringify({ ...po, patch: { facts: patch.facts, plan: patch.plan } }) })
+        .then((r) => { if (n === pseq.current) setPoster(r); })
+        .catch((e) => n === pseq.current && setErr(e.message));
+    }, poster ? 400 : 0);
+    return () => clearTimeout(t);
+  }, [tab, po, patch, token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (err && !base) return <main className="sedit-msg"><div className="card pad"><h1>Can’t open this editor</h1><p className="muted">{err}</p><a className="btn secondary" href="/">Go to Syncly</a></div></main>;
   if (!base || !f || !p || !patch) return <main className="sedit-msg"><p className="muted">Opening your site…</p></main>;
@@ -91,6 +111,18 @@ export default function SiteEditor({ token }: { token: string }) {
   const setLink = (id: string, url: string) => { const l = { ...f.links }; if (url.trim()) l[id] = url.trim(); else delete l[id]; setFact('links', l); };
   const bank = f.bank ?? emptyBank;
   const setBank = (v: Partial<Bank>) => setFact('bank', { ...bank, ...v });
+  const notice = f.notice ?? { text: '' };
+  const setNotice = (v: Partial<Notice>) => setFact('notice', { ...notice, ...v });
+  const firstGet = base.integrations.find((i) => ['order', 'book', 'tickets', 'shop'].includes(i.group) && f.links[i.id]);
+  const download = (kind: 'pdf' | 'png') => act(`poster-${kind}`, async () => {
+    const r = await fetch(`/api/site-edit/${token}/poster/file`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...po, kind, patch: { facts: patch.facts, plan: patch.plan } }) });
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? 'The poster could not be made. Try again.');
+    const url = URL.createObjectURL(await r.blob()), a = document.createElement('a');
+    a.href = url; a.download = `${base.slug}-qr-${po.format}.${kind}`; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  });
+  const tgt = poster?.targets.find((x) => x.id === (poster?.target ?? po.target));
+  const scans = poster?.scans ?? base.scans;
 
   async function act<T>(label: string, fn: () => Promise<T>) {
     setBusy(label); setErr(null); setDone(null);
@@ -211,6 +243,59 @@ export default function SiteEditor({ token }: { token: string }) {
             </div>
           )}
 
+          {tab === 'notice' && (
+            <div className="form">
+              <p className="muted sedit__lead">A line across the top of your site: a special, a closure, news. Set dates and it shows only between them, then disappears by itself.</p>
+              {field('Your announcement', notice.text, (v) => setNotice({ text: v.slice(0, 140) }), { ph: 'Weekend special: 2 for ₦5,000' })}
+              <div className="checks">{NOTICE_IDEAS.map((x) => <button type="button" key={x} className="chip click" onClick={() => setNotice({ text: x })}>{x}</button>)}</div>
+              <div className="two-up">
+                <label className="field">From <span className="hint">Optional</span><input type="date" value={notice.from ?? ''} min={lagosToday()} onChange={(e) => setNotice({ from: e.target.value || undefined })} /></label>
+                <label className="field">Until <span className="hint">The last day it shows</span><input type="date" value={notice.until ?? ''} min={notice.from || lagosToday()} onChange={(e) => setNotice({ until: e.target.value || undefined })} /></label>
+              </div>
+              <div className="field">Are you closed on these days?
+                <div className="checks">
+                  <button type="button" className={`chip click${!notice.closed ? ' on' : ''}`} onClick={() => setNotice({ closed: false })}>No, we’re open</button>
+                  <button type="button" className={`chip click${notice.closed ? ' on' : ''}`} onClick={() => setNotice({ closed: true, link: undefined })}>Yes, we’re closed</button>
+                </div>
+                {notice.closed && <span className="hint">Your site will say “Closed today” instead of “Open now” on these dates, and Google is told too.{!notice.until ? ' Add an end date so it knows when you’re back.' : ''}</span>}
+              </div>
+              {!notice.closed && (
+                <div className="field">Button on the announcement
+                  <div className="checks">
+                    <button type="button" className={`chip click${!notice.link ? ' on' : ''}`} onClick={() => setNotice({ link: undefined })}>None</button>
+                    <button type="button" className={`chip click${notice.link === 'whatsapp' ? ' on' : ''}`} onClick={() => setNotice({ link: 'whatsapp' })}>Ask on WhatsApp</button>
+                    {firstGet && <button type="button" className={`chip click${notice.link === 'order' ? ' on' : ''}`} onClick={() => setNotice({ link: 'order' })}>{firstGet.label}</button>}
+                  </div>
+                </div>
+              )}
+              {notice.text && <div className="row"><button type="button" className="btn ghost sm" onClick={() => setFact('notice', null)}>Remove the announcement</button></div>}
+            </div>
+          )}
+
+          {tab === 'poster' && (
+            <div className="form">
+              <p className="muted sedit__lead">Print it for your wall, counter or delivery bags, or post it on your WhatsApp Status. It uses your site’s colours, fonts and photo.</p>
+              {scans && <p className="sedit__scans"><b>{scans.week}</b> scan{scans.week === 1 ? '' : 's'} this week · {scans.total} in total{scans.today ? ` · ${scans.today} today` : ''}</p>}
+              <div className="field">The code opens
+                <div className="checks">{(poster?.targets ?? [{ id: 'site', label: 'Your website' }]).map((x) => <button type="button" key={x.id} className={`chip click${(poster?.target ?? po.target) === x.id ? ' on' : ''}`} onClick={() => setPo((o) => ({ ...o, target: x.id, headline: '', sub: '' }))}>{x.label}</button>)}</div>
+              </div>
+              <div className="field">Size
+                <div className="checks">{(poster?.formats ?? [{ id: 'a4', label: 'Poster (A4)', print: true }]).map((x) => <button type="button" key={x.id} className={`chip click${po.format === x.id ? ' on' : ''}`} onClick={() => setPo((o) => ({ ...o, format: x.id }))}>{x.label}</button>)}</div>
+              </div>
+              {field('Big line', po.headline, (v) => setPo((o) => ({ ...o, headline: v.slice(0, 70) })), { ph: tgt?.headline ?? '' })}
+              {field('Small line', po.sub, (v) => setPo((o) => ({ ...o, sub: v.slice(0, 90) })), { ph: tgt?.sub ?? '' })}
+              <div className="checks">
+                <button type="button" className={`chip click${po.photo ? ' on' : ''}`} onClick={() => setPo((o) => ({ ...o, photo: !o.photo }))}>Your photo</button>
+                {f.bank?.accountNumber && (poster?.target ?? po.target) !== 'pay' && <button type="button" className={`chip click${po.bank ? ' on' : ''}`} onClick={() => setPo((o) => ({ ...o, bank: !o.bank }))}>Bank details</button>}
+              </div>
+              <div className="row">
+                {(poster?.formats.find((x) => x.id === po.format)?.print ?? true) && <button type="button" className="btn primary sm" onClick={() => download('pdf')} disabled={!!busy}>{busy === 'poster-pdf' ? 'Preparing your PDF…' : 'Download PDF to print'}</button>}
+                <button type="button" className={`btn ${po.format === 'status' ? 'primary' : 'secondary'} sm`} onClick={() => download('png')} disabled={!!busy}>{busy === 'poster-png' ? 'Preparing your image…' : 'Download image'}</button>
+              </div>
+              <p className="hint">{patch.changed ? 'The poster includes your unpublished changes. Publish so the code opens the same thing. ' : ''}Print shops can print the PDF at A4 or A5; it takes about 10 seconds to make.</p>
+            </div>
+          )}
+
           {tab === 'details' && (
             <div className="form">
               {field('Business name', f.name, (v) => setFact('name', v))}
@@ -270,14 +355,16 @@ export default function SiteEditor({ token }: { token: string }) {
 
         <section className={`sedit__preview${showPreview ? ' open' : ''}`} aria-label="Preview">
           <div className="sedit__pbar">
-            <div className="checks">{(['phone', 'laptop'] as const).map((d) => <button key={d} type="button" className={`chip click${device === d ? ' on' : ''}`} onClick={() => setDevice(d)}>{d === 'phone' ? 'Phone' : 'Laptop'}</button>)}</div>
+            {tab === 'poster' ? <span className="mono muted">Poster preview</span> : <div className="checks">{(['phone', 'laptop'] as const).map((d) => <button key={d} type="button" className={`chip click${device === d ? ' on' : ''}`} onClick={() => setDevice(d)}>{d === 'phone' ? 'Phone' : 'Laptop'}</button>)}</div>}
             <span className="mono muted">{patch.changed ? 'Preview: not live yet' : 'Live version'}</span>
             <button type="button" className="btn ghost sm sedit__close" onClick={() => setShowPreview(false)}>Close</button>
           </div>
-          <div className={`sedit__frame ${device}`}>{html ? <iframe title="Site preview" srcDoc={html} sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox" /> : <p className="muted">Rendering…</p>}</div>
+          {tab === 'poster'
+            ? <div className="sedit__frame poster">{poster ? <iframe title="Poster preview" srcDoc={poster.html} sandbox="allow-scripts" /> : <p className="muted">Making your poster…</p>}</div>
+            : <div className={`sedit__frame ${device}`}>{html ? <iframe title="Site preview" srcDoc={html} sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox" /> : <p className="muted">Rendering…</p>}</div>}
         </section>
       </div>
-      <button type="button" className="btn primary sedit__peek" onClick={() => setShowPreview(true)}>Preview</button>
+      <button type="button" className="btn primary sedit__peek" onClick={() => setShowPreview(true)}>{tab === 'poster' ? 'See poster' : 'Preview'}</button>
     </main>
   );
 }

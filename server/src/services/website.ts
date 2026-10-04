@@ -29,6 +29,8 @@ import type { BusinessDetails } from '../details.ts';
 import { e164 } from '../site/facts.ts';
 import { chowdeckHours, classify, cleanUrl, readChowdeck, type ChowdeckStore, type Links } from '../site/links.ts';
 import { keepSource } from '../site/edit.ts';
+import { posterHtml } from '../site/poster.ts';
+import { renderPoster } from '../browser.ts';
 
 type Spec = { business: string; kind: Kind; category: string; offer: string; area?: string; city?: string; country: string; phone?: string; whatsapp?: string; email?: string; instagram?: string; website?: string; look?: string; mapsQuery: string };
 
@@ -305,6 +307,15 @@ Reply with JSON only: {"theme","brand","title","description","hero":{"variant","
 
       // 10. Deliver. The inputs are kept so the owner can edit the site later; the private edit link goes in their email only.
       keepSource({ slug, url, plan, facts, photos, candidates, orderId: job.orderId, email: spec.email ?? undefined });
+      // A QR poster for the shop (print) and one for WhatsApp Status, in the site's own look; scans are counted.
+      let posters = false;
+      try {
+        job.log('illustrator', 'poster', 'a QR poster for the shop and a WhatsApp Status card');
+        const a4 = await posterHtml({ slug, url, plan, facts, photos }, { format: 'a4', target: 'site' });
+        const st = await posterHtml({ slug, url, plan, facts, photos }, { format: 'status', target: facts.links?.chowdeck ? 'order' : 'site' });
+        job.files.push({ name: 'qr-poster.pdf', content: await renderPoster(a4.html, a4.w, a4.h, 'pdf') }, { name: 'qr-status.png', content: await renderPoster(st.html, st.w, st.h, 'png', 1) });
+        posters = true;
+      } catch (e: any) { job.log('illustrator', 'skip', `poster not made (${String(e?.message ?? e).slice(0, 60)})`); }
       const theme = THEMES[plan.theme];
       job.files.push({ name: `${slug}.zip`, content: zip([{ name: 'index.html', data: rendered.html }, { name: 'llms.txt', data: rendered.llms }, { name: 'robots.txt', data: rendered.robots }, ...files.map((f) => ({ name: f.name, data: f.buf }))]) });
       job.files.push({ name: 'phone.jpg', content: look.jpg['phone-top'] }, { name: 'phone-full.jpg', content: look.jpg.phone }, { name: 'laptop.jpg', content: look.jpg.laptop });
@@ -319,6 +330,7 @@ Reply with JSON only: {"theme","brand","title","description","hero":{"variant","
         `- **WhatsApp everywhere:** a button on the first screen, a contact bar fixed to the bottom of every phone screen${facts.address ? ', directions to your address' : ''}${facts.hours ? ', and a live "open now" from your Google hours' : ''}`,
         `- **${items.length} items${items.some((i) => i.price) ? ` with ${items.filter((i) => i.price).length} published prices` : ''}**, ${reviews.length ? `${reviews.length} real Google reviews quoted word for word` : 'no testimonials (we only show real reviews)'}, and ${used.size} of your own photos`,
         `- **Found on Google and by AI assistants:** your business details marked up for search, plus an \`llms.txt\` summary`,
+        posters ? `- **A QR poster for your shop:** \`qr-poster.pdf\` prints on A4 for your wall or counter, and \`qr-status.png\` is sized for your WhatsApp Status. Every scan is counted in your site editor, where you can make more (counter cards, WhatsApp, Chowdeck, Google review or pay-by-transfer codes)` : '',
         Object.keys(links).length || facts.bank ? `- **Where you already sell:** ${[...Object.keys(links).map((k) => k[0].toUpperCase() + k.slice(1)), ...(facts.bank ? ['pay-by-transfer details with a copy button'] : [])].join(', ')}${chow?.items.length ? ` (your Chowdeck menu and prices were read straight from your store)` : ''}` : '',
         `## Checks`,
         `- **Facts:** every price, phone number, address and review on the page comes from your listing, your posts or your brief; the page can't show one that doesn't.${issues.length ? ` Open notes on the copy: ${issues.join('; ')}.` : ''}`,

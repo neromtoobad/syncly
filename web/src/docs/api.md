@@ -67,6 +67,8 @@ The private link in a website's delivery email (`/edit/<token>`). The token is n
 | `POST /api/site-edit/:token/publish` | `{ facts?, plan? }` | Puts the change live and keeps the previous version (the last 10) |
 | `POST /api/site-edit/:token/undo` | | Puts the previous version back |
 | `POST /api/site-edit/:token/photo` | `{ upload, caption? }` | Adds a photo uploaded via `/api/uploads` |
+| `POST /api/site-edit/:token/poster` | `{ format?, target?, headline?, sub?, photo?, bank?, patch? }` | A QR poster preview (`a4`, `a5` or `status`; the code opens `site`, `whatsapp`, `order`, `review` or `pay`), the targets this site can use, and QR scan counts |
+| `POST /api/site-edit/:token/poster/file` | same, plus `kind: pdf \| png` | The poster rendered by our headless Chrome: a print PDF or a PNG |
 | `POST /api/site-edit/:token/chowdeck` | `{ url }` | Reads a Chowdeck store's menu, ₦ prices and hours for the owner to review; flags a store whose phone isn't the site's |
 
 ## Example: get a quote

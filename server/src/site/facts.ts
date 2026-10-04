@@ -12,6 +12,9 @@ export type Photo = {
   subject: string; quality: number; // 1–5 from the vision check
   focus?: 'center' | 'top' | 'bottom' | 'left' | 'right';
 };
+/** An announcement at the top of the site, shown between two dates (Lagos time, inclusive). "closed" also marks the
+ * business closed on those dates: "Open now" says so, and Google gets it as special opening hours. */
+export type Notice = { text: string; from?: string; until?: string; closed?: boolean; link?: 'whatsapp' | 'order' };
 export type Hours = { day: number; open: number; close: number }[]; // day 0 = Sunday; minutes from midnight
 
 export type Facts = {
@@ -43,6 +46,7 @@ export type Facts = {
   payments?: string[];
   links?: import('./links.ts').Links; // ordering, booking, shop, tickets, review and social links (see links.ts)
   bank?: import('./links.ts').Bank; // "pay by transfer" details, shown with a copy button
+  notice?: Notice; // the owner's announcement bar: a special, a closure, news
   sources: string; // every text the facts came from, for checking copy against
 };
 

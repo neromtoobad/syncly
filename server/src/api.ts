@@ -16,8 +16,10 @@ import { bus, type SynclyEvent } from './bus.ts';
 import { CATALOG, findService } from './services/index.ts';
 import { cleanDetails, detailsBrief, type BusinessDetails } from './details.ts';
 import { MAX_BYTES, allowUpload, readUpload, saveUpload } from './uploads.ts';
-import { addPhoto, applyPatch, editorView, previewHtml, publishPatch, sourceByToken, undoLast } from './site/edit.ts';
+import { addPhoto, applyPatch, editorView, previewHtml, publishPatch, sourceByToken, undoLast, type SiteSource } from './site/edit.ts';
 import { LINKS, chowdeckHours, readChowdeck, samePhone } from './site/links.ts';
+import { FORMATS, countScan, posterHtml, posterTargets, scanStats, type PosterOpts } from './site/poster.ts';
+import { renderPoster } from './browser.ts';
 import { autoAcceptDue, createQuote, decide, escrowPending, getOrder, noteForRevision, openEscrow, readJob, replay, resumeInterrupted, retry, start, syncEscrow } from './orders.ts';
 import { escrowConfig, refreshBondFree } from './escrow.ts';
 import { MODE as CFO_MODE, POLICY as CFO_POLICY, freshSnapshot, startTreasury, teamShortfall } from './cfo/treasury.ts';
@@ -218,7 +220,7 @@ app.get('/api/orders/:id', (c) => {
   return c.json(shown(c, view(o.id)));
 });
 
-const MEDIA: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', mp4: 'video/mp4', webm: 'video/webm', mp3: 'audio/mpeg', svg: 'image/svg+xml', zip: 'application/zip', html: 'text/plain; charset=utf-8' };
+const MEDIA: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', mp4: 'video/mp4', webm: 'video/webm', mp3: 'audio/mpeg', svg: 'image/svg+xml', zip: 'application/zip', pdf: 'application/pdf', html: 'text/plain; charset=utf-8' };
 app.get('/api/orders/:id/files/:name', (c) => {
   const o = getOrder(c.req.param('id'));
   const name = c.req.param('name');
@@ -231,7 +233,7 @@ app.get('/api/orders/:id/files/:name', (c) => {
   const media = MEDIA[ext];
   c.header('content-type', media ?? (ext === 'csv' ? 'text/csv' : 'text/markdown'));
   // Pictures and video open in the browser; data files download.
-  c.header('content-disposition', `${media && c.req.query('download') === undefined ? 'inline' : 'attachment'}; filename="${o.id}-${name}"`);
+  c.header('content-disposition', `${media && ext !== 'pdf' && c.req.query('download') === undefined ? 'inline' : 'attachment'}; filename="${o.id}-${name}"`); // a PDF can't open inside the sandbox
   if (media) c.header('cache-control', 'public, max-age=86400');
   // Generated files never run as our site: no scripts, no same-origin access.
   c.header('content-security-policy', "sandbox; default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'");
@@ -254,6 +256,7 @@ const site = (c: any) => {
   c.header('x-content-type-options', 'nosniff');
   c.header('cache-control', 'public, max-age=300');
   // Relative asset paths must resolve under the site whether or not the URL has a trailing slash.
+  if (file === 'index.html' && c.req.query('src') === 'qr') countScan(slug); // a scan of the shop's QR poster
   if (f.endsWith('.html')) return c.body(readFileSync(f, 'utf8').replace(/<head([^>]*)>/i, `<head$1><base href="/s/${slug}/">`));
   return c.body(readFileSync(f));
 };
@@ -280,7 +283,7 @@ const editable = (c: any) => {
 app.get('/api/site-edit/:token', (c) => {
   if (!editAllowed(c, 'get', 120)) return c.json({ error: 'Too many requests from here in the last hour. Try again later.' }, 429);
   const src = editable(c);
-  return src instanceof Response ? src : c.json({ ...editorView(src), integrations: Object.entries(LINKS).map(([id, d]) => ({ id, label: d.label, group: d.group, hint: d.hint })) });
+  return src instanceof Response ? src : c.json({ ...editorView(src), scans: scanStats(src.slug), integrations: Object.entries(LINKS).map(([id, d]) => ({ id, label: d.label, group: d.group, hint: d.hint })) });
 });
 app.post('/api/site-edit/:token/preview', async (c) => {
   if (!editAllowed(c, 'preview', 600)) return c.json({ error: 'Too many previews from here in the last hour. Try again later.' }, 429);
@@ -319,6 +322,33 @@ app.post('/api/site-edit/:token/chowdeck', async (c) => {
     const phones = [src.facts.phone, src.facts.whatsapp, b.phone].filter(Boolean) as string[];
     const matches = !store.phone || phones.some((p) => samePhone(p, store.phone));
     return c.json({ url: store.url, name: store.name, phone: store.phone, phoneMatches: matches, items: store.items, hoursText: chowdeckHours(store) });
+  } catch (e) { return fail(c, e); }
+});
+// QR posters for the shop (site/poster.ts): a preview page, and the print PDF or PNG from our headless Chrome.
+// Unpublished edits in the editor ride along as `patch`, so the poster matches what the owner sees.
+const posterSite = (src: SiteSource, b: any) => { if (!b?.patch) return src; const { plan, facts } = applyPatch(src, b.patch); return { ...src, plan, facts }; };
+app.post('/api/site-edit/:token/poster', async (c) => {
+  if (!editAllowed(c, 'poster', 400)) return c.json({ error: 'Too many previews from here in the last hour. Try again later.' }, 429);
+  const src = editable(c);
+  if (src instanceof Response) return src;
+  const b = await c.req.json().catch(() => ({} as any));
+  try {
+    const site = posterSite(src, b), p = await posterHtml(site, b as PosterOpts, true);
+    return c.json({ html: p.html, format: p.format, target: p.target, targets: posterTargets(site).map(({ id, label, headline, sub }) => ({ id, label, headline, sub })), formats: Object.entries(FORMATS).map(([id, f]) => ({ id, label: f.label, print: f.print })), scans: scanStats(src.slug) });
+  } catch (e) { return fail(c, e); }
+});
+app.post('/api/site-edit/:token/poster/file', async (c) => {
+  if (!editAllowed(c, 'poster-file', 20)) return c.json({ error: 'Too many downloads from here in the last hour. Try again later.' }, 429);
+  const src = editable(c);
+  if (src instanceof Response) return src;
+  const b = await c.req.json().catch(() => ({} as any));
+  try {
+    const kind = b.kind === 'png' ? 'png' : 'pdf';
+    const p = await posterHtml(posterSite(src, b), b as PosterOpts);
+    const buf = await renderPoster(p.html, p.w, p.h, kind, p.format === 'status' ? 1 : 3);
+    c.header('content-type', kind === 'pdf' ? 'application/pdf' : 'image/png');
+    c.header('content-disposition', `attachment; filename="${src.slug}-qr-${p.format}.${kind}"`);
+    return c.body(new Uint8Array(buf));
   } catch (e) { return fail(c, e); }
 });
 

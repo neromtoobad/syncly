@@ -153,3 +153,16 @@ export async function htmlToPng(html: string, width: number, height: number): Pr
     return Buffer.from(await page.screenshot({ type: 'png', omitBackground: true }));
   } finally { await browser.close(); }
 }
+
+/** A poster page (site/poster.ts) to a print PDF at its exact size, or a PNG at `scale`× for sharing. */
+export async function renderPoster(html: string, w: number, h: number, kind: 'pdf' | 'png', scale = 2): Promise<Buffer> {
+  const browser = await launch();
+  try {
+    const page = await browser.newPage();
+    await page.setViewport({ width: w, height: h, deviceScaleFactor: kind === 'png' ? scale : 1 });
+    await page.setContent(html, { waitUntil: 'load', timeout: 30_000 }).catch(() => undefined);
+    await page.waitForFunction('window.POSTER_READY === true', { timeout: 10_000 }).catch(() => undefined);
+    if (kind === 'pdf') return Buffer.from(await page.pdf({ width: `${w}px`, height: `${h}px`, printBackground: true, pageRanges: '1' }));
+    return Buffer.from(await page.screenshot({ type: 'png', clip: { x: 0, y: 0, width: w, height: h } }));
+  } finally { await browser.close(); }
+}

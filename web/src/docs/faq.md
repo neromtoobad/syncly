@@ -24,6 +24,8 @@ All of it runs on Circle App Kit from your own wallet; Syncly never holds the mo
 
 Yes. Your delivery email has a private link to your site's editor. Change prices, hours and your menu, add the places you already sell (Chowdeck, Glovo, Heyfood, Paystack, Flutterwave, Selar, Bumpa, Jumia, Jiji, your WhatsApp catalogue), booking pages (Calendly, Fresha), tickets (Tix Africa, Eventbrite), your Google review link and your bank details for transfers. Swap photos, the colour and the style, and hide sections. You see a preview first, Publish puts it live in seconds, and Undo puts the last version back. If you sell on Chowdeck, paste your store link and the editor brings in your menu and prices. Keep the link to yourself: anyone with it can change your site.
 
+The editor also has an **announcement bar** (a special, a closure, news) that shows only between the dates you set. Mark yourself closed and the site says "Closed today" instead of "Open now", and Google is told. And it makes **QR posters** in your site's own look: an A4 poster, an A5 counter card or a WhatsApp Status image, with a code that opens your site, a WhatsApp chat, your Chowdeck store, your Google review page or your bank details. Every scan of your site's code is counted in the editor. Each new website comes with an A4 poster and a Status image.
+
 ## What if I don't like the work?
 
 Ask for one free revision with a note, or reject it. Rejecting returns your payment in full and pays you the bond on top. See [Escrow payments](/docs/escrow).

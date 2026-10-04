@@ -8,10 +8,10 @@ import type { Action, Plan, Section } from './plan.ts';
 import { THEMES } from './themes.ts';
 import { palette } from './color.ts';
 
-const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+export const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 const TZ: Record<string, string> = { NG: 'Africa/Lagos', GH: 'Africa/Accra', KE: 'Africa/Nairobi', ZA: 'Africa/Johannesburg', EG: 'Africa/Cairo', GB: 'Europe/London', US: 'America/New_York' };
 
-const ICON = {
+export const ICON = {
   whatsapp: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12.04 2a9.9 9.9 0 0 0-8.48 15.02L2.5 21.5l4.6-1.2A9.9 9.9 0 1 0 12.04 2Zm5.8 14.07c-.24.68-1.4 1.3-1.93 1.35-.5.05-.97.23-3.28-.68-2.78-1.1-4.55-3.94-4.69-4.12-.13-.18-1.12-1.49-1.12-2.85s.71-2.02.97-2.3c.25-.27.55-.34.73-.34l.53.01c.17 0 .4-.06.62.48.24.55.8 1.92.87 2.06.07.14.11.3.02.48-.1.18-.14.3-.28.46-.14.16-.29.36-.41.48-.14.14-.28.29-.12.56.16.27.71 1.17 1.52 1.89 1.04.93 1.92 1.21 2.19 1.35.27.14.43.12.59-.07.16-.18.68-.8.86-1.07.18-.27.36-.23.61-.14.25.09 1.6.75 1.87.89.27.14.45.2.52.32.07.11.07.66-.17 1.33Z"/></svg>',
   phone: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M5 4h3.5l1.5 4.5-2.2 1.4a11 11 0 0 0 6.3 6.3l1.4-2.2L20 15.5V19a1.5 1.5 0 0 1-1.6 1.5A16 16 0 0 1 3.5 5.6 1.5 1.5 0 0 1 5 4Z"/></svg>',
   pin: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>',
@@ -50,6 +50,10 @@ export function renderSite(plan: Plan, f: Facts, photos: Photo[], opts: { url: s
   const getBand = gets.length ? `<div class="get rv"><p class="label">${esc(getTitle)}</p><div class="get-row">${gets.map((l) => getBtn(l, 'btn-plat')).join('')}</div></div>` : '';
   const bank = f.bank ? `<section id="pay" class="sect pay"><div class="wrap narrow"><div class="bankcard rv"><p class="label">${ICON.bank} Pay by bank transfer</p><p class="acct"><span class="acct-no" data-acct>${esc(f.bank.accountNumber.replace(/(\d{3})(\d{3})(\d{4})/, '$1 $2 $3'))}</span><button class="copy" type="button" data-copy="${esc(f.bank.accountNumber)}">Copy</button></p><p class="acct-meta"><b>${esc(f.bank.accountName)}</b><span>${esc(f.bank.bank)}</span></p>${f.bank.note ? `<p class="muted">${esc(f.bank.note)}</p>` : ''}${chat ? `<p class="muted small">Send your proof of payment on <a href="${esc(wa(`Hello ${f.name}, I've just paid by transfer.`))}" target="_blank" rel="noopener">WhatsApp</a>.</p>` : ''}</div></div></section>` : '';
   const reviewLink = f.links?.review;
+  const nt = f.notice;
+  const ntHref = nt && !nt.closed ? (nt.link === 'order' && gets[0] ? gets[0].url : nt.link === 'whatsapp' && chat ? wa(`Hello ${f.name}, about "${nt.text}"`) : undefined) : undefined;
+  const ntLabel = nt?.link === 'order' && gets[0] ? gets[0].cta : 'Ask on WhatsApp';
+  const notice = nt ? `<div class="notice${nt.closed ? ' n-closed' : ''}" role="status" data-notice data-from="${esc(nt.from ?? '')}" data-until="${esc(nt.until ?? '')}"><div class="wrap"><span class="n-dot" aria-hidden="true"></span><p>${esc(nt.text)}</p>${ntHref ? `<a href="${esc(ntHref)}" target="_blank" rel="noopener">${esc(ntLabel)}<span aria-hidden="true"> →</span></a>` : ''}</div></div>` : '';
   const priced = f.items.some((i) => i.price);
   const showsWork = ['creative', 'beauty', 'events'].includes(f.kind);
 
@@ -195,6 +199,7 @@ export function renderSite(plan: Plan, f: Facts, photos: Photo[], opts: { url: s
   if (f.phone ?? f.whatsapp) ld.telephone = `+${e164(f.phone ?? f.whatsapp, f.country)}`;
   if (f.address) ld.address = { '@type': 'PostalAddress', streetAddress: f.address, addressLocality: f.area ?? f.city, addressRegion: f.city, addressCountry: f.country };
   if (f.hours) ld.openingHoursSpecification = f.hours.map((x) => ({ '@type': 'OpeningHoursSpecification', dayOfWeek: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][x.day], opens: `${String(Math.floor(x.open / 60)).padStart(2, '0')}:${String(x.open % 60).padStart(2, '0')}`, closes: `${String(Math.floor(Math.min(x.close, 1439) / 60)).padStart(2, '0')}:${String(Math.min(x.close, 1439) % 60).padStart(2, '0')}` }));
+  if (nt?.closed && nt.from) ld.specialOpeningHoursSpecification = [{ '@type': 'OpeningHoursSpecification', opens: '00:00', closes: '00:00', validFrom: nt.from, validThrough: nt.until ?? nt.from }];
   const same = [...new Set([f.instagram && `https://instagram.com/${f.instagram.replace(/^@/, '')}`, f.tiktok && `https://www.tiktok.com/@${f.tiktok.replace(/^@/, '')}`, f.facebook && `https://facebook.com/${f.facebook}`, f.website, ...(Object.entries(f.links ?? {}) as [LinkId, string][]).filter(([id]) => LINKS[id].group === 'social' || LINKS[id].group === 'order').map(([, u]) => u)].filter(Boolean))];
   if (same.length) ld.sameAs = same;
   if (f.logo) ld.logo = `${opts.url}/${f.logo}`;
@@ -209,7 +214,12 @@ function now(){try{var p=new Intl.DateTimeFormat('en-GB',{timeZone:Z,weekday:'sh
 function t(m){var h=Math.floor(m/60)%24,mm=m%60,a=h>=12?'pm':'am';return((h%12)||12)+(mm?':'+(mm<10?'0':'')+mm:'')+a}
 function status(){if(!H)return null;var n=now(),today=H.filter(function(x){return x.day===n.d});for(var i=0;i<today.length;i++){if(n.m>=today[i].open&&n.m<today[i].close)return{open:true,text:'Open now',sub:'Closes '+t(today[i].close)}}
 for(var k=0;k<8;k++){var d=(n.d+k)%7,list=H.filter(function(x){return x.day===d&&(k>0||x.open>n.m)}).sort(function(a,b){return a.open-b.open});if(list.length)return{open:false,text:'Closed now',sub:'Opens '+(k===0?'':k===1?'tomorrow ':D[d]+' ')+t(list[0].open)}}return null}
-var s=status();if(s){document.querySelectorAll('[data-open]').forEach(function(e){e.textContent=s.text});document.querySelectorAll('[data-next]').forEach(function(e){e.textContent=s.sub});document.querySelectorAll('[data-open-pill]').forEach(function(e){e.hidden=false;e.className='hero-open '+(s.open?'is-open':'is-closed');e.textContent=s.text+' · '+s.sub})}
+var N=${JSON.stringify(nt ? { from: nt.from ?? '', until: nt.until ?? '', closed: !!nt.closed } : null)};
+function today(){try{return new Intl.DateTimeFormat('en-CA',{timeZone:Z,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())}catch(e){return new Date().toISOString().slice(0,10)}}
+var td=today(),nOn=!!N&&(!N.from||td>=N.from)&&(!N.until||td<=N.until);
+document.querySelectorAll('[data-notice]').forEach(function(e){if(!nOn)e.remove()});
+var s=status();if(nOn&&N.closed){var nx=N.until?new Date(N.until+'T12:00:00Z'):null;if(nx)nx.setUTCDate(nx.getUTCDate()+1);s={open:false,text:'Closed today',sub:nx?'Back '+D[nx.getUTCDay()]+' '+nx.getUTCDate()+' '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][nx.getUTCMonth()]:'See the notice above'}}
+if(s){document.querySelectorAll('[data-open]').forEach(function(e){e.textContent=s.text});document.querySelectorAll('[data-next]').forEach(function(e){e.textContent=s.sub});document.querySelectorAll('[data-open-pill]').forEach(function(e){e.hidden=false;e.className='hero-open '+(s.open?'is-open':'is-closed');e.textContent=s.text+' · '+s.sub})}
 if('IntersectionObserver'in window&&!matchMedia('(prefers-reduced-motion: reduce)').matches){var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}})},{rootMargin:'0px 0px -8% 0px'});document.querySelectorAll('.rv').forEach(function(e){io.observe(e)})}else document.querySelectorAll('.rv').forEach(function(e){e.classList.add('in')})})();`;
 
   const favicon = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="${pal.brand}"/><text x="32" y="44" font-family="Georgia,serif" font-size="36" font-weight="700" text-anchor="middle" fill="${pal.onBrand}">${esc(f.name.replace(/^(the|le|la)\s+/i, '').charAt(0).toUpperCase())}</text></svg>`)}`;
@@ -231,6 +241,7 @@ ${heroPhoto ? `<link rel="preload" as="image" href="${esc(heroPhoto.file)}">` : 
 <script type="application/ld+json">${JSON.stringify(ld).replace(/</g, '\\u003c')}</script>
 </head>
 <body class="t-${t.id} k-${f.kind}">
+${notice}
 ${hero}
 <main>
 ${(() => { const out = sections.map(section); const ci = sections.findIndex((x) => x.kind === 'cta'); const extra = `${!hasOffer && getBand ? `<section class="sect get-sect"><div class="wrap">${getBand}</div></section>` : ''}${bank}`; if (ci < 0) out.push(extra); else out.splice(ci, 0, extra); return out.join('\n'); })()}
@@ -241,7 +252,7 @@ ${bar}
 </body>
 </html>`;
 
-  const llms = `# ${f.name}\n\n> ${f.offer}\n\n${[...gets.map((l) => `- ${l.cta}: ${l.url}`), f.bank && `- Pay by transfer: ${f.bank.bank}, ${f.bank.accountName}, ${f.bank.accountNumber}`, f.address && `- Address: ${f.address}`, (f.phone ?? f.whatsapp) && `- Phone/WhatsApp: +${e164(f.phone ?? f.whatsapp, f.country)}`, f.hoursText && `- Hours: ${f.hoursText}`, f.rating && `- Google rating: ${f.rating} (${f.ratingCount} reviews)`, f.instagram && `- Instagram: https://instagram.com/${f.instagram.replace(/^@/, '')}`].filter(Boolean).join('\n')}\n\n## ${f.kind === 'food' ? 'Menu' : 'Offer'}\n\n${f.items.map((i) => `- ${i.name}${i.price ? `: ${showPrice(i.price, f.country)}` : ''}`).join('\n')}\n`;
+  const llms = `# ${f.name}\n\n> ${f.offer}\n\n${nt && (!nt.until || nt.until >= new Date().toISOString().slice(0, 10)) ? `Notice${nt.from || nt.until ? ` (${[nt.from, nt.until].filter(Boolean).join(' to ')})` : ''}: ${nt.text}${nt.closed ? ' (closed on these dates)' : ''}\n\n` : ''}${[...gets.map((l) => `- ${l.cta}: ${l.url}`), f.bank && `- Pay by transfer: ${f.bank.bank}, ${f.bank.accountName}, ${f.bank.accountNumber}`, f.address && `- Address: ${f.address}`, (f.phone ?? f.whatsapp) && `- Phone/WhatsApp: +${e164(f.phone ?? f.whatsapp, f.country)}`, f.hoursText && `- Hours: ${f.hoursText}`, f.rating && `- Google rating: ${f.rating} (${f.ratingCount} reviews)`, f.instagram && `- Instagram: https://instagram.com/${f.instagram.replace(/^@/, '')}`].filter(Boolean).join('\n')}\n\n## ${f.kind === 'food' ? 'Menu' : 'Offer'}\n\n${f.items.map((i) => `- ${i.name}${i.price ? `: ${showPrice(i.price, f.country)}` : ''}`).join('\n')}\n`;
   return { html, llms, robots: 'User-agent: *\nAllow: /\n' };
 }
 
@@ -301,6 +312,12 @@ ${t.rule ? '.sect+.sect{border-top:1px solid var(--line)}' : ''}
 .stars{display:inline-flex;gap:2px;color:#E0A100;vertical-align:-2px}.stars i{display:inline-flex;width:16px;height:16px;opacity:.28}.stars i.on{opacity:1}.stars svg{width:100%;height:100%}
 .price{font-variant-numeric:tabular-nums;font-weight:650;color:var(--brand-ink);white-space:nowrap}
 /* nav */
+.notice{position:relative;z-index:6;background:var(--deep);color:var(--on-deep);font-size:var(--s-1);line-height:1.4}
+.notice .wrap{display:flex;align-items:center;gap:.7em;padding-block:.7em;flex-wrap:wrap}
+.notice p{margin:0;flex:1 1 14em;font-weight:500}
+.notice a{color:inherit;font-weight:650;text-decoration:underline;text-underline-offset:3px;white-space:nowrap}
+.n-dot{width:8px;height:8px;border-radius:50%;background:#F5B83D;box-shadow:0 0 0 4px rgba(245,184,61,.28);flex:none}
+.n-closed .n-dot{background:#E5533D;box-shadow:0 0 0 4px rgba(229,83,61,.3)}
 .top{position:relative;z-index:5;padding-block:18px}
 .top .wrap{display:flex;align-items:center;justify-content:space-between;gap:16px}
 .brand-logo{width:40px;height:40px;border-radius:${'50%'};object-fit:cover;background:#fff}.top .brand{display:inline-flex;align-items:center;gap:10px}.brand{font-family:var(--display);font-weight:${Math.min(800, t.display.weight + 50)};font-size:1.3rem;letter-spacing:${t.display.tracking};text-decoration:none;${caps ? 'text-transform:uppercase;font-size:1.05rem;' : ''}${t.display.stretch ? `font-stretch:${t.display.stretch};` : ''}}

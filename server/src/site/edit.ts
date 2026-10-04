@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { DATA_DIR } from '../config.ts';
 import { renderSite } from './engine.ts';
-import { type Facts, type Item, type Photo, parseHours } from './facts.ts';
+import { type Facts, type Item, type Notice, type Photo, parseHours } from './facts.ts';
 import { validatePlan, type Plan } from './plan.ts';
 import { THEMES, type ThemeId } from './themes.ts';
 import { sanitizeBank, sanitizeLinks } from './links.ts';
@@ -21,7 +21,7 @@ export type SiteSource = {
   createdAt: string; updatedAt: string; versions: { at: string; plan: Plan; facts: Facts; hidden: string[] }[];
 };
 export type SitePatch = {
-  facts?: Partial<Pick<Facts, 'name' | 'offer' | 'phone' | 'whatsapp' | 'email' | 'address' | 'area' | 'city' | 'landmark' | 'hoursText' | 'delivery' | 'instagram' | 'tiktok' | 'facebook'>> & { items?: Partial<Item>[]; links?: unknown; bank?: unknown };
+  facts?: Partial<Pick<Facts, 'name' | 'offer' | 'phone' | 'whatsapp' | 'email' | 'address' | 'area' | 'city' | 'landmark' | 'hoursText' | 'delivery' | 'instagram' | 'tiktok' | 'facebook'>> & { items?: Partial<Item>[]; links?: unknown; bank?: unknown; notice?: unknown };
   plan?: { theme?: string; brand?: string; headline?: string; sub?: string; eyebrow?: string; heroPhoto?: string; gallery?: string[]; whatsappText?: string; hidden?: string[] };
 };
 
@@ -89,6 +89,7 @@ export function applyPatch(src: SiteSource, patch: SitePatch): { plan: Plan; fac
   }
   if ('links' in pf) facts.links = sanitizeLinks(pf.links);
   if ('bank' in pf) facts.bank = pf.bank ? sanitizeBank(pf.bank) : undefined;
+  if ('notice' in pf) { facts.notice = sanitizeNotice(pf.notice); if (facts.notice) owner.push(facts.notice.text); }
   if (owner.length) facts.sources = `${facts.sources}\n${owner.join('\n')}`; // the owner's own words are a source
 
   // the plan: a few safe controls; every item stays on the menu after an edit
@@ -115,6 +116,16 @@ export function applyPatch(src: SiteSource, patch: SitePatch): { plan: Plan; fac
   if (pp.brand && /^#[0-9a-fA-F]{6}$/.test(pp.brand)) checked.plan.brand = pp.brand.toUpperCase(); // the owner may pick any colour
   else checked.plan.brand = plan.brand;
   return { plan: checked.plan, facts, hidden, notes: checked.notes };
+}
+
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+/** The announcement bar: one line of the owner's text, optional dates (from ≤ until), closed or not, and where its link goes. */
+export function sanitizeNotice(raw: any): Notice | undefined {
+  const text = str(raw?.text, 140);
+  if (!text) return undefined;
+  let from = DAY.test(raw?.from ?? '') ? raw.from : undefined, until = DAY.test(raw?.until ?? '') ? raw.until : undefined;
+  if (from && until && until < from) [from, until] = [until, from];
+  return { text, ...(from ? { from } : {}), ...(until ? { until } : {}), ...(raw?.closed ? { closed: true } : {}), ...(raw?.link === 'whatsapp' || raw?.link === 'order' ? { link: raw.link } : {}) };
 }
 
 const visible = (plan: Plan, hidden: string[]): Plan => ({ ...plan, sections: plan.sections.filter((s) => !hidden.includes(s.kind)) });
@@ -169,7 +180,7 @@ export function editorView(src: SiteSource) {
   const f = src.facts;
   return {
     slug: src.slug, url: src.url, updatedAt: src.updatedAt, canUndo: src.versions.length > 0,
-    facts: { name: f.name, offer: f.offer, phone: f.phone, whatsapp: f.whatsapp, email: f.email, address: f.address, area: f.area, city: f.city, landmark: f.landmark, hoursText: f.hoursText, delivery: f.delivery, instagram: f.instagram, tiktok: f.tiktok, facebook: f.facebook, items: f.items.map((i) => ({ id: i.id, name: i.name, price: i.price, note: i.note, category: i.category })), links: f.links ?? {}, bank: f.bank ?? null, kind: f.kind },
+    facts: { name: f.name, offer: f.offer, phone: f.phone, whatsapp: f.whatsapp, email: f.email, address: f.address, area: f.area, city: f.city, landmark: f.landmark, hoursText: f.hoursText, delivery: f.delivery, instagram: f.instagram, tiktok: f.tiktok, facebook: f.facebook, items: f.items.map((i) => ({ id: i.id, name: i.name, price: i.price, note: i.note, category: i.category })), links: f.links ?? {}, bank: f.bank ?? null, notice: f.notice ?? null, kind: f.kind },
     plan: { theme: src.plan.theme, brand: src.plan.brand, headline: src.plan.hero.headline, sub: src.plan.hero.sub, eyebrow: src.plan.hero.eyebrow, heroPhoto: src.plan.hero.photo, gallery: (src.plan.sections.find((x) => x.kind === 'gallery') as { photos?: string[] } | undefined)?.photos ?? [], whatsappText: src.plan.whatsappText, sections: src.plan.sections.map((s) => s.kind), hidden: src.hidden },
     photos: src.photos.filter((p) => p.kind !== 'flyer').map((p) => ({ id: p.id, file: p.file, subject: p.subject })),
     themes: Object.values(THEMES).map((t) => ({ id: t.id, mood: t.mood })),
