@@ -65,7 +65,7 @@ export default function OfficePage() {
         <aside className="card pad">
           <h3 className="t">What just happened</h3>
           <Feed items={feed} />
-          <Link href="/hire/website" className="btn primary block" style={{ marginTop: 14 }}>Give the team a job</Link>
+          <Link href="/#services" className="btn primary block" style={{ marginTop: 14 }}>Give the team a job</Link>
         </aside>
       </div>
       <div className="roster">

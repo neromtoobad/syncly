@@ -31,7 +31,7 @@ Three rules hold all of it together:
 | Where | What you'll see |
 |---|---|
 | [Home](/) | The CFO and the vault, the money's path, the team, how a job works, and the live office |
-| [Hire the team](/hire/website) | Describe a job and get a signed quote with its price and bond |
+| [Hire the team](/#services) | Pick a service, describe the job and get a signed quote with its price and bond |
 | A job page | The team working live, the money on the job (quote, escrow, tools, release), the deliverable, and your decision |
 | [The office](/office) | An animated office where every movement is a real event |
 | [Syncly Pay](/pay) | Send an invoice or pay a supplier's bill; the agents check the payee and book it on Arc |

@@ -2,7 +2,7 @@
 // The home page, told by scrolling (after quickfleet.co): a full-bleed hero, the CFO on a blueprint, the
 // money's path from invoice to audit trail, the team on a pinned stage, how a job works on stacking cards,
 // the office, the services on a pinned index, and a dark close. Every number shown comes from the live API.
-import { useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Office from '@/office/Office.tsx';
@@ -38,7 +38,7 @@ function Hero({ stats }: { stats: Stats | null }) {
             <span className="hx__short">A real business staffed by AI agents, hired from 1 USDC a job. The CFO pays every agent and supplier in USDC on Arc, inside limits a smart contract enforces.</span>
           </Rv>
           <Rv className="hx__cta" delay={0.5}>
-            <Link href="/hire/website" className="pill white lg">Hire the team <Arrow /></Link>
+            <Link href="/#services" className="pill white lg">Hire the team <Arrow /></Link>
             <Link href="/#money" className="pill ghost lg">Follow the money <Arrow /></Link>
           </Rv>
         </div>
@@ -294,6 +294,8 @@ function Services({ services }: { services: Service[] }) {
   const list = [...services].sort((a, b) => Number(b.live) - Number(a.live));
   const [at, setAt] = useState(0);
   useStickyProgress(ref, (p) => setAt(Math.min(list.length - 1, Math.floor(p * list.length))));
+  // This section appears once the services load, after the browser has already tried to jump to #services.
+  useEffect(() => { if (location.hash === '#services') ref.current?.scrollIntoView({ block: 'start' }); }, []);
   const s = list[at];
   return (
     <section className="sv" id="services" ref={ref} style={{ ['--n' as any]: list.length }}>

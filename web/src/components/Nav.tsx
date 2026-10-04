@@ -28,14 +28,14 @@ export default function Nav() {
         </nav>
         <span className="nav__sp" />
         {data && <span className={`nav__status ${data.mode}`}><span className="dot" />{data.mode === 'demo' ? 'Demo mode' : 'Live on Arc'}</span>}
-        <Link href="/hire/website" className="pill dark nav__cta">Hire the team <span className="pill__ic">→</span></Link>
+        <Link href="/#services" className="pill dark nav__cta">Hire the team <span className="pill__ic">→</span></Link>
         <button className="pill dark nav__menu" aria-label="Menu" aria-expanded={menu} onClick={() => setMenu((m) => !m)}>
           Menu <span className="pill__ic">{menu ? '×' : '='}</span>
         </button>
       </div>
       <nav className="nav__sheet" aria-hidden={!menu}>
         {LINKS.map(([href, label], i) => <Link key={href} href={href} style={{ transitionDelay: `${menu ? 0.04 * i : 0}s` }}><span className="mono">0{i + 1}</span>{label}</Link>)}
-        <Link href="/hire/website" className="pill dark" style={{ justifySelf: 'start', marginTop: 12 }}>Hire the team <span className="pill__ic">→</span></Link>
+        <Link href="/#services" className="pill dark" style={{ justifySelf: 'start', marginTop: 12 }}>Hire the team <span className="pill__ic">→</span></Link>
       </nav>
     </header>
   );
