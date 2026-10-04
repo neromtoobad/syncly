@@ -1,4 +1,5 @@
 'use client';
+import BringMoney from '@/components/BringMoney.tsx';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -66,6 +67,7 @@ function EscrowPay({ order, cfg, onPaid }: { order: QuotedOrder; cfg: EscrowCfg;
   const [phase, setPhase] = useState<PayPhase>('idle');
   const [err, setErr] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [bring, setBring] = useState(false);
 
   async function pay() {
     setErr(null);
@@ -77,6 +79,7 @@ function EscrowPay({ order, cfg, onPaid }: { order: QuotedOrder; cfg: EscrowCfg;
       if (bal < q.priceUsd) {
         setPhase('idle');
         setErr(`This wallet has ${bal.toFixed(2)} USDC on ${cfg.chainName}. The job needs ${usd(q.priceUsd)} USDC, plus a few cents for gas.`);
+        setBring(true);
         return;
       }
       setPhase('opening');
@@ -114,6 +117,8 @@ function EscrowPay({ order, cfg, onPaid }: { order: QuotedOrder; cfg: EscrowCfg;
       </ol>
       {err && <div className="error">{err}</div>}
       <button className="btn primary lg block" disabled={phase !== 'idle' || wallet === null} onClick={pay}>{phase === 'idle' ? `Pay ${usd(q.priceUsd)} USDC into escrow →` : PAY_LABEL[phase]}</button>
+      <button className="btn ghost block" onClick={() => setBring(true)}>No USDC on Arc? Bring it from another chain →</button>
+      <BringMoney cfg={cfg} need={q.priceUsd + 0.05} open={bring} onClose={() => setBring(false)} onArrived={() => setErr(null)} />
       <p className="muted" style={{ fontSize: 13 }}>
         Your USDC goes into a <a href={cfg.explorer ? `${cfg.explorer}/address/${cfg.escrow}` : undefined} target="_blank" rel="noreferrer">contract on {cfg.chainName}</a>, not to us.
         Syncly is paid only when you accept, or after 48 h of silence. Reject it and the contract refunds you, plus the {usd(q.bondUsd)} USDC bond. Gas on Arc is paid in USDC too, a few cents.

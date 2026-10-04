@@ -986,3 +986,25 @@ label.check input { margin-top: 3px; }
 .screenbox.alert { border-color: #ecd9ae; background: #fffaf0; }
 .report p { font-size: 14.5px; color: var(--ink-2); margin: 0 0 10px; line-height: 1.55; }
 .report__subj { font-weight: 650; font-size: 16px; margin: 4px 0 12px; }
+
+/* bring money to Arc */
+.bm { display: grid; gap: 14px; }
+.bm-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; border-radius: 14px; background: var(--paper-2); }
+.bm-tabs button { border: 0; background: transparent; border-radius: 10px; padding: 10px 8px; font: inherit; font-size: 14px; font-weight: 600; color: var(--ink-2); cursor: pointer; }
+.bm-tabs button.on { background: #fff; color: var(--ink); box-shadow: var(--shadow-sm); }
+.bm-bal { display: flex; justify-content: space-between; gap: 10px; font-size: 13.5px; color: var(--muted); }
+.bm-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+.bm-row select, .bm-row input { width: 100%; }
+.bm-est { margin: 0; font-size: 14px; color: var(--ink-2); line-height: 1.5; min-height: 42px; }
+.bm-done { padding: 12px 14px; border-radius: 12px; background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; font-size: 14.5px; }
+.bm-steps { margin: 0; padding-left: 0; list-style: none; display: grid; gap: 4px; font-size: 13.5px; color: var(--ink-2); }
+.bm-ex { display: grid; gap: 12px; font-size: 14.5px; }
+.bm-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.bm-chips .chip { height: 30px; padding: 0 12px; border: 1px solid var(--line); font-size: 13.5px; }
+.bm-ex details summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+.bm-ex details ol { font-size: 13.5px; color: var(--ink-2); margin: 10px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+.bm-sheet { position: fixed; inset: 0; z-index: 80; background: rgba(15, 42, 30, 0.42); display: flex; align-items: flex-end; justify-content: center; padding: 16px; }
+.bm-card { width: min(560px, 100%); max-height: calc(100dvh - 32px); overflow: auto; }
+.bm-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+@media (min-width: 720px) { .bm-sheet { align-items: center; } }
+.bm-row select { appearance: none; -webkit-appearance: none; width: 100%; height: 52px; border: 1px solid var(--line); border-radius: 12px; background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%2366726A' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 14px center; padding: 0 36px 0 14px; font: inherit; font-size: 16px; color: var(--ink); }

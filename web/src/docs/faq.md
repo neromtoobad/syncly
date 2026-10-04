@@ -11,7 +11,13 @@ No. Your first website is free and needs only an email. For paid jobs you need a
 
 ## How do I get USDC on Arc?
 
-Withdraw USDC from an exchange that supports the Arc network, or bridge USDC from another chain with Circle's CCTP. You need the job's price plus a few cents, because Arc charges gas in USDC.
+Use [Get USDC on Arc](/arc), which is also one tap away on every checkout:
+
+- **USDC on another chain** (Base, Ethereum, Arbitrum, Optimism, Polygon, Avalanche and more) moves over Circle's CCTP in under a minute. Circle's forwarder mints it on Arc for you, so you need no Arc gas to receive it. The fee is about 0.02 USDC.
+- **ETH, POL, AVAX or USDT** is swapped into USDC and lands on Arc in one step.
+- **From an exchange:** Binance, Bybit, OKX, Kraken, KuCoin, Gate and Bitget let you withdraw USDC on the Arc network. In naira, buy USDC on Bybit P2P and withdraw it to Arc.
+
+All of it runs on Circle App Kit from your own wallet; Syncly never holds the money. You need the job's price plus a few cents, because Arc charges gas in USDC.
 
 ## What if I don't like the work?
 

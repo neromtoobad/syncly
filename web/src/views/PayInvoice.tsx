@@ -1,5 +1,6 @@
 'use client';
 // One invoice or bill, payable once, to the payee fixed on Arc. The payer's wallet signs; the server only reads the chain.
+import BringMoney from '@/components/BringMoney.tsx';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { Address, Hex } from 'viem';
@@ -28,6 +29,7 @@ function PayBox({ d, onPaid }: { d: PayDocView; onPaid: (d: PayDocView) => void 
   useEffect(() => setWallet(hasWallet()), []);
   const [phase, setPhase] = useState<Phase>('idle');
   const [err, setErr] = useState<string | null>(null);
+  const [bring, setBring] = useState(false);
 
   async function pay() {
     setErr(null);
@@ -50,14 +52,8 @@ function PayBox({ d, onPaid }: { d: PayDocView; onPaid: (d: PayDocView) => void 
         : wallet === false ? <div className="note">Open this page in your wallet app’s browser (OKX, MetaMask, Rabby, Coinbase Wallet) to pay. You need {f2(d.amountUsd)} USDC on Arc plus a few cents for gas.</div> : null}
       {err && <div className="error">{err}</div>}
       <button className="btn primary lg block" disabled={phase !== 'idle' || (d.mode !== 'demo' && wallet === false)} onClick={pay}>{phase === 'idle' ? `Pay ${f2(d.amountUsd)} USDC →` : PHASE[phase]}</button>
-      <details>
-        <summary style={{ cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>No USDC on Arc? Pay with naira through Bybit</summary>
-        <ol style={{ fontSize: 13.5, color: 'var(--ink-2)', margin: '10px 0 0', paddingLeft: 18, display: 'grid', gap: 4 }}>
-          <li>In Bybit, open <b>P2P → Buy → USDC</b> and pay a seller {ngn(d.amountUsd + 0.1).replace('≈ ', '')} by bank transfer (Opay, Kuda, Moniepoint…).</li>
-          <li>Go to <b>Assets → Withdraw → USDC</b>, choose network <b>Arc</b>, and send it to your wallet’s address.</li>
-          <li>Come back here and pay. (Bybit is covering Arc withdrawal fees for now.)</li>
-        </ol>
-      </details>
+      {d.mode !== 'demo' && cfg && <button className="btn ghost block" onClick={() => setBring(true)}>No USDC on Arc? Bring it from another chain, swap, or buy with naira →</button>}
+      {cfg && <BringMoney cfg={cfg} need={d.amountUsd + 0.05} open={bring} onClose={() => setBring(false)} />}
     </div>
   );
 }

@@ -36,6 +36,7 @@ export default function Footer() {
             <li><a href="https://explorer.arc.io/address/0xde2ca0c975a1f5789f9b79fe578d43ccf417edbd" target="_blank" rel="noreferrer">JobEscrow ↗</a></li>
             <li><a href="https://explorer.arc.io/address/0x7b0530865040dc44a9cc90270396d7c5bcac8f93" target="_blank" rel="noreferrer">InvoiceBook ↗</a></li>
             <li><a href="https://explorer.arc.io/address/0x2d9f8eb4bb30f89a92c5acbee68223ee572f3641" target="_blank" rel="noreferrer">PayVault ↗</a></li>
+            <li><a href="/arc">Get USDC on Arc</a></li>
           </ul>
         </div>
       </div>

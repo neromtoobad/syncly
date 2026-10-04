@@ -20,6 +20,7 @@ const ESCROW = parseAbi([
 
 const provider = () => (typeof window === 'undefined' ? undefined : ((window as any).ethereum as EIP1193Provider | undefined));
 export const hasWallet = () => !!provider();
+export const getProvider = provider;
 
 const chainOf = (c: EscrowCfg): Chain => ({
   id: c.chainId, name: c.chainName,
