@@ -16,6 +16,8 @@ import { bus, type SynclyEvent } from './bus.ts';
 import { CATALOG, findService } from './services/index.ts';
 import { cleanDetails, detailsBrief, type BusinessDetails } from './details.ts';
 import { MAX_BYTES, allowUpload, readUpload, saveUpload } from './uploads.ts';
+import { addPhoto, applyPatch, editorView, previewHtml, publishPatch, sourceByToken, undoLast } from './site/edit.ts';
+import { LINKS, chowdeckHours, readChowdeck, samePhone } from './site/links.ts';
 import { autoAcceptDue, createQuote, decide, escrowPending, getOrder, noteForRevision, openEscrow, readJob, replay, resumeInterrupted, retry, start, syncEscrow } from './orders.ts';
 import { escrowConfig, refreshBondFree } from './escrow.ts';
 import { MODE as CFO_MODE, POLICY as CFO_POLICY, freshSnapshot, startTreasury, teamShortfall } from './cfo/treasury.ts';
@@ -258,6 +260,67 @@ const site = (c: any) => {
 app.get('/s/:slug', site);
 app.get('/s/:slug/', site);
 app.get('/s/:slug/:file', site);
+
+// The owner's site editor, behind the private link in their delivery email: edit the facts (prices, hours, menu,
+// ordering and payment links, bank details) and the look, preview, publish, undo. Pages are re-rendered by the engine.
+const editHits = new Map<string, number[]>();
+const editAllowed = (c: any, kind: string, max: number) => {
+  const who = `${kind}:${c.req.header('x-forwarded-for')?.split(',')[0].trim() || 'local'}`, now = Date.now();
+  const hits = (editHits.get(who) ?? []).filter((t) => now - t < 3600_000);
+  if (hits.length >= max) return false;
+  editHits.set(who, [...hits, now]);
+  return true;
+};
+const editable = (c: any) => {
+  const src = sourceByToken(c.req.param('token'));
+  if (!src) return c.json({ error: 'This edit link is not valid. Use the link in your delivery email.' }, 404) as Response;
+  if (existsSync(join(SITE_FINISHED, src.slug, 'index.html'))) return c.json({ error: 'This site was finished by hand, so it can only be changed by asking us. Reply to your delivery email.' }, 409) as Response;
+  return src;
+};
+app.get('/api/site-edit/:token', (c) => {
+  if (!editAllowed(c, 'get', 120)) return c.json({ error: 'Too many requests from here in the last hour. Try again later.' }, 429);
+  const src = editable(c);
+  return src instanceof Response ? src : c.json({ ...editorView(src), integrations: Object.entries(LINKS).map(([id, d]) => ({ id, label: d.label, group: d.group, hint: d.hint })) });
+});
+app.post('/api/site-edit/:token/preview', async (c) => {
+  if (!editAllowed(c, 'preview', 600)) return c.json({ error: 'Too many previews from here in the last hour. Try again later.' }, 429);
+  const src = editable(c);
+  if (src instanceof Response) return src;
+  try { const patch = await c.req.json(); return c.json({ html: previewHtml(src, patch), notes: applyPatch(src, patch).notes }); } catch (e) { return fail(c, e); }
+});
+app.post('/api/site-edit/:token/publish', async (c) => {
+  if (!editAllowed(c, 'publish', 40)) return c.json({ error: 'Too many changes from here in the last hour. Try again later.' }, 429);
+  const src = editable(c);
+  if (src instanceof Response) return src;
+  try { const next = publishPatch(src, await c.req.json()); return c.json(editorView(next)); } catch (e) { return fail(c, e); }
+});
+app.post('/api/site-edit/:token/undo', (c) => {
+  if (!editAllowed(c, 'publish', 40)) return c.json({ error: 'Too many changes from here in the last hour. Try again later.' }, 429);
+  const src = editable(c);
+  if (src instanceof Response) return src;
+  try { return c.json(editorView(undoLast(src))); } catch (e) { return fail(c, e); }
+});
+app.post('/api/site-edit/:token/photo', async (c) => {
+  if (!editAllowed(c, 'photo', 30)) return c.json({ error: 'Too many photos from here in the last hour. Try again later.' }, 429);
+  const src = editable(c);
+  if (src instanceof Response) return src;
+  const b = await c.req.json().catch(() => ({} as any));
+  try { const p = await addPhoto(src, String(b.upload ?? ''), b.caption); return c.json({ id: p.id, file: p.file, subject: p.subject }); } catch (e) { return fail(c, e); }
+});
+// Bring a Chowdeck store's menu and hours into the editor (the owner still reviews and publishes). When the store's
+// phone differs from the site's, the editor asks before importing, so a wrong link doesn't fill the site with another menu.
+app.post('/api/site-edit/:token/chowdeck', async (c) => {
+  if (!editAllowed(c, 'chowdeck', 12)) return c.json({ error: 'Too many imports from here in the last hour. Try again later.' }, 429);
+  const src = editable(c);
+  if (src instanceof Response) return src;
+  const b = await c.req.json().catch(() => ({} as any));
+  try {
+    const store = await readChowdeck(String(b.url ?? ''));
+    const phones = [src.facts.phone, src.facts.whatsapp, b.phone].filter(Boolean) as string[];
+    const matches = !store.phone || phones.some((p) => samePhone(p, store.phone));
+    return c.json({ url: store.url, name: store.name, phone: store.phone, phoneMatches: matches, items: store.items, hoursText: chowdeckHours(store) });
+  } catch (e) { return fail(c, e); }
+});
 
 // ---------------------------------------------------------------- Syncly Pay: a business's invoices and bills, booked on Arc
 const payHits = new Map<string, number[]>();

@@ -1,6 +1,7 @@
 // The site engine: a plan + facts + photos in, one fast static page out. All design decisions live here
 // (type scale, spacing, palette roles, section layouts, motion); the model only chose what goes where.
 // Every phone number, price, address, hour and review is rendered from the facts, never from model text.
+import { linksIn, LINKS, type LinkId } from './links.ts';
 import type { Facts, Photo } from './facts.ts';
 import { e164, hoursLines, prettyPhone, priceValue, showPrice, telLink, waLink } from './facts.ts';
 import type { Action, Plan, Section } from './plan.ts';
@@ -20,6 +21,11 @@ const ICON = {
   tag: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M3.5 12.5V4.5a1 1 0 0 1 1-1h8l8 8-9 9-8-8Z"/><circle cx="8" cy="8" r="1.4" fill="currentColor"/></svg>',
   tiktok: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M14 4c.4 2.6 2 4.2 4.6 4.5v3a8 8 0 0 1-4.6-1.5V15a5.5 5.5 0 1 1-5.5-5.5v3.1A2.4 2.4 0 1 0 11 15V4h3Z"/></svg>',
   fb: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M14 8.5h2.5V5H14a3.5 3.5 0 0 0-3.5 3.5V11H8v3.5h2.5V21H14v-6.5h2.5L17 11h-3V9a.5.5 0 0 1 .5-.5Z"/></svg>',
+  bag: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M5 8h14l-1.2 12H6.2L5 8Z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M9 10V7a3 3 0 0 1 6 0v3"/></svg>',
+  cal: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5.5" width="16" height="14.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 10h16M8.5 3.5v4m7-4v4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  ticket: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M4 7.5h16v3a2 2 0 0 0 0 4v3H4v-3a2 2 0 0 0 0-4v-3Z"/><path d="M14 8v8" stroke="currentColor" stroke-width="1.8" stroke-dasharray="1.6 1.6"/></svg>',
+  bank: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M3.5 9 12 4.5 20.5 9M5 9.5V17m4.7-7.5V17m4.6-7.5V17M19 9.5V17M3.5 19.5h17"/></svg>',
+  out: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h9v9M18 6 7 17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   ig: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="17.3" cy="6.7" r="1.1" fill="currentColor"/></svg>',
 };
 const stars = (n: number) => `<span class="stars" aria-label="${n} out of 5">${Array.from({ length: 5 }, (_, i) => `<i class="${i < Math.round(n) ? 'on' : ''}">${ICON.star}</i>`).join('')}</span>`;
@@ -37,6 +43,13 @@ export function renderSite(plan: Plan, f: Facts, photos: Photo[], opts: { url: s
   const tel = telLink(f.phone ?? f.whatsapp, f.country);
   const dir = f.mapsUrl ?? (f.address ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${f.name}, ${f.address}`)}` : undefined);
   const hasOffer = plan.sections.some((s) => s.kind === 'offer');
+  const GROUP_ICON = { order: ICON.bag, shop: ICON.bag, book: ICON.cal, tickets: ICON.ticket } as const;
+  const gets = (['order', 'book', 'tickets', 'shop'] as const).flatMap((g) => linksIn(f.links, g).map((l) => ({ ...l, g })));
+  const getTitle = gets.length ? ({ order: f.kind === 'food' ? 'Order online' : 'Order online', book: 'Book online', tickets: 'Get tickets', shop: 'Shop online' } as const)[gets[0].g] : '';
+  const getBtn = (l: (typeof gets)[number], cls: string) => `<a class="btn ${cls}" href="${esc(l.url)}" target="_blank" rel="noopener">${GROUP_ICON[l.g]}<span>${esc(l.cta)}</span></a>`;
+  const getBand = gets.length ? `<div class="get rv"><p class="label">${esc(getTitle)}</p><div class="get-row">${gets.map((l) => getBtn(l, 'btn-plat')).join('')}</div></div>` : '';
+  const bank = f.bank ? `<section id="pay" class="sect pay"><div class="wrap narrow"><div class="bankcard rv"><p class="label">${ICON.bank} Pay by bank transfer</p><p class="acct"><span class="acct-no" data-acct>${esc(f.bank.accountNumber.replace(/(\d{3})(\d{3})(\d{4})/, '$1 $2 $3'))}</span><button class="copy" type="button" data-copy="${esc(f.bank.accountNumber)}">Copy</button></p><p class="acct-meta"><b>${esc(f.bank.accountName)}</b><span>${esc(f.bank.bank)}</span></p>${f.bank.note ? `<p class="muted">${esc(f.bank.note)}</p>` : ''}${chat ? `<p class="muted small">Send your proof of payment on <a href="${esc(wa(`Hello ${f.name}, I've just paid by transfer.`))}" target="_blank" rel="noopener">WhatsApp</a>.</p>` : ''}</div></div></section>` : '';
+  const reviewLink = f.links?.review;
   const priced = f.items.some((i) => i.price);
   const showsWork = ['creative', 'beauty', 'events'].includes(f.kind);
 
@@ -114,7 +127,7 @@ export function renderSite(plan: Plan, f: Facts, photos: Photo[], opts: { url: s
         } else {
           body = `<ol class="svc-list">${rows.map((r) => `<li class="rv"><div class="svc-h"><h3>${esc(r.it.name)}</h3>${price(r.it.price)}</div>${r.desc || r.it.note ? `<p>${esc(r.desc ?? r.it.note)}</p>` : ''}</li>`).join('')}</ol>`;
         }
-        return `<section id="offer" class="sect offer offer-${s.variant}"><div class="wrap"><header class="sect-head rv">${h(2, s.title)}${s.intro ? `<p class="lede">${esc(s.intro)}</p>` : ''}</header>${body}${chat ? `<p class="offer-cta rv">${btn('whatsapp', 'btn-ghost')}</p>` : ''}</div></section>`;
+        return `<section id="offer" class="sect offer offer-${s.variant}"><div class="wrap"><header class="sect-head rv">${h(2, s.title)}${s.intro ? `<p class="lede">${esc(s.intro)}</p>` : ''}</header>${body}${getBand || (chat ? `<p class="offer-cta rv">${btn('whatsapp', 'btn-ghost')}</p>` : '')}</div></section>`;
       }
       case 'gallery': {
         const own = [...new Set(s.photos.filter((id) => ph.has(id) && !used.has(id)))];
@@ -129,8 +142,8 @@ export function renderSite(plan: Plan, f: Facts, photos: Photo[], opts: { url: s
       case 'reviews': {
         const rs = s.ids.map((id) => review.get(id)!).filter(Boolean);
         const quotes = rs.map((r) => `<figure class="quote rv"><span class="qmark" aria-hidden="true">“</span><blockquote>${esc(r.text)}</blockquote><figcaption>${stars(r.rating)}<span>${esc(r.who)} · Google review</span></figcaption></figure>`).join('');
-        if (s.variant === 'summary' && f.rating) return `<section id="reviews" class="sect reviews reviews-summary"><div class="wrap"><div class="score rv"><p class="label">${esc(s.title)}</p><p class="big">${f.rating.toFixed(1)}</p>${stars(f.rating)}<p class="muted">from ${f.ratingCount} Google review${f.ratingCount === 1 ? '' : 's'}</p></div><div class="quotes">${quotes}</div></div></section>`;
-        return `<section id="reviews" class="sect reviews"><div class="wrap"><header class="sect-head rv">${h(2, s.title)}${f.rating && f.ratingCount ? `<p class="lede rating">${stars(f.rating)} <b>${f.rating.toFixed(1)}</b> from ${f.ratingCount} Google reviews</p>` : ''}</header><div class="quotes">${quotes}</div></div></section>`;
+        if (s.variant === 'summary' && f.rating) return `<section id="reviews" class="sect reviews reviews-summary"><div class="wrap"><div class="score rv"><p class="label">${esc(s.title)}</p><p class="big">${f.rating.toFixed(1)}</p>${stars(f.rating)}<p class="muted">from ${f.ratingCount} Google review${f.ratingCount === 1 ? '' : 's'}</p>${reviewLink ? `<p class="review-cta"><a class="btn btn-ghost" href="${esc(reviewLink)}" target="_blank" rel="noopener">${ICON.star}<span>Review us</span></a></p>` : ''}</div><div class="quotes">${quotes}</div></div></section>`;
+        return `<section id="reviews" class="sect reviews"><div class="wrap"><header class="sect-head rv">${h(2, s.title)}${f.rating && f.ratingCount ? `<p class="lede rating">${stars(f.rating)} <b>${f.rating.toFixed(1)}</b> from ${f.ratingCount} Google reviews</p>` : ''}</header><div class="quotes">${quotes}</div>${reviewLink ? `<p class="review-cta rv"><a class="btn btn-ghost" href="${esc(reviewLink)}" target="_blank" rel="noopener">${ICON.star}<span>Review us on Google</span></a></p>` : ''}</div></section>`;
       }
       case 'about': {
         if (s.variant === 'statement') {
@@ -162,7 +175,8 @@ export function renderSite(plan: Plan, f: Facts, photos: Photo[], opts: { url: s
   // ---------- hero
   const hr = plan.hero;
   const nav = `<nav class="top${hr.variant === 'photo' ? ' on-photo' : ''}"><div class="wrap"><a class="brand" href="#top">${f.logo ? `<img class="brand-logo" src="${esc(f.logo)}" alt="" width="40" height="40">` : ''}<span>${esc(f.name)}</span></a><div class="top-links">${showsWork && gi >= 0 ? '<a href="#work">Work</a>' : ''}${hasOffer ? `<a href="#offer">${f.kind === 'food' ? 'Menu' : priced ? 'Prices' : 'Services'}</a>` : ''}${plan.sections.some((s) => s.kind === 'reviews') ? '<a href="#reviews">Reviews</a>' : ''}${plan.sections.some((s) => s.kind === 'location') ? '<a href="#visit">Visit</a>' : ''}${chat ? `<a class="btn btn-small" href="${esc(wa())}" target="_blank" rel="noopener">${ICON.whatsapp}<span>WhatsApp</span></a>` : ''}</div></div></nav>`;
-  const heroText = `${hr.eyebrow ? `<p class="label hero-eyebrow">${esc(hr.eyebrow)}</p>` : ''}${h(1, hr.headline, hr.accent, 'hero-h')}<p class="hero-sub">${esc(hr.sub)}</p><p class="btns hero-btns">${btn(hr.primary)}${hr.secondary ? btn(hr.secondary, hr.variant === 'photo' || hr.variant === 'type' ? 'btn-line' : 'btn-ghost') : ''}</p>${f.hours ? '<p class="hero-open" data-open-pill hidden></p>' : ''}`;
+  const heroAlt = hr.variant === 'photo' || hr.variant === 'type' ? 'btn-line' : 'btn-ghost';
+  const heroText = `${hr.eyebrow ? `<p class="label hero-eyebrow">${esc(hr.eyebrow)}</p>` : ''}${h(1, hr.headline, hr.accent, 'hero-h')}<p class="hero-sub">${esc(hr.sub)}</p><p class="btns hero-btns">${btn(hr.primary)}${gets[0] ? getBtn(gets[0], heroAlt) : hr.secondary ? btn(hr.secondary, heroAlt) : ''}</p>${f.hours ? '<p class="hero-open" data-open-pill hidden></p>' : ''}`;
   const hero = hr.variant === 'photo'
     ? `<header id="top" class="hero hero-photo">${img(hr.photo, '100vw', 'hero-bg', true)}<div class="scrim"></div>${nav}<div class="wrap hero-in">${heroText}</div></header>`
     : hr.variant === 'split'
@@ -173,7 +187,7 @@ export function renderSite(plan: Plan, f: Facts, photos: Photo[], opts: { url: s
 
   const bar = chat || tel || dir ? `<div class="bar" role="navigation" aria-label="Contact">${chat ? `<a class="b-wa" href="${esc(wa())}" target="_blank" rel="noopener">${ICON.whatsapp}<span>WhatsApp</span></a>` : ''}${tel ? `<a href="${esc(tel)}">${ICON.phone}<span>Call</span></a>` : ''}${dir ? `<a href="${esc(dir)}" target="_blank" rel="noopener">${ICON.pin}<span>Directions</span></a>` : ''}</div>${chat ? `<a class="float-wa" href="${esc(wa())}" target="_blank" rel="noopener" aria-label="Chat on WhatsApp">${ICON.whatsapp}</a>` : ''}` : '';
 
-  const footer = `<footer class="foot"><div class="wrap"><div><p class="brand">${esc(f.name)}</p><p class="muted">${esc(f.offer)}</p></div><ul>${f.address ? `<li>${ICON.pin}<span>${esc(f.address)}</span></li>` : ''}${tel ? `<li>${ICON.phone}<a href="${esc(tel)}">${esc(prettyPhone(f.phone ?? f.whatsapp, f.country))}</a></li>` : ''}${f.instagram ? `<li>${ICON.ig}<a href="https://instagram.com/${esc(f.instagram.replace(/^@/, ''))}" target="_blank" rel="noopener">@${esc(f.instagram.replace(/^@/, ''))}</a></li>` : ''}${f.tiktok ? `<li>${ICON.tiktok}<a href="https://www.tiktok.com/@${esc(f.tiktok.replace(/^@/, ''))}" target="_blank" rel="noopener">TikTok @${esc(f.tiktok.replace(/^@/, ''))}</a></li>` : ''}${f.facebook ? `<li>${ICON.fb}<a href="https://facebook.com/${esc(f.facebook)}" target="_blank" rel="noopener">Facebook</a></li>` : ''}${f.email ? `<li><a href="mailto:${esc(f.email)}">${esc(f.email)}</a></li>` : ''}</ul><p class="fine">© ${opts.year ?? new Date().getFullYear()} ${esc(f.name)} · <a href="https://hiresyncly.site" target="_blank" rel="noopener">Site by Syncly</a></p></div></footer>`;
+  const footer = `<footer class="foot"><div class="wrap"><div><p class="brand">${esc(f.name)}</p><p class="muted">${esc(f.offer)}</p></div><ul>${f.address ? `<li>${ICON.pin}<span>${esc(f.address)}</span></li>` : ''}${tel ? `<li>${ICON.phone}<a href="${esc(tel)}">${esc(prettyPhone(f.phone ?? f.whatsapp, f.country))}</a></li>` : ''}${f.instagram ? `<li>${ICON.ig}<a href="https://instagram.com/${esc(f.instagram.replace(/^@/, ''))}" target="_blank" rel="noopener">@${esc(f.instagram.replace(/^@/, ''))}</a></li>` : ''}${f.tiktok ? `<li>${ICON.tiktok}<a href="https://www.tiktok.com/@${esc(f.tiktok.replace(/^@/, ''))}" target="_blank" rel="noopener">TikTok @${esc(f.tiktok.replace(/^@/, ''))}</a></li>` : ''}${f.facebook ? `<li>${ICON.fb}<a href="https://facebook.com/${esc(f.facebook)}" target="_blank" rel="noopener">Facebook</a></li>` : ''}${linksIn(f.links, 'social').filter((l) => !(l.id === 'instagram' && f.instagram) && !(l.id === 'tiktok' && f.tiktok) && !(l.id === 'facebook' && f.facebook)).map((l) => `<li>${l.id === 'instagram' ? ICON.ig : l.id === 'tiktok' ? ICON.tiktok : l.id === 'facebook' ? ICON.fb : ICON.out}<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)}</a></li>`).join('')}${f.email ? `<li><a href="mailto:${esc(f.email)}">${esc(f.email)}</a></li>` : ''}</ul><p class="fine">© ${opts.year ?? new Date().getFullYear()} ${esc(f.name)} · <a href="https://hiresyncly.site" target="_blank" rel="noopener">Site by Syncly</a></p></div></footer>`;
 
   // ---------- structured data (only known facts; no self-serving review markup)
   const ldType = { food: 'Restaurant', beauty: 'BeautySalon', health: 'MedicalBusiness', retail: 'Store', creative: 'ProfessionalService', events: 'ProfessionalService', professional: 'ProfessionalService', other: 'LocalBusiness' }[f.kind];
@@ -181,7 +195,7 @@ export function renderSite(plan: Plan, f: Facts, photos: Photo[], opts: { url: s
   if (f.phone ?? f.whatsapp) ld.telephone = `+${e164(f.phone ?? f.whatsapp, f.country)}`;
   if (f.address) ld.address = { '@type': 'PostalAddress', streetAddress: f.address, addressLocality: f.area ?? f.city, addressRegion: f.city, addressCountry: f.country };
   if (f.hours) ld.openingHoursSpecification = f.hours.map((x) => ({ '@type': 'OpeningHoursSpecification', dayOfWeek: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][x.day], opens: `${String(Math.floor(x.open / 60)).padStart(2, '0')}:${String(x.open % 60).padStart(2, '0')}`, closes: `${String(Math.floor(Math.min(x.close, 1439) / 60)).padStart(2, '0')}:${String(Math.min(x.close, 1439) % 60).padStart(2, '0')}` }));
-  const same = [f.instagram && `https://instagram.com/${f.instagram.replace(/^@/, '')}`, f.tiktok && `https://www.tiktok.com/@${f.tiktok.replace(/^@/, '')}`, f.facebook && `https://facebook.com/${f.facebook}`, f.website].filter(Boolean);
+  const same = [...new Set([f.instagram && `https://instagram.com/${f.instagram.replace(/^@/, '')}`, f.tiktok && `https://www.tiktok.com/@${f.tiktok.replace(/^@/, '')}`, f.facebook && `https://facebook.com/${f.facebook}`, f.website, ...(Object.entries(f.links ?? {}) as [LinkId, string][]).filter(([id]) => LINKS[id].group === 'social' || LINKS[id].group === 'order').map(([, u]) => u)].filter(Boolean))];
   if (same.length) ld.sameAs = same;
   if (f.logo) ld.logo = `${opts.url}/${f.logo}`;
   const heroPhoto = hr.photo ? ph.get(hr.photo) : undefined;
@@ -189,6 +203,7 @@ export function renderSite(plan: Plan, f: Facts, photos: Photo[], opts: { url: s
 
   const css = styles(t, pal);
   const script = `document.documentElement.classList.add('js');
+document.querySelectorAll('[data-copy]').forEach(function(b){b.addEventListener('click',function(){var v=b.getAttribute('data-copy');var done=function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1800)};if(navigator.clipboard){navigator.clipboard.writeText(v).then(done,function(){})}else{var t=document.createElement('textarea');t.value=v;document.body.appendChild(t);t.select();try{document.execCommand('copy');done()}catch(e){}t.remove()}})});
 (function(){var H=${JSON.stringify(f.hours ?? null)},Z=${JSON.stringify(TZ[f.country] ?? 'Africa/Lagos')},D=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 function now(){try{var p=new Intl.DateTimeFormat('en-GB',{timeZone:Z,weekday:'short',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date()),o={};p.forEach(function(x){o[x.type]=x.value});return{d:D.indexOf(o.weekday),m:+o.hour*60+ +o.minute}}catch(e){var d=new Date();return{d:d.getDay(),m:d.getHours()*60+d.getMinutes()}}}
 function t(m){var h=Math.floor(m/60)%24,mm=m%60,a=h>=12?'pm':'am';return((h%12)||12)+(mm?':'+(mm<10?'0':'')+mm:'')+a}
@@ -218,7 +233,7 @@ ${heroPhoto ? `<link rel="preload" as="image" href="${esc(heroPhoto.file)}">` : 
 <body class="t-${t.id} k-${f.kind}">
 ${hero}
 <main>
-${sections.map(section).join('\n')}
+${(() => { const out = sections.map(section); const ci = sections.findIndex((x) => x.kind === 'cta'); const extra = `${!hasOffer && getBand ? `<section class="sect get-sect"><div class="wrap">${getBand}</div></section>` : ''}${bank}`; if (ci < 0) out.push(extra); else out.splice(ci, 0, extra); return out.join('\n'); })()}
 </main>
 ${footer}
 ${bar}
@@ -226,7 +241,7 @@ ${bar}
 </body>
 </html>`;
 
-  const llms = `# ${f.name}\n\n> ${f.offer}\n\n${[f.address && `- Address: ${f.address}`, (f.phone ?? f.whatsapp) && `- Phone/WhatsApp: +${e164(f.phone ?? f.whatsapp, f.country)}`, f.hoursText && `- Hours: ${f.hoursText}`, f.rating && `- Google rating: ${f.rating} (${f.ratingCount} reviews)`, f.instagram && `- Instagram: https://instagram.com/${f.instagram.replace(/^@/, '')}`].filter(Boolean).join('\n')}\n\n## ${f.kind === 'food' ? 'Menu' : 'Offer'}\n\n${f.items.map((i) => `- ${i.name}${i.price ? `: ${showPrice(i.price, f.country)}` : ''}`).join('\n')}\n`;
+  const llms = `# ${f.name}\n\n> ${f.offer}\n\n${[...gets.map((l) => `- ${l.cta}: ${l.url}`), f.bank && `- Pay by transfer: ${f.bank.bank}, ${f.bank.accountName}, ${f.bank.accountNumber}`, f.address && `- Address: ${f.address}`, (f.phone ?? f.whatsapp) && `- Phone/WhatsApp: +${e164(f.phone ?? f.whatsapp, f.country)}`, f.hoursText && `- Hours: ${f.hoursText}`, f.rating && `- Google rating: ${f.rating} (${f.ratingCount} reviews)`, f.instagram && `- Instagram: https://instagram.com/${f.instagram.replace(/^@/, '')}`].filter(Boolean).join('\n')}\n\n## ${f.kind === 'food' ? 'Menu' : 'Offer'}\n\n${f.items.map((i) => `- ${i.name}${i.price ? `: ${showPrice(i.price, f.country)}` : ''}`).join('\n')}\n`;
   return { html, llms, robots: 'User-agent: *\nAllow: /\n' };
 }
 
@@ -264,6 +279,18 @@ ${t.rule ? '.sect+.sect{border-top:1px solid var(--line)}' : ''}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:.6em;min-height:52px;padding:0 1.45em;border-radius:var(--r-btn);font:600 1rem/1 var(--body);text-decoration:none;letter-spacing:${caps ? '.02em' : '0'};transition:transform .25s var(--ease),background .25s,color .25s,box-shadow .25s;-webkit-tap-highlight-color:transparent}
 .btn svg{width:1.25em;height:1.25em;flex:none}
 .btn:active{transform:scale(.97)}
+.get{margin-top:clamp(28px,4vw,44px);padding-top:clamp(22px,3vw,30px);border-top:1px solid var(--line);display:grid;gap:.4rem}.get .label{margin:0}
+.get-row{display:flex;flex-wrap:wrap;gap:.6rem}
+.btn-plat{background:var(--surface);color:var(--ink);border:1px solid var(--line);min-height:48px}.btn-plat:hover{border-color:var(--brand);color:var(--brand-ink)}
+.get-sect{padding-block:calc(var(--sect)*.55)}.get-sect .get{margin-top:0;border-top:0;padding-top:0}
+.pay{padding-block:calc(var(--sect)*.7)}
+.bankcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-card);padding:clamp(22px,4vw,36px);display:grid;gap:.7rem;max-width:560px;margin-inline:auto;text-align:center}
+.bankcard .label{display:inline-flex;align-items:center;justify-content:center;gap:.5em;margin:0}.bankcard .label svg{width:1.2em;height:1.2em}
+.acct{display:flex;align-items:center;justify-content:center;gap:.8rem;flex-wrap:wrap;margin:0}
+.acct-no{font-family:var(--mono);font-size:var(--s4);letter-spacing:.04em;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+.copy{font:600 .9rem/1 var(--body);padding:.7em 1.1em;border-radius:999px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}.copy:hover{border-color:var(--brand)}
+.acct-meta{margin:0;display:grid;gap:.15rem}.acct-meta b{font-size:var(--s1)}.acct-meta span{color:var(--muted)}
+.small{font-size:var(--s-1)}.review-cta{margin-top:clamp(24px,4vw,40px)}
 .btn-primary{background:var(--brand);color:var(--on-brand);box-shadow:0 10px 24px -12px color-mix(in srgb,var(--brand) 70%,transparent)}
 .btn-primary:hover{background:color-mix(in srgb,var(--brand) 88%,var(--ink))}
 .btn-ghost{border:1.5px solid color-mix(in srgb,var(--ink) 22%,transparent);color:var(--ink)}

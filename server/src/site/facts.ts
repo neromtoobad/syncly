@@ -41,6 +41,8 @@ export type Facts = {
   reviews: Review[];
   delivery?: string;
   payments?: string[];
+  links?: import('./links.ts').Links; // ordering, booking, shop, tickets, review and social links (see links.ts)
+  bank?: import('./links.ts').Bank; // "pay by transfer" details, shown with a copy button
   sources: string; // every text the facts came from, for checking copy against
 };
 

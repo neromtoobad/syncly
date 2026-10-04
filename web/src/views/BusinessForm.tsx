@@ -8,6 +8,7 @@ export type Details = {
   name: string; kind: string; offer: string; area: string; city: string;
   whatsapp: string; phone: string; email: string; address: string; maps: string;
   instagram: string; tiktok: string; facebook: string; website: string;
+  links: string; bankName: string; bankNumber: string; bankAccountName: string;
   menu: string; story: string; style: string; colour: string; sections: string[]; notes: string;
   logo?: string; photos: string[];
   platforms: string[]; goal: string; competitors: string; tone: string;
@@ -30,7 +31,7 @@ const THEMES: { id: string; name: string; mood: string; font: string; bg: string
 ];
 const SECTIONS: [string, string][] = [['offer', 'Menu / prices'], ['gallery', 'Photo gallery'], ['reviews', 'Google reviews'], ['about', 'About us'], ['steps', 'How to order or book'], ['location', 'Map & opening hours'], ['faq', 'Questions & answers']];
 const SWATCHES = ['#C0392B', '#D4380D', '#E67E22', '#D4A017', '#2E7D32', '#0F766E', '#1D4ED8', '#6D28D9', '#BE185D', '#111827'];
-const EMPTY: Details = { name: '', kind: 'food', offer: '', area: '', city: 'Lagos', whatsapp: '', phone: '', email: '', address: '', maps: '', instagram: '', tiktok: '', facebook: '', website: '', menu: '', story: '', style: 'auto', colour: '', sections: SECTIONS.map(([k]) => k), notes: '', photos: [], platforms: ['instagram', 'tiktok'], goal: '', competitors: '', tone: '', promote: '', price: '', cta: 'whatsapp', format: 'vertical', length: 16, questions: '', searches: '', adGoal: 'messages', adBudget: '', adPlatforms: ['meta'], audience: '', adResults: [], product: '', uses: ['instagram', 'whatsapp'], look: 'clean', items: '', deliverTo: '', budget: '', condition: 'new', sellers: '' };
+const EMPTY: Details = { name: '', kind: 'food', offer: '', area: '', city: 'Lagos', whatsapp: '', phone: '', email: '', address: '', maps: '', instagram: '', tiktok: '', facebook: '', website: '', links: '', bankName: '', bankNumber: '', bankAccountName: '', menu: '', story: '', style: 'auto', colour: '', sections: SECTIONS.map(([k]) => k), notes: '', photos: [], platforms: ['instagram', 'tiktok'], goal: '', competitors: '', tone: '', promote: '', price: '', cta: 'whatsapp', format: 'vertical', length: 16, questions: '', searches: '', adGoal: 'messages', adBudget: '', adPlatforms: ['meta'], audience: '', adResults: [], product: '', uses: ['instagram', 'whatsapp'], look: 'clean', items: '', deliverTo: '', budget: '', condition: 'new', sellers: '' };
 const PLATFORMS: [string, string][] = [['instagram', 'Instagram'], ['tiktok', 'TikTok'], ['whatsapp-status', 'WhatsApp Status'], ['facebook', 'Facebook'], ['x', 'X'], ['linkedin', 'LinkedIn']];
 const GOALS = ['More orders this month', 'More bookings', 'More followers who buy', 'Launch a new product', 'Fill quiet weekdays'];
 const TONES = ['Warm and friendly', 'Playful, Lagos street', 'Premium and calm', 'Bold and loud', 'Expert and trustworthy'];
@@ -55,7 +56,9 @@ const KEY = 'syncly:business';
 export function saveBusiness(details: Record<string, unknown>) {
   try {
     const was = JSON.parse(localStorage.getItem(KEY) ?? '{}');
-    const d = { ...details, competitors: Array.isArray(details.competitors) ? (details.competitors as string[]).join(' ') : details.competitors };
+    const bank = details.bank as { bank?: string; accountNumber?: string; accountName?: string } | undefined;
+    const { bank: _b, ...rest } = details;
+    const d = { ...rest, competitors: Array.isArray(details.competitors) ? (details.competitors as string[]).join(' ') : details.competitors, links: Array.isArray(details.links) ? (details.links as string[]).join('\n') : details.links, ...(bank ? { bankName: bank.bank, bankNumber: bank.accountNumber, bankAccountName: bank.accountName } : {}) };
     localStorage.setItem(KEY, JSON.stringify({ ...EMPTY, ...was, ...Object.fromEntries(Object.entries(d).filter(([, v]) => v !== undefined && v !== null)) }));
   } catch {}
 }
@@ -71,7 +74,7 @@ async function shrink(file: File): Promise<Blob> {
     return await new Promise<Blob>((r, j) => c.toBlob((b) => (b ? r(b) : j(new Error('encode'))), 'image/jpeg', 0.86));
   } catch { return file; }
 }
-async function upload(files: File[]): Promise<string[]> {
+export async function upload(files: File[]): Promise<string[]> {
   const fd = new FormData();
   for (const f of files) fd.append('file', await shrink(f), f.name.replace(/\.\w+$/, '.jpg'));
   const r = await fetch('/api/uploads', { method: 'POST', body: fd });
@@ -191,6 +194,11 @@ export default function BusinessForm({ service, onSubmit, busy, email, setEmail,
           <div className="two-up">{text('instagram', 'Instagram', '@yourbusiness')}{text('tiktok', 'TikTok', '@yourbusiness')}</div>
           <div className="two-up">{text('facebook', 'Facebook page', 'yourbusiness')}{text('website', 'Current website', 'yourbusiness.com')}</div>
           {text('email', 'Business email (shown on the site)', 'hello@yourbusiness.com', undefined, 'email')}
+          <label className="field">Where customers already order, book or pay <span className="hint">Optional. Paste your Chowdeck, Glovo, Heyfood, Paystack, Selar, Bumpa, Fresha, Calendly or Tix link, one per line. Each becomes a button on your site, and we bring in your Chowdeck menu and prices.</span>
+            <textarea style={{ minHeight: 76 }} value={d.links} onChange={(e) => set('links', e.target.value)} placeholder={'https://chowdeck.com/store/…\nhttps://paystack.shop/…'} />
+          </label>
+          <div className="two-up">{text('bankName', 'Bank, for transfers', 'Moniepoint, OPay, GTBank…', 'Optional. Shown with a copy button.')}{text('bankNumber', 'Account number', '10 digits', ' ')}</div>
+          {d.bankNumber.trim() && text('bankAccountName', 'Account name', 'As it shows on the transfer')}
         </div>
       )}
 

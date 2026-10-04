@@ -56,6 +56,19 @@ curl -N https://hiresyncly.site/api/events
 | `POST /api/pay/bills/:id/approve` | `{ token, confirmPayee?, notDuplicate?, payee? }` | Books an approved bill on Arc. A changed payout address or a likely duplicate needs the matching confirmation. |
 | `POST /api/pay/docs/:id/cancel` | `{ token }` | Cancels an unpaid invoice or bill |
 
+## Site editor
+
+The private link in a website's delivery email (`/edit/<token>`). The token is never shown on the order page.
+
+| Endpoint | Body | Notes |
+|---|---|---|
+| `GET /api/site-edit/:token` | | The site's editable facts (items, hours, links, bank details) and look, its photos, the themes and the integrations it knows |
+| `POST /api/site-edit/:token/preview` | `{ facts?, plan? }` | Only the changed fields. Returns the page re-rendered by the site engine; nothing goes live |
+| `POST /api/site-edit/:token/publish` | `{ facts?, plan? }` | Puts the change live and keeps the previous version (the last 10) |
+| `POST /api/site-edit/:token/undo` | | Puts the previous version back |
+| `POST /api/site-edit/:token/photo` | `{ upload, caption? }` | Adds a photo uploaded via `/api/uploads` |
+| `POST /api/site-edit/:token/chowdeck` | `{ url }` | Reads a Chowdeck store's menu, ₦ prices and hours for the owner to review; flags a store whose phone isn't the site's |
+
 ## Example: get a quote
 
 ```bash

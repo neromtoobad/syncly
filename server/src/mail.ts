@@ -13,6 +13,7 @@ import { DATA_DIR, DRY } from './config.ts';
 import { buy } from './x402.ts';
 import type { Job } from './job.ts';
 import type { Order } from './orders.ts';
+import { editLinkFor } from './site/edit.ts';
 
 const PRESETS = {
   aisa: { vendor: 'AgentMail (AIsa)', base: 'https://api.aisa.one/apis/v2/agentmail', inboxUsd: 0.1, sendUsd: 0.1 },
@@ -69,6 +70,7 @@ const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 
 export function compose(job: Pick<Job, 'deliverable' | 'files'>, o: Order) {
   const link = `${PUBLIC_URL}/job/${o.id}`;
+  const edit = o.service === 'website' ? editLinkFor(o.id, PUBLIC_URL) : undefined;
   const name = SERVICE[o.service] ?? o.service;
   const revised = o.revisionNote !== undefined;
   // A subject is one line (Resend refuses a newline, and form briefs have several): the business name, or the brief's start.
@@ -80,7 +82,7 @@ export function compose(job: Pick<Job, 'deliverable' | 'files'>, o: Order) {
       ? 'This one was your free first job. Tell us on the job page if it was good.'
       : 'Accept, revise or reject it on the job page.';
   const subject = `${revised ? 'Revised: ' : ''}your ${name} is ready · ${brief}`;
-  const text = `The Syncly team finished your job.\n\n"${o.brief}"\n\n${job.deliverable}\n\n${decide}\n${link}\n\nYour job page shows every step the team took. ${MAIL ? 'This email was sent and paid for by our Messenger agent, in USDC on Arc.' : 'This email was sent by our Messenger agent.'}\n`;
+  const text = `The Syncly team finished your job.\n\n"${o.brief}"\n\n${job.deliverable}\n\n${edit ? `Edit your site yourself (prices, hours, menu, Chowdeck and payment links, bank details, photos, colours): ${edit}\nKeep this link to yourself: anyone with it can change your site.\n\n` : ''}${decide}\n${link}\n\nYour job page shows every step the team took. ${MAIL ? 'This email was sent and paid for by our Messenger agent, in USDC on Arc.' : 'This email was sent by our Messenger agent.'}\n`;
   const html = `<div style="background:#faf7f1;padding:28px 12px;font-family:Inter,Segoe UI,Helvetica,Arial,sans-serif;color:#1b1a17">
 <div style="max-width:640px;margin:0 auto;background:#fff;border:1px solid #ebe5d8;border-radius:18px;padding:28px">
 <div style="font-family:Georgia,serif;letter-spacing:.18em;font-size:14px;color:#17473b;margin-bottom:18px">SYNCLY</div>
@@ -88,6 +90,7 @@ export function compose(job: Pick<Job, 'deliverable' | 'files'>, o: Order) {
 <p style="font-size:14px;color:#4b4841;margin:0 0 18px">"${esc(o.brief)}"</p>
 <p style="margin:0 0 22px"><a href="${link}" style="display:inline-block;background:#17473b;color:#fff;text-decoration:none;padding:12px 20px;border-radius:999px;font-weight:600;font-size:14px">Review &amp; decide →</a></p>
 <div style="font-size:14px;line-height:1.55;border-top:1px solid #ebe5d8;padding-top:14px">${render(job.deliverable)}</div>
+${edit ? `<div style="border:1px solid #cfe0d8;background:#f1f7f4;border-radius:14px;padding:14px 16px;margin:18px 0 0"><p style="font-size:14px;margin:0 0 8px;font-weight:600">Edit your site yourself</p><p style="font-size:13.5px;color:#4b4841;margin:0 0 12px">Prices, hours, your menu, your Chowdeck, Glovo, Paystack or booking link, bank details for transfers, photos and colours. Changes go live in seconds, and you can undo.</p><a href="${edit}" style="display:inline-block;background:#fff;color:#17473b;border:1px solid #17473b;text-decoration:none;padding:9px 16px;border-radius:999px;font-weight:600;font-size:13.5px">Open your site editor →</a><p style="font-size:12px;color:#847d70;margin:10px 0 0">Keep this link to yourself: anyone with it can change your site.</p></div>` : ''}
 <p style="font-size:13.5px;color:#4b4841;background:#f3eee4;border-radius:12px;padding:12px 14px;margin:18px 0 0">${esc(decide)}</p>
 <p style="font-size:12px;color:#847d70;margin:18px 0 0">Your <a href="${link}" style="color:#17473b">job page</a> shows every step the team took. ${MAIL ? 'This email was sent, and paid for, by our Messenger agent in USDC on Arc.' : 'This email was sent by our Messenger agent.'}</p>
 </div></div>`;

@@ -20,6 +20,10 @@ Use [Get USDC on Arc](/arc), which is also one tap away on every checkout:
 
 All of it runs on Circle App Kit from your own wallet; Syncly never holds the money. You need the job's price plus a few cents, because Arc charges gas in USDC.
 
+## Can I change my website after it's delivered?
+
+Yes. Your delivery email has a private link to your site's editor. Change prices, hours and your menu, add the places you already sell (Chowdeck, Glovo, Heyfood, Paystack, Flutterwave, Selar, Bumpa, Jumia, Jiji, your WhatsApp catalogue), booking pages (Calendly, Fresha), tickets (Tix Africa, Eventbrite), your Google review link and your bank details for transfers. Swap photos, the colour and the style, and hide sections. You see a preview first, Publish puts it live in seconds, and Undo puts the last version back. If you sell on Chowdeck, paste your store link and the editor brings in your menu and prices. Keep the link to yourself: anyone with it can change your site.
+
 ## What if I don't like the work?
 
 Ask for one free revision with a note, or reject it. Rejecting returns your payment in full and pays you the bond on top. See [Escrow payments](/docs/escrow).

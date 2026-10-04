@@ -27,6 +27,8 @@ import { THEMES, themeMenu, type ThemeId } from '../site/themes.ts';
 import { readUpload } from '../uploads.ts';
 import type { BusinessDetails } from '../details.ts';
 import { e164 } from '../site/facts.ts';
+import { chowdeckHours, classify, cleanUrl, readChowdeck, type ChowdeckStore, type Links } from '../site/links.ts';
+import { keepSource } from '../site/edit.ts';
 
 type Spec = { business: string; kind: Kind; category: string; offer: string; area?: string; city?: string; country: string; phone?: string; whatsapp?: string; email?: string; instagram?: string; website?: string; look?: string; mapsQuery: string };
 
@@ -124,6 +126,25 @@ export const website = {
         } catch (e: any) { job.log('reader', 'skip', `Instagram unavailable (${String(e?.message ?? e).slice(0, 50)})`); }
       }
 
+      // 3b. Where they already sell, book and get paid: links from the form, the brief and the Google listing.
+      // A Chowdeck store link brings its menu, ₦ prices and hours, read in code like the owner's own price list.
+      const links: Links = {};
+      for (const u of [...(d?.links ?? []), spec.website, place?.website, ...brief.split(/[\s,()<>"']+/).filter((w) => /\.[a-z]{2,}\//i.test(w))]) {
+        const id = classify(u ?? '');
+        if (id && !links[id]) links[id] = cleanUrl(u)!;
+      }
+      if (Object.keys(links).length) job.log('reader', 'links', `found ${Object.keys(links).join(', ')} link${Object.keys(links).length === 1 ? '' : 's'}: wired into the site as buttons`);
+      let chow: ChowdeckStore | undefined;
+      if (links.chowdeck) {
+        try {
+          job.log('reader', 'chowdeck', 'their Chowdeck store: the menu, ₦ prices and opening hours');
+          chow = await readChowdeck(links.chowdeck);
+          if (chow.items.length) sources.push(`Their Chowdeck menu: ${chow.items.slice(0, 40).map((i) => `${i.name}${i.price ? ` ${i.price}` : ''}`).join(' | ')}`);
+          if (chow.address || chow.phone) sources.push(`Their Chowdeck store: ${chow.address ?? ''}; ${chow.phone ?? ''}`);
+          job.log('reader', 'chowdeck', `${chow.items.length} items on the menu${chow.hours?.length ? ', opening hours' : ''}`);
+        } catch (e: any) { job.log('reader', 'skip', `Chowdeck page unreadable (${String(e?.message ?? e).slice(0, 60)})`); }
+      }
+
       // 4. Items and prices, each tied to the words it came from
       const sourceText = sources.join('\n');
       job.log('analyst', 'extract', 'what they sell and the prices they publish');
@@ -141,6 +162,7 @@ export const website = {
       // the owner's own price list comes first, read in code; the model's finds fill in the rest
       for (const it of parseMenu(d?.menu)) items.push({ ...it, id: `i${items.length + 1}` });
       const have = new Set(items.map((i) => norm(i.name)));
+      for (const it of (chow?.items ?? []).slice(0, 40)) if (!have.has(norm(it.name))) { items.push({ ...it, id: `i${items.length + 1}` }); have.add(norm(it.name)); }
       for (const it of ex.items ?? []) {
         if (it?.name && have.has(norm(it.name))) continue;
         if (!it?.name) continue;
@@ -181,12 +203,13 @@ export const website = {
       const facts: Facts = {
         name: spec.business, kind: spec.kind, category: spec.category || place?.category, offer: spec.offer,
         area: spec.area ?? undefined, city: spec.city ?? undefined, country: (spec.country || 'NG').toUpperCase(),
-        address: place?.address, landmark: ex.landmark ?? undefined,
-        phone: spec.phone ?? place?.phone, whatsapp: spec.whatsapp ?? spec.phone ?? undefined, email: spec.email ?? undefined,
+        address: place?.address ?? chow?.address, landmark: ex.landmark ?? undefined,
+        phone: spec.phone ?? place?.phone ?? chow?.phone, whatsapp: spec.whatsapp ?? spec.phone ?? undefined, email: spec.email ?? undefined,
         instagram: ig ? `@${ig}` : undefined, tiktok: d?.tiktok, facebook: d?.facebook, website: spec.website ?? undefined, mapsUrl: d?.maps, logo: logoFile,
         ...(d?.address ? { address: d.address } : {}),
-        hoursText: place?.hours, hours: parseHours(place?.hours), rating: place?.rating, ratingCount: place?.ratingCount,
+        hoursText: place?.hours ?? chowdeckHours(chow), hours: parseHours(place?.hours ?? chowdeckHours(chow)), rating: place?.rating, ratingCount: place?.ratingCount,
         items, reviews, delivery: ex.delivery ?? undefined, payments: ex.payments, sources: sourceText,
+        links: Object.keys(links).length ? links : undefined, bank: d?.bank,
       };
       job.log('analyst', 'facts', `${items.length} items (${items.filter((i) => i.price).length} with published prices), ${reviews.length} real reviews, ${photos.filter((p) => !['flyer', 'logo'].includes(p.kind)).length} usable photos${facts.hours ? ', opening hours' : ''}`);
 
@@ -280,7 +303,8 @@ Reply with JSON only: {"theme","brand","title","description","hero":{"variant","
         } catch (e: any) { job.log('auditor', 'skip', `Lighthouse unavailable (${String(e?.message ?? e).slice(0, 60)})`); }
       }
 
-      // 10. Deliver
+      // 10. Deliver. The inputs are kept so the owner can edit the site later; the private edit link goes in their email only.
+      keepSource({ slug, url, plan, facts, photos, candidates, orderId: job.orderId, email: spec.email ?? undefined });
       const theme = THEMES[plan.theme];
       job.files.push({ name: `${slug}.zip`, content: zip([{ name: 'index.html', data: rendered.html }, { name: 'llms.txt', data: rendered.llms }, { name: 'robots.txt', data: rendered.robots }, ...files.map((f) => ({ name: f.name, data: f.buf }))]) });
       job.files.push({ name: 'phone.jpg', content: look.jpg['phone-top'] }, { name: 'phone-full.jpg', content: look.jpg.phone }, { name: 'laptop.jpg', content: look.jpg.laptop });
@@ -295,13 +319,15 @@ Reply with JSON only: {"theme","brand","title","description","hero":{"variant","
         `- **WhatsApp everywhere:** a button on the first screen, a contact bar fixed to the bottom of every phone screen${facts.address ? ', directions to your address' : ''}${facts.hours ? ', and a live "open now" from your Google hours' : ''}`,
         `- **${items.length} items${items.some((i) => i.price) ? ` with ${items.filter((i) => i.price).length} published prices` : ''}**, ${reviews.length ? `${reviews.length} real Google reviews quoted word for word` : 'no testimonials (we only show real reviews)'}, and ${used.size} of your own photos`,
         `- **Found on Google and by AI assistants:** your business details marked up for search, plus an \`llms.txt\` summary`,
+        Object.keys(links).length || facts.bank ? `- **Where you already sell:** ${[...Object.keys(links).map((k) => k[0].toUpperCase() + k.slice(1)), ...(facts.bank ? ['pay-by-transfer details with a copy button'] : [])].join(', ')}${chow?.items.length ? ` (your Chowdeck menu and prices were read straight from your store)` : ''}` : '',
         `## Checks`,
         `- **Facts:** every price, phone number, address and review on the page comes from your listing, your posts or your brief; the page can't show one that doesn't.${issues.length ? ` Open notes on the copy: ${issues.join('; ')}.` : ''}`,
         `- **Looked at on a phone and a laptop:** ${look.issues.length ? `open notes: ${look.issues.join('; ')}` : 'no problems found'}.`,
         scores ? `- **Lighthouse (mobile):** ${Object.entries(scores).map(([k, v]) => `${k.replace(/[-_]/g, ' ')} ${v}`).join(' · ')}` : '- **Lighthouse:** runs on the live page once it is published on the public server.',
         notes.length ? `- **Adjusted automatically:** ${notes.join('; ')}.` : '',
         `## Changes`,
-        `Ask for a revision on this order and say what to change: wording, photos, colours, sections, or a different theme. To use your own domain, point it at any static host and upload the zip.`,
+        `**Edit it yourself, any time:** your email has a private link to your site's editor. Change prices, hours and your menu, add your Chowdeck, Glovo, Paystack or booking link and your bank details for transfers, swap photos and colours, and it's live in seconds.`,
+        `Or ask for a revision on this order and say what to change. To use your own domain, point it at any static host and upload the zip.`,
       ].filter(Boolean).join('\n\n');
       job.qa = { verdict: issues.length || look.issues.length ? 'revise' : 'pass', notes: [...issues, ...look.issues].join(' | ') || `site live at /s/${slug}; ${plan.theme} theme`, model: `rules + ${MODELS.vision}` };
       job.status = 'delivered';

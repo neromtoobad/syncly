@@ -141,7 +141,7 @@ Real money has to flow for the CFO to manage it, so Syncly sells work small busi
 
 | Service | Price | What you get |
 |---|---|---|
-| Website | 2 USDC | A designed site from the Google listing, Instagram and the owner's photos, hosted at a link the same day, plus the files |
+| Website | 2 USDC | A designed site from the Google listing, Instagram and the owner's photos, hosted at a link the same day, plus the files. It wires in where the business already sells (Chowdeck, with its menu and ₦ prices read from the store, Glovo, Heyfood, Paystack, Flutterwave, Selar, Bumpa, Fresha, Calendly, Tix and more) and a pay-by-transfer card, and the owner gets a private editor to change prices, hours, links and photos themselves |
 | Content Pack | 2 USDC | The content styles working in the niche this week (backed by real posts and their numbers), then 7 posts and 3 images |
 | Ad Launch | 2 USDC | 3 ad angles from ads that have run 30+ days, feed and Story creatives, an 8 s video, copy, and a 7-day plan for the budget; diagnoses the ads they already ran |
 | Motion Ad | 1 USDC | A 12–24 s motion video with an original soundtrack, rendered on our own server |
