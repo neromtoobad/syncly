@@ -6,13 +6,14 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Address } from 'viem';
 import { connect, getProvider, hasWallet, short, usdcBalance, walletError, type EscrowCfg } from '@/wallet.ts';
+import { useApi } from '@/lib.tsx';
 
 const BRIDGE_FROM: [string, string][] = [['Base', 'Base'], ['Ethereum', 'Ethereum'], ['Arbitrum', 'Arbitrum'], ['Optimism', 'Optimism'], ['Polygon', 'Polygon'], ['Avalanche', 'Avalanche'], ['Linea', 'Linea'], ['Unichain', 'Unichain'], ['World_Chain', 'World Chain']];
 const SWAP_FROM: [string, string, string][] = [['Base', 'Base', 'ETH'], ['Ethereum', 'Ethereum', 'ETH'], ['Arbitrum', 'Arbitrum', 'ETH'], ['Optimism', 'Optimism', 'ETH'], ['Polygon', 'Polygon', 'POL'], ['Avalanche', 'Avalanche', 'AVAX']];
 const EXCHANGES = ['Binance', 'Bybit', 'OKX', 'Kraken', 'KuCoin', 'Gate', 'Bitget'];
 const STEP: Record<string, string> = { approve: 'Approved', burn: 'Sent', fetchAttestation: 'Confirmed by Circle', mint: 'Arrived on Arc', forward: 'Arrived on Arc', swap: 'Swapped' };
 
-type Tab = 'bridge' | 'swap' | 'exchange';
+type Tab = 'bridge' | 'swap' | 'card' | 'exchange';
 type Step = { label: string; tx?: string; url?: string };
 type Kit = { kit: any; adapter: any };
 
@@ -42,6 +43,7 @@ export function BringMoneyPanel({ cfg, need, onArrived }: { cfg: EscrowCfg; need
   const [err, setErr] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const kitRef = useRef<Promise<Kit> | null>(null);
+  const { data: ramp } = useApi<{ enabled: boolean; regions: string; methods: string[] }>('/api/onramp/config');
   useEffect(() => setWallet(hasWallet()), []);
 
   const kit = () => (kitRef.current ??= loadKit().catch((e) => { kitRef.current = null; throw e; }));
@@ -56,7 +58,7 @@ export function BringMoneyPanel({ cfg, need, onArrived }: { cfg: EscrowCfg; need
 
   // a fresh estimate whenever the inputs change (after the wallet is connected)
   useEffect(() => {
-    if (!who || tab === 'exchange' || !(Number(amount) > 0)) { setEstimate(null); return; }
+    if (!who || tab === 'exchange' || tab === 'card' || !(Number(amount) > 0)) { setEstimate(null); return; }
     let live = true;
     const t = setTimeout(async () => {
       try {
@@ -117,13 +119,13 @@ export function BringMoneyPanel({ cfg, need, onArrived }: { cfg: EscrowCfg; need
   );
   return (
     <div className="bm">
-      <div className="bm-tabs" role="tablist">
-        {([['bridge', 'USDC on another chain'], ['swap', 'ETH or USDT'], ['exchange', 'From an exchange']] as [Tab, string][]).map(([id, t]) => (
+      <div className="bm-tabs" role="tablist" style={{ gridTemplateColumns: `repeat(${ramp?.enabled ? 4 : 3}, 1fr)` }}>
+        {([['bridge', 'USDC on another chain'], ['swap', 'ETH or USDT'], ...(ramp?.enabled ? [['card', 'Card or bank']] : []), ['exchange', 'From an exchange']] as [Tab, string][]).map(([id, t]) => (
           <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => { setTab(id); setErr(null); setDone(null); }}>{t}</button>
         ))}
       </div>
       {who && <div className="bm-bal"><span className="mono">{short(who)}</span><span>{arcBal === null ? '…' : `${fmt(arcBal)} USDC on Arc`}{need ? ` · this payment needs ${fmt(need)}` : ''}</span></div>}
-      {tab === 'exchange' ? <Exchanges who={who} onConnect={() => void ensureWho().catch((e) => setErr(walletError(e)))} /> : (
+      {tab === 'card' ? <CardOnramp who={who} regions={ramp?.regions ?? 'the US, UK and EU'} connect={ensureWho} onSettled={() => { if (who) void refresh(who); onArrived?.(); }} /> : tab === 'exchange' ? <Exchanges who={who} onConnect={() => void ensureWho().catch((e) => setErr(walletError(e)))} /> : (
         <>
           <div className="bm-row">
             {tab === 'bridge' ? (
@@ -168,6 +170,50 @@ export function BringMoneyPanel({ cfg, need, onArrived }: { cfg: EscrowCfg; need
       </div>
     );
   }
+}
+
+/** Buy USDC on Arc with Apple Pay, Google Pay, a debit card or a bank transfer: Circle's Arc Onramp widget. */
+function CardOnramp({ who, regions, connect: connectWallet, onSettled }: { who: Address | null; regions: string; connect: () => Promise<Address>; onSettled: () => void }) {
+  const box = useRef<HTMLDivElement>(null);
+  const widget = useRef<{ close: () => void } | null>(null);
+  const [state, setState] = useState<'idle' | 'starting' | 'open' | 'done'>('idle');
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => () => widget.current?.close(), []);
+  async function start() {
+    setErr(null); setState('starting');
+    try {
+      const to = who ?? (await connectWallet());
+      const { createOnrampKit, fetchOnrampSession } = await import('@circle-fin/onramp-kit');
+      const mint = () => fetchOnrampSession({ url: '/api/onramp/sessions', body: { appUserId: 'syncly', destinationAddress: to, page: location.pathname } as any });
+      const onramp = createOnrampKit();
+      const mount = (session: any) => {
+        widget.current?.close();
+        widget.current = onramp.mountIframe({
+          session, container: box.current!,
+          onDepositSettled: () => { setState('done'); onSettled(); },
+          onSessionExpired: async () => mount(await mint()),
+          onInitializationError: ({ code }: any) => setErr(`The card checkout could not load (${code}). Try again in a minute.`),
+        });
+      };
+      setState('open');
+      await new Promise((r) => requestAnimationFrame(r)); // the container must be on the page and sized first
+      mount(await mint());
+    } catch (e: any) { setErr(e?.message ? String(e.message).split('\n')[0] : walletError(e)); setState('idle'); }
+  }
+  return (
+    <div className="bm-card-ramp">
+      {state !== 'open' && state !== 'done' && (
+        <>
+          <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.5 }}>Buy USDC on Arc with <b>Apple Pay, Google Pay, a debit card or a bank transfer</b>, straight into your wallet. For now it works in <b>{regions}</b>. A one-time ID check is done by Transak, which processes the payment for Circle.</p>
+          {err && <div className="error">{err}</div>}
+          <button className="btn primary block" disabled={state === 'starting'} onClick={start}>{state === 'starting' ? 'Opening the checkout…' : who ? 'Buy USDC with a card or bank' : 'Connect your wallet to buy USDC'}</button>
+        </>
+      )}
+      {state === 'done' && <div className="bm-done">Paid. Your USDC is on its way to your wallet on Arc.</div>}
+      <div ref={box} className="bm-ramp" style={{ display: state === 'open' || state === 'done' ? 'block' : 'none' }} />
+      <p className="muted" style={{ fontSize: 12.5, margin: 0 }}>Powered by Circle’s Arc Onramp. Syncly never sees your card or bank details.</p>
+    </div>
+  );
 }
 
 /** The panel as a sheet over the page, for "not enough USDC on Arc" moments in a checkout. */

@@ -15,6 +15,7 @@ Use [Get USDC on Arc](/arc), which is also one tap away on every checkout:
 
 - **USDC on another chain** (Base, Ethereum, Arbitrum, Optimism, Polygon, Avalanche and more) moves over Circle's CCTP in under a minute. Circle's forwarder mints it on Arc for you, so you need no Arc gas to receive it. The fee is about 0.02 USDC.
 - **ETH, POL, AVAX or USDT** is swapped into USDC and lands on Arc in one step.
+- **A card or bank transfer** (Apple Pay, Google Pay, debit card, or bank transfer in some places) buys USDC straight into your wallet on Arc, through Circle's Arc Onramp. For now it serves the US, UK and EU, with a one-time ID check by Transak.
 - **From an exchange:** Binance, Bybit, OKX, Kraken, KuCoin, Gate and Bitget let you withdraw USDC on the Arc network. In naira, buy USDC on Bybit P2P and withdraw it to Arc.
 
 All of it runs on Circle App Kit from your own wallet; Syncly never holds the money. You need the job's price plus a few cents, because Arc charges gas in USDC.

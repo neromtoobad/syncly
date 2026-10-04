@@ -1008,3 +1008,7 @@ label.check input { margin-top: 3px; }
 .bm-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 @media (min-width: 720px) { .bm-sheet { align-items: center; } }
 .bm-row select { appearance: none; -webkit-appearance: none; width: 100%; height: 52px; border: 1px solid var(--line); border-radius: 12px; background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%2366726A' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 14px center; padding: 0 36px 0 14px; font: inherit; font-size: 16px; color: var(--ink); }
+.bm-card-ramp { display: grid; gap: 12px; }
+.bm-ramp { height: 640px; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); background: #fff; }
+.bm-ramp iframe { border: 0; width: 100%; height: 100%; }
+@media (max-width: 560px) { .bm-tabs { grid-template-columns: 1fr 1fr !important; } }

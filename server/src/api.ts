@@ -1,5 +1,7 @@
 // Syncly API: quotes, orders, live job progress (SSE), the public books.
 //   PORT=8790 node src/api.ts          (OUTLAY_DRY=1 for demo mode: no money moves, clearly labelled)
+import { createOnrampServerKit, KitError as OnrampKitError } from '@circle-fin/onramp-kit/server';
+import { getAddress, isAddress, keccak256, toBytes } from 'viem';
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import { serve } from '@hono/node-server';
@@ -268,6 +270,32 @@ const payAllowed = (c: any, max = 12) => {
 };
 const fail = (c: any, e: any, code = 400) => c.json({ error: String(e?.message ?? e).split('\n')[0] }, code);
 app.get('/api/pay/config', (c) => c.json(payConfig()));
+
+// Arc Onramp (Circle's Onramp Kit; Transak processes the payment): buy USDC on Arc with Apple Pay, Google Pay,
+// a debit card or a bank transfer, for eligible users in the US, UK and EU for now. The API key stays here; the
+// browser gets a short-lived session that can only deliver USDC on Arc to the wallet it was minted for.
+const onramp = process.env.ONRAMP_API_KEY?.trim() ? createOnrampServerKit({ apiKey: process.env.ONRAMP_API_KEY.trim(), referrerDomain: process.env.ONRAMP_REFERRER_DOMAIN?.trim() || 'hiresyncly.site' }) : null;
+app.get('/api/onramp/config', (c) => c.json({ enabled: !!onramp, regions: 'US, UK and EU', methods: ['Apple Pay', 'Google Pay', 'Debit card', 'Bank transfer'] }));
+app.post('/api/onramp/sessions', async (c) => {
+  if (!onramp) return c.json({ error: 'Buying with a card is not switched on yet.' }, 503);
+  if (!payAllowed(c, 10)) return c.json({ error: 'Too many requests from here in the last hour. Try again later.' }, 429);
+  const body = await c.req.json().catch(() => ({} as any));
+  const to = String(body?.destinationAddress ?? '');
+  if (!isAddress(to)) return c.json({ error: 'Connect your wallet first, so the USDC knows where to go.' }, 400);
+  try {
+    const session = await onramp.createSession({
+      appUserId: 'w_' + keccak256(toBytes(to.toLowerCase())).slice(2, 26), // stable per wallet, no personal data
+      destinationAddress: getAddress(to), destinationChain: 'Arc',
+      assets: { pairs: [{ token: 'USDC', chain: 'arc' }] },
+      metadata: { app: 'syncly', page: String(body?.page ?? '').slice(0, 40) },
+    });
+    return c.json(session);
+  } catch (e: any) {
+    const status = e instanceof OnrampKitError ? ({ INPUT: 400, RATE_LIMIT: 429, NETWORK: 504, SERVICE: 502, RPC: 502 } as Record<string, number>)[e.type] ?? 500 : 500;
+    console.error(`onramp session: ${e?.message ?? e}`);
+    return c.json({ error: status === 400 ? 'The card checkout could not start for this wallet.' : 'The card checkout is unavailable right now. Try again in a minute.' }, status as any);
+  }
+});
 app.post('/api/pay/invoices', async (c) => {
   if (!payAllowed(c)) return c.json({ error: 'Too many invoices from here in the last hour. Try again later.' }, 429);
   try { const r = await createInvoice(await c.req.json()); return c.json({ ...r, doc: publicDoc(r.doc) }); } catch (e) { return fail(c, e); }

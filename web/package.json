@@ -9,6 +9,7 @@
   "dependencies": {
     "@circle-fin/adapter-viem-v2": "^1.19.0",
     "@circle-fin/app-kit": "^1.16.0",
+    "@circle-fin/onramp-kit": "^1.0.3",
     "dompurify": "^3.4.16",
     "gsap": "^3.15.0",
     "marked": "^18.0.14",
