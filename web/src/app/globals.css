@@ -95,8 +95,9 @@ em { font-style: normal; }
 .nav__status.demo .dot { color: var(--amber); }
 .nav .nav__menu { display: none; }
 .nav__sheet { display: none; }
-@media (max-width: 1080px) { .nav__status { display: none; } }
-@media (max-width: 960px) {
+@media (max-width: 1180px) { .nav__status { display: none; } }
+.nav__status { white-space: nowrap; }
+@media (max-width: 1040px) {
   .nav__links, .nav .nav__cta { display: none; }
   .nav .nav__menu { display: inline-flex; }
   .nav__sheet { display: grid; gap: 4px; overflow: hidden; max-height: 0; padding: 0 clamp(16px, 2.4vw, 32px); transition: max-height .45s var(--ease), padding .45s var(--ease); }
@@ -998,6 +999,9 @@ label.check input { margin-top: 3px; }
 .bm-est { margin: 0; font-size: 14px; color: var(--ink-2); line-height: 1.5; min-height: 42px; }
 .bm-done { padding: 12px 14px; border-radius: 12px; background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; font-size: 14.5px; }
 .bm-steps { margin: 0; padding-left: 0; list-style: none; display: grid; gap: 4px; font-size: 13.5px; color: var(--ink-2); }
+.bm-open { display: grid; gap: 10px; background: var(--paper-2); border-radius: 14px; padding: 14px; font-size: 14.5px; }
+.bm-open p { margin: 0; }
+.bm-apps { display: flex; flex-wrap: wrap; gap: 8px; }
 .bm-ex { display: grid; gap: 12px; font-size: 14.5px; }
 .bm-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .bm-chips .chip { height: 30px; padding: 0 12px; border: 1px solid var(--line); font-size: 13.5px; }

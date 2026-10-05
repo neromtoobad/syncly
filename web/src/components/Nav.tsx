@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useApi } from '@/lib.tsx';
 import Logo from '@/components/Logo.tsx';
 
-const LINKS: [string, string][] = [['/#cfo', 'The CFO'], ['/#money', 'The money'], ['/pay', 'Pay'], ['/#team', 'The team'], ['/#services', 'Services'], ['/office', 'The office'], ['/docs', 'Docs']];
+const LINKS: [string, string][] = [['/#cfo', 'The CFO'], ['/#money', 'The money'], ['/pay', 'Pay'], ['/arc', 'Get USDC'], ['/#team', 'The team'], ['/#services', 'Services'], ['/office', 'The office'], ['/docs', 'Docs']];
 
 export default function Nav() {
   const { data } = useApi<{ mode: string }>('/api/health');

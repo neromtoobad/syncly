@@ -111,12 +111,6 @@ export function BringMoneyPanel({ cfg, need, onArrived }: { cfg: EscrowCfg; need
 
   const label = (c: string) => BRIDGE_FROM.find(([id]) => id === c)?.[1] ?? c;
   const native = SWAP_FROM.find(([id]) => id === swapFrom)?.[2] ?? 'ETH';
-  if (wallet === false) return (
-    <div className="bm">
-      <p className="muted">Open this page in your wallet app’s browser (MetaMask, Rabby, OKX, Coinbase Wallet) to move USDC to Arc from here. Or withdraw it from an exchange:</p>
-      <Exchanges who={null} />
-    </div>
-  );
   return (
     <div className="bm">
       <div className="bm-tabs" role="tablist" style={{ gridTemplateColumns: `repeat(${ramp?.enabled ? 4 : 3}, 1fr)` }}>
@@ -142,9 +136,11 @@ export function BringMoneyPanel({ cfg, need, onArrived }: { cfg: EscrowCfg; need
           {err && <div className="error">{err}</div>}
           {done && <div className="bm-done">{done}</div>}
           {steps.length > 0 && <ol className="bm-steps">{steps.map((s, i) => <li key={i}>✓ {s.label}{s.url ? <> · <a href={s.url} target="_blank" rel="noreferrer">tx ↗</a></> : s.tx ? <span className="mono muted"> · {short(s.tx)}</span> : null}</li>)}</ol>}
-          <button className="btn primary block" disabled={!!busy || !(Number(amount) > 0)} onClick={run}>
-            {busy ?? (who ? (tab === 'bridge' ? `Bring ${amount} USDC from ${label(from)} to Arc` : `Swap ${amount} ${token === 'NATIVE' ? native : 'USDT'} to USDC on Arc`) : 'Connect your wallet')}
-          </button>
+          {wallet === false ? <OpenInWallet /> : (
+            <button className="btn primary block" disabled={!!busy || !(Number(amount) > 0)} onClick={run}>
+              {busy ?? (who ? (tab === 'bridge' ? `Bring ${amount} USDC from ${label(from)} to Arc` : `Swap ${amount} ${token === 'NATIVE' ? native : 'USDT'} to USDC on Arc`) : 'Connect your wallet')}
+            </button>
+          )}
           <p className="muted" style={{ fontSize: 12.5, margin: 0 }}>Powered by Circle App Kit. Your wallet signs every step and the money goes straight to your own address on Arc; Syncly never holds it.</p>
         </>
       )}
@@ -158,7 +154,7 @@ export function BringMoneyPanel({ cfg, need, onArrived }: { cfg: EscrowCfg; need
         <div className="bm-chips">{EXCHANGES.map((x) => <span key={x} className="chip">{x}</span>)}</div>
         {w ? (
           <button className="btn secondary block mono" onClick={() => { void navigator.clipboard?.writeText(w); setCopied(true); }}>{copied ? 'Address copied ✓' : `Copy ${short(w)}`}</button>
-        ) : onConnect ? <button className="btn secondary block" onClick={onConnect}>Connect to show your address</button> : null}
+        ) : onConnect && wallet ? <button className="btn secondary block" onClick={onConnect}>Connect to show your address</button> : null}
         <details>
           <summary>Paying in naira? Use Bybit P2P</summary>
           <ol>
@@ -170,6 +166,26 @@ export function BringMoneyPanel({ cfg, need, onArrived }: { cfg: EscrowCfg; need
       </div>
     );
   }
+}
+
+/** No wallet in this browser (a phone's normal browser, or a desktop without an extension): the swap still shows,
+ * and its button reopens this page inside a wallet app, where the wallet can sign. */
+function OpenInWallet() {
+  const url = location.href, enc = encodeURIComponent(url);
+  const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const apps: [string, string][] = [
+    ['MetaMask', `https://metamask.app.link/dapp/${url.replace(/^https?:\/\//, '')}`],
+    ['Coinbase Wallet', `https://go.cb-w.com/dapp?cb_url=${enc}`],
+    ['Trust Wallet', `https://link.trustwallet.com/open_url?coin_id=60&url=${enc}`],
+    ['OKX Wallet', `https://www.okx.com/download?deeplink=${encodeURIComponent(`okx://wallet/dapp/url?dappUrl=${enc}`)}`],
+  ];
+  return (
+    <div className="bm-open">
+      <p>{mobile ? 'Your wallet signs this, so open this page in your wallet app:' : 'Your wallet signs this. Add MetaMask or Rabby to this browser, or open this page in your wallet app on your phone:'}</p>
+      <div className="bm-apps">{apps.map(([n, h]) => <a key={n} className="btn secondary sm" href={h}>{n}</a>)}</div>
+      {!mobile && <p className="muted" style={{ margin: 0, fontSize: 13 }}><a href="https://metamask.io/download/" target="_blank" rel="noreferrer">Get MetaMask</a> · <a href="https://rabby.io" target="_blank" rel="noreferrer">Get Rabby</a></p>}
+    </div>
+  );
 }
 
 /** Buy USDC on Arc with Apple Pay, Google Pay, a debit card or a bank transfer: Circle's Arc Onramp widget. */
