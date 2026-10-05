@@ -26,7 +26,9 @@ export const NAIRA_LIVE = !!KEY?.startsWith('sk_live_');
 const MARGIN = Number(process.env.NAIRA_MARGIN ?? 0.035);
 const FUND_MINUTES = 120; // a bank transfer can take a while; the bond stays locked meanwhile
 
-export const nairaReady = () => !!KEY && !!SECRET && !!chain.deskAddress();
+// On Arc mainnet only a live Bachs key counts: with a sandbox key, test cards would get real jobs funded from the float.
+const ON_MAINNET = (process.env.OUTLAY_ESCROW_NET ?? 'arc') === 'arc' && chain.DEP?.network === 'arc';
+export const nairaReady = () => !!KEY && !!SECRET && !!chain.deskAddress() && (!ON_MAINNET || NAIRA_LIVE);
 
 async function bachs<T = any>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
   const r = await fetch(`${BASE}${path}`, {
