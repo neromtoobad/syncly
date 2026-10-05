@@ -43,7 +43,7 @@ The Boss doesn't split money between agents by hand. They send USDC to the vault
 These limits are enforced by the [SynclyVault](/docs/on-chain) contract, not by a prompt:
 
 - **It can't send money out.** The CFO key can move money between the vault's buckets, top up registered agents' Gateway balances within their allowance, and pay approved human reviewers. No function lets it send vault money anywhere else.
-- **It moves at most 2 USDC in one step** (`maxMove`). Anything bigger must be a `propose`, and only the Boss's wallet can `coSign` it. The CFO's own policy also limits it to `maxMove` per bucket pair per week: it moves what that allows and asks the Boss to co-sign the rest. The Boss sets `maxMove` and the weekly tool budget from the Books page.
+- **It moves at most `maxMove` in one step** (7 USDC today; the Boss sets it on-chain from the Books page). Anything bigger must be a `propose`, and only the Boss's wallet can `coSign` it. The CFO's own policy also limits it to `maxMove` per bucket pair per week: it moves what that allows and asks the Boss to co-sign the rest. The Boss sets `maxMove` and the weekly tool budget from the Books page.
 - **Allowances can't exceed the weekly tool budget** of 3 USDC across all agents.
 - **The reserve can't drop below its floor** (1 USDC), and **bonds must always be covered** by the BOND bucket.
 

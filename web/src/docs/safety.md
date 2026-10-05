@@ -69,7 +69,7 @@ Canteen's essay [*Agents and Ledgers in 2026*](https://thecanteenapp.com/analysi
 |---|---|
 | Sellers allowed per service | The payment code, before signing |
 | Budget per job, price cap per call | The payment code, before signing |
-| CFO moves at most 2 USDC alone | The SynclyVault contract (`maxMove`) |
+| CFO moves at most `maxMove` alone (7 USDC today, set by the Boss) | The SynclyVault contract (`maxMove`) |
 | Weekly tool budget, reserve floor, bond cover | The SynclyVault contract |
 | Only the customer accepts or rejects | The JobEscrow contract |
 | Autopay only to approved suppliers, under per-bill and weekly caps | The PayVault contract |

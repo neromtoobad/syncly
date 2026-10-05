@@ -127,7 +127,7 @@ function Cfo({ cfo }: { cfo: Cfo | null }) {
             {[
               ['Plans the week', "Each agent's allowance comes from what it actually spent per job. The plan's hash is sealed on-chain before any money moves."],
               ['Puts revenue to work', 'Tools first, then bond cover for guarantees, then the reserve. The rest stays in operating.'],
-              ['Asks the Boss', 'It moves at most 2 USDC a week between two buckets alone. Anything bigger waits for a human to co-sign on-chain.'],
+              ['Asks the Boss', 'It moves money alone only up to a limit the owner sets on the vault. Anything bigger waits for a human to co-sign on-chain.'],
             ].map(([h, p], i) => <Rv key={h} className="bracket" delay={0.1 * i}><span className="mono">→ {h}</span><p>{p}</p></Rv>)}
           </div>
         </div>

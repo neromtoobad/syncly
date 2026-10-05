@@ -100,7 +100,7 @@ export default function CfoDesk() {
       </div>
       <p className="muted" style={{ fontSize: 14, margin: '6px 0 14px' }}>
         Every few minutes the CFO reads the vault and each agent's balance, plans the week's allowances from measured spend, puts revenue to work (tools first, then bond cover, then the reserve) and tops up agents that are running low.
-        It moves at most {s ? usd(2) : '2'} USDC a week between two buckets on its own; anything bigger goes to the Boss to co-sign. No language model touches the money: every number and reason below is computed.
+        It moves at most {s ? usd(s.maxMove) : 'its limit in'} USDC a week between two buckets on its own; anything bigger goes to the Boss to co-sign. No language model touches the money: every number and reason below is computed.
       </p>
       <div className="minis">
         <div><b>{c.metrics.done}</b>decisions carried out</div>
