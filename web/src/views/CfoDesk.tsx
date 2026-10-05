@@ -35,7 +35,7 @@ export default function CfoDesk() {
   const [pol, setPol] = useState<{ budget: string; maxMove: string; busy: boolean; err: string | null; done: string | null } | null>(null);
   if (!c?.enabled) return null;
   const s = c.snapshot;
-  const policy = pol ?? { budget: String(Math.max(s?.budgetWanted ?? 0, s?.epochToolBudget ?? 0)), maxMove: String(Math.max(s?.maxMove ?? 2, Math.ceil(s?.teamGap ?? 0))), // enough to fund the gap without a co-sign busy: false, err: null, done: null };
+  const policy = pol ?? { budget: String(Math.max(s?.budgetWanted ?? 0, s?.epochToolBudget ?? 0)), maxMove: String(Math.max(s?.maxMove ?? 2, Math.ceil(s?.teamGap ?? 0))), busy: false, err: null, done: null }; // the move limit defaults to the team's gap, so it's funded without a co-sign
 
   async function savePolicy() {
     if (!cfg || !s) return;
