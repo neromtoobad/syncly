@@ -38,7 +38,8 @@ export const SERVICES: Record<string, Runnable> = {
 /** The menu: what a business would otherwise pay an agency or a freelancer for, plus research it can order in a sentence. */
 export const CATALOG = [
   {
-    id: 'website', name: 'Website', dept: 'Growth Studio', live: true, freeFirst: true, priceUsd: 2, listedCostUsd: 0.7, etaMin: 2,
+    // The free first website ran during launch week; it's off now, and FREE_FIRST_WEBSITE=1 turns it back on.
+    id: 'website', name: 'Website', dept: 'Growth Studio', live: true, freeFirst: process.env.FREE_FIRST_WEBSITE === '1', priceUsd: 2, listedCostUsd: 0.7, etaMin: 2,
     tagline: 'A designed site built from your Google listing and Instagram, live today.',
     youGet: ['A site in one of 7 designed themes, in a colour taken from your own photos, live at a link today', 'Your menu or prices, real Google reviews and your best photos (flyers are left out)', 'WhatsApp on every screen, live "open now" hours, map and directions', 'Every price and phone number checked against your sources; reviewed on a phone and a laptop', 'Search-ready, and the files to host anywhere with your own domain'],
     team: ['researcher', 'scout', 'reader', 'analyst', 'illustrator', 'auditor', 'messenger'],

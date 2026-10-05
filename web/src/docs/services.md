@@ -20,7 +20,7 @@ Syncly does the jobs a small business would otherwise pay an agency or a freelan
 | **Lead List** | 1 USDC | ~3 min | Up to 25 verified business emails, each with a personalised first line |
 | **Research Brief** | 1 USDC | ~2 min | Competitors, market and pricing, with every claim cited |
 
-Quick jobs cost 1 USDC (about ₦1,330) and bigger ones 2 USDC (about ₦2,660), and your first website is free. You pay into an escrow on Arc. The money only leaves when you accept the work; reject it and you get it back, plus a bond. See [Escrow payments](/docs/escrow).
+Quick jobs cost 1 USDC (about ₦1,330) and bigger ones 2 USDC (about ₦2,660). You pay into an escrow on Arc. The money only leaves when you accept the work; reject it and you get it back, plus a bond. See [Escrow payments](/docs/escrow).
 
 ## Growing
 

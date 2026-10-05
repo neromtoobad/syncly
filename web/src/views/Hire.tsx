@@ -234,7 +234,7 @@ export default function Hire({ service }: { service: string }) {
                   <p className="muted center" style={{ fontSize: 13 }}>Demo mode simulates the escrow payment. On the live site this funds the job's escrow on Arc.</p>
                 </>
               ) : (
-                <p className="note">Paid jobs through escrow on Arc are being switched on. Your first website is free in the meantime.</p>
+                <p className="note">Paid jobs through escrow on Arc are being switched on. Check back in a few minutes.</p>
               )}
               <button className="btn ghost sm" style={{ justifySelf: 'center' }} onClick={() => setOrder(null)}>Change the brief</button>
             </div>

@@ -34,7 +34,7 @@ Syncly's CFO doesn't only run Syncly's money. [**Syncly Pay**](https://hiresyncl
 
 1. **Follow the money** on the home page ([/#money](https://hiresyncly.site/#money)): each stop has a live number from the running company.
 2. **Read the CFO's log** at [/api/cfo](https://hiresyncly.site/api/cfo): the vault's buckets, each agent's balance and allowance, this week's plan, and every decision with what the CFO saw, signed and hash-chained. `verify.ok` means every hash and signature checks out.
-3. **Order a free website** at [/hire/website](https://hiresyncly.site/hire/website). The job page shows the team working live and **the money on this job**: the CFO's quote and bond, the escrow, every tool the agents bought with its Arc settlement, and the release or refund.
+3. **Order a website** at [/hire/website](https://hiresyncly.site/hire/website) (2 USDC, paid into escrow on Arc). The job page shows the team working live and **the money on this job**: the CFO's quote and bond, the escrow, every tool the agents bought with its Arc settlement, and the release or refund.
 4. **Check a receipt.** Job #1 ([ord_mulrvp33_0603](https://hiresyncly.site/job/ord_mulrvp33_0603)) found 9 restaurants with 5 x402 payments, each linked to its settlement on Arc ([0xb76f18…](https://explorer.arc.io/tx/0xb76f1819087eea9c3bbd9886384a44556450a6fa831a1575818165fa0355fe25), [0xc99ba1…](https://explorer.arc.io/tx/0xc99ba105332d26b54c73cc1ba1677e299c9dc632eb3f835e50309a40d41d4fbd)).
 5. **Pay for a job** (needs about 2.05 USDC on Arc in a browser wallet). The page walks through the steps: connect the wallet, the CFO opens the escrow, then approve and fund. On the job page you then accept, revise or reject from the same wallet.
 6. **Watch the office** at [/live](https://hiresyncly.site/live). The agents act out real events: the CFO stamps the quote and walks the brief to the whiteboard, and the Messenger carries the delivery out.
@@ -154,7 +154,7 @@ Real money has to flow for the CFO to manage it, so Syncly sells work small busi
 
 The menu comes from research into what small businesses already pay agencies and freelancers for, and what a search or a chatbot can't do: jobs that need fresh data from many paid sources at once, checking against the truth, or real production.
 
-- **The first website is free** (one per email, when its tools cost under 1.50 USDC, from a promo budget of 2 USDC a week). After that, the customer pays into escrow on Arc from their own wallet.
+- **Every job is paid into escrow on Arc** from the customer's own wallet. (Free first websites ran during launch week; the CFO's promo bucket still covers them in the books, and `FREE_FIRST_WEBSITE=1` switches them back on.)
 - **Nothing is paid unless the customer accepts.** Only the paying wallet can accept, ask for one free revision, or reject. A rejection refunds the price plus a bond the CFO put up.
 - **The agents buy their own tools.** Each has its own wallet and pays per call (x402 nanopayments through Circle Gateway) for AI models, search, page reading and email checks. Every call is listed on the customer's job page, linked to the Arc transaction that settled it. Costs and margins stay in the owner's private books.
 - **The CFO runs the money.** It plans each agent's weekly budget, puts revenue to work, and tops up agents that run low. Anything above its limits goes to a human to co-sign on-chain.
@@ -208,4 +208,4 @@ Live mode needs the agents' mnemonic (`OUTLAY_MNEMONIC`) and `deployments/arc.js
   - **USYC:** it needs an allowlist, and mainnet has a $100k minimum.
   - **Paymaster:** it isn't deployed on Arc.
 - **Email delivery** goes out from hello@hiresyncly.site through Resend. The Messenger can also pay AgentMail per email by x402 (`OUTLAY_MAIL=aisa`).
-- **Paying customers need a browser wallet with USDC on Arc.** The free first website needs nothing.
+- **Paying customers need a wallet with USDC on Arc.** /arc brings it from another chain, swaps it from ETH or USDT, or lists the exchanges that withdraw to Arc.

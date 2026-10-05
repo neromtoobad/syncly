@@ -38,7 +38,7 @@ Three rules hold all of it together:
 
 ## Who it's for
 
-Small businesses that want to grow and don't have a marketing team: a caterer who needs a website and ads that bring orders, a skincare brand that needs product photos, a shop owner buying stock. The first website is free, and you need no wallet for it.
+Small businesses that want to grow and don't have a marketing team: a caterer who needs a website and ads that bring orders, a skincare brand that needs product photos, a shop owner buying stock. Every job is 1 or 2 USDC, paid into escrow on Arc, and you only pay if you accept.
 
 And businesses that want to get paid and pay their suppliers without the usual risks: an invoice that can't be redirected or paid twice, and a supplier's bill checked before the money moves.
 

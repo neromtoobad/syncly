@@ -42,7 +42,7 @@ function Hero({ stats }: { stats: Stats | null }) {
             <Link href="/#money" className="pill ghost lg">Follow the money <Arrow /></Link>
           </Rv>
         </div>
-        <div className="hx__foot mono"><span>Every payment settles on Arc · every decision signed · first website free</span><span>Scroll ↓</span></div>
+        <div className="hx__foot mono"><span>Every payment settles on Arc · every decision signed · 1–2 USDC a job</span><span>Scroll ↓</span></div>
       </div>
     </section>
   );
@@ -152,7 +152,7 @@ function Cfo({ cfo }: { cfo: Cfo | null }) {
 // ---------------------------------------------------------------- 03 · how a job works, on stacking cards
 
 const HOW = [
-  { n: '01', h: 'You ask. The CFO prices it.', s: 'A fixed price before anything starts.', p: <>Describe the job in a sentence. The CFO prices it from what similar jobs really cost, and puts up <b>a bond you receive if you reject the work</b>. Your first website is free.</>, Art: QuoteArt },
+  { n: '01', h: 'You ask. The CFO prices it.', s: 'A fixed price before anything starts.', p: <>Describe the job in a sentence. The CFO prices it from what similar jobs really cost, and puts up <b>a bond you receive if you reject the work</b>. You only pay if you accept.</>, Art: QuoteArt },
   { n: '02', h: 'You pay into escrow.', s: 'The money waits in a contract, not with us.', p: <>Pay in USDC from your own wallet into <b>JobEscrow on Arc</b>. Syncly is paid only when you accept, or after 48 hours of silence.</>, Art: EscrowArt },
   { n: '03', h: 'You watch them work.', s: 'Every call they make is on your job page.', p: <>The agents buy searches, page reads and model calls with x402 nanopayments, <b>each one linked to its settlement on Arc</b>. You watch it happen, step by step.</>, Art: ReceiptArt },
   { n: '04', h: 'You decide.', s: 'Accept, revise once, or reject.', p: <>Only the wallet that paid can decide. Accept to release the payment, ask for one free revision, or reject it and <b>get your money back plus the bond</b>.</>, Art: DecideArt },
@@ -318,7 +318,7 @@ function Services({ services }: { services: Service[] }) {
                   <h3>{x.name}</h3>
                   <div className="sv__more"><div>
                     <p>{x.tagline}</p>
-                    <span className="mono">{x.live ? `${x.priceUsd} USDC · about ${x.etaMin} min${x.id === 'website' ? ' · your first one is free' : ''}` : 'coming soon'}</span>
+                    <span className="mono">{x.live ? `${x.priceUsd} USDC · about ${x.etaMin} min` : 'coming soon'}</span>
                   </div></div>
                 </div>
                 {x.live && <Link href={`/hire/${x.id}`} className="sv__go" aria-label={`Hire for ${x.name}`}>→</Link>}
@@ -352,7 +352,7 @@ function Close() {
       <div className="cl__grid wrap">
         <div>
           <span className="label"><span className="n">07</span>Start here</span>
-          <SplitLines text="Your first website is free." />
+          <SplitLines text="Your website, live today." />
           <Rv as="p" className="lede">Tell the team what you need in a sentence. You see the price and the bond before anything starts.</Rv>
           <Rv delay={0.15}>
             <form className="cl__ask" onSubmit={go}>
@@ -360,7 +360,7 @@ function Close() {
               <button type="submit" className="pill green">Get a free quote <Arrow /></button>
             </form>
             <div className="cl__chips">{ASK.map(([id, label]) => <button type="button" key={id} className={`chip click dark${svc === id ? ' on' : ''}`} onClick={() => setSvc(id)}>{label}</button>)}</div>
-            <p className="mono cl__fine">First website free · then 1–2 USDC a job, no card · refund + bond if you reject</p>
+            <p className="mono cl__fine">1–2 USDC a job, no card · pay only if you accept · refund + bond if you reject</p>
           </Rv>
         </div>
         <div className={`cl__art${seen ? ' in' : ''}`} ref={ref}><MarkBlock /></div>

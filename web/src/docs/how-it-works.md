@@ -17,8 +17,6 @@ The CFO turns your brief into a signed quote. It shows:
 - **The bond**, extra money you receive if you reject the work. It is 10–30% of the price, larger when the CFO is more confident.
 - **Why**: every number and the reason for it. Nothing is hidden. See [how the CFO prices](/docs/the-cfo#how-it-prices-a-job).
 
-**Your first website is free.** Each email address gets one free Website job, up to a tool cost of 1.50 USDC, while the week's free-job budget (2 USDC of tools) lasts. A free job we fail to deliver doesn't use it up.
-
 ## 3. You pay into escrow (paid jobs)
 
 For a paid job you pay from your own wallet into **JobEscrow** on Arc. The money waits in the contract, not with us. The page walks you through it:
