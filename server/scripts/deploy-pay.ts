@@ -4,6 +4,7 @@
 //   node scripts/deploy-pay.ts arc       → Arc mainnet (the treasury key pays a few cents of gas)
 // InvoiceBook: owner = the Boss, fees = 0.5% to SynclyVault, booker = the CFO key.
 // PayVault (autopay): agent = the CFO key, admin = the Boss (who can only rotate the agent key).
+// NairaDesk (the naira float): agent = the CFO key, owner = the Boss; caps NAIRA_PER_PAY_CAP / NAIRA_DAY_CAP (USDC, default 10 / 50).
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -53,5 +54,13 @@ if (!dep.payVault) {
   dep.payVault = d.address; dep.payVaultBlock = d.block;
   writeFileSync(depFile, JSON.stringify(dep, null, 2));
 } else console.log(`PayVault already on ${network}: ${dep.payVault}`);
+if (!dep.nairaDesk) {
+  const per = Number(process.env.NAIRA_PER_PAY_CAP ?? 10), day = Number(process.env.NAIRA_DAY_CAP ?? 50);
+  console.log(`deploying NairaDesk (the naira float) to ${network}\n  escrow ${dep.escrow} · agent (CFO) ${account('cfo').address} · owner ${dep.boss} · caps ${per} per payment, ${day} per day`);
+  const d = await deploy('NairaDesk', [dep.usdc as Address, dep.escrow as Address, account('cfo').address, dep.boss as Address, BigInt(Math.round(per * 1e6)), BigInt(Math.round(day * 1e6))]);
+  dep.nairaDesk = d.address; dep.nairaDeskBlock = d.block;
+  writeFileSync(depFile, JSON.stringify(dep, null, 2));
+  console.log(`  fund it by sending USDC on ${network} to ${d.address}`);
+} else console.log(`NairaDesk already on ${network}: ${dep.nairaDesk}`);
 console.log(`→ deployments/${network}.json`);
 process.exit(0);

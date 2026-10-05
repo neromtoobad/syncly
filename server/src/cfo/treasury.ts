@@ -11,7 +11,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DATA_DIR, DRY } from '../config.ts';
 import { account, hasSeed, type Role } from '../wallets.ts';
-import { DEP, cfoAddress, cfoSendGas, cfoWrite, pub } from '../escrow.ts';
+import { DEP, cfoAddress, cfoSendGas, cfoWrite, pub, readDesk } from '../escrow.ts';
 import { gateway } from '../x402.ts';
 import { MAIL } from '../mail.ts';
 import { CATALOG } from '../services/index.ts';
@@ -461,6 +461,11 @@ export async function tick(reason = 'scheduled') {
     }
     if (starved.length) {
       await escalate(`tools-empty:${starved.length}`, `${starved.join(', ')} ${starved.length === 1 ? 'is' : 'are'} low, but the TOOLS bucket is empty and there is no revenue to move into it. The Boss needs to add USDC to the vault.`, 'top-ups come only from TOOLS', { starved, tools, operating: s.buckets.operating });
+    }
+    // 5. The naira float: naira customers can only pay while it covers a job.
+    if (DEP.nairaDesk) {
+      const desk = await readDesk().catch(() => null);
+      if (desk && desk.floatUsd < Math.max(5, desk.perPayCapUsd)) await escalate(`naira-float:${new Date().toISOString().slice(0, 10)}`, `The naira float has ${usd(desk.floatUsd)} USDC, so naira customers can only pay for small jobs (or none). Send USDC on Arc to ${desk.address} to refill it.`, 'keep the naira float able to pay a job', { ...desk });
     }
     last = MODE === 'live' ? await observe() : s;
   } catch (e: any) {

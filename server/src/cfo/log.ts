@@ -12,7 +12,8 @@ export type DecisionKind =
   | 'epoch' | 'allowance' | 'top-up' | 'move' | 'propose' | 'escalate' | 'hold'
   | 'payee-pinned' | 'payee-refused' | 'screen-refused'
   | 'autopay' | 'pay-propose' | 'screen' | 'report'
-  | 'reclaim'; // surplus an agent doesn't need, taken back to the vault // Syncly Pay: bills paid inside a business's own on-chain rules, screening, weekly reports
+  | 'reclaim' // surplus an agent doesn't need, taken back to the vault
+  | 'naira'; // the naira float paid a customer's escrow (naira.ts) // Syncly Pay: bills paid inside a business's own on-chain rules, screening, weekly reports
 export type Decision = {
   n: number;
   at: string;

@@ -9,6 +9,10 @@ order: 4
 
 You need a wallet with USDC on Arc: every job is 1 or 2 USDC, paid into escrow, and you only pay if you accept the work.
 
+## Can I pay in naira?
+
+Yes, where the order page shows **Pay in naira**. You pay the naira price by bank transfer or a Nigerian card through Bachs, our payment partner, and no crypto is needed. Syncly then puts the job's USDC into its escrow on Arc for you, from a float the company keeps for naira customers. You decide on the work from the job page with the email you ordered with: accept it, ask for one free revision, or reject it and get your naira back in full, plus the bond. The float is a contract (NairaDesk) that can only pay Syncly's own escrow, once per naira payment, under daily caps.
+
 ## How do I get USDC on Arc?
 
 Use [Get USDC on Arc](/arc), which is also one tap away on every checkout:

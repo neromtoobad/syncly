@@ -20,6 +20,7 @@ import { addPhoto, applyPatch, editorView, previewHtml, publishPatch, sourceByTo
 import { LINKS, chowdeckHours, readChowdeck, samePhone } from './site/links.ts';
 import { FORMATS, countScan, posterHtml, posterTargets, scanStats, type PosterOpts } from './site/poster.ts';
 import { renderPoster } from './browser.ts';
+import { nairaDecide, nairaFollowUp, nairaQuote, nairaStatus, onBachsEvent, startNaira, verifyBachs } from './naira.ts';
 import { autoAcceptDue, createQuote, decide, escrowPending, getOrder, noteForRevision, openEscrow, readJob, replay, resumeInterrupted, retry, start, syncEscrow } from './orders.ts';
 import { escrowConfig, refreshBondFree } from './escrow.ts';
 import { MODE as CFO_MODE, POLICY as CFO_POLICY, freshSnapshot, reclaimSurplus, startTreasury, teamShortfall, tick as cfoTick } from './cfo/treasury.ts';
@@ -169,6 +170,42 @@ app.post('/api/orders/:id/escrow', async (c) => {
   } catch (e: any) {
     console.error(`escrow open ${o.id}: ${e.shortMessage ?? e.message}`);
     return c.json({ error: e.shortMessage ?? e.message }, 400);
+  }
+});
+
+// Pay in naira (naira.ts): Bachs collects the naira, NairaDesk funds the escrow from the USDC float on Arc.
+app.get('/api/naira', async (c) => c.json(await nairaStatus().catch((e) => ({ enabled: false, error: String(e?.message ?? e) }))));
+app.get('/api/orders/:id/naira', async (c) => {
+  const o = getOrder(c.req.param('id'));
+  if (!o) return c.json({ error: 'not found' }, 404);
+  return c.json(await nairaQuote(o).catch((e) => ({ enabled: false, why: String(e?.message ?? e) })));
+});
+app.post('/api/orders/:id/naira', async (c) => {
+  if (!payAllowed(c, 10)) return c.json({ error: 'Too many requests from here in the last hour. Try again later.' }, 429);
+  if (!DRY && !hasSeed()) return c.json({ error: 'The team is still clocking in. Try again in a few minutes.' }, 503);
+  try { return c.json(await startNaira(c.req.param('id'))); } catch (e: any) {
+    console.error(`naira start ${c.req.param('id')}: ${e.shortMessage ?? e.message}`);
+    return c.json({ error: e.shortMessage ?? e.message }, 400);
+  }
+});
+app.post('/api/orders/:id/naira-decide', async (c) => {
+  if (!payAllowed(c, 10)) return c.json({ error: 'Too many requests from here in the last hour. Try again later.' }, 429);
+  const b = await c.req.json().catch(() => ({} as any));
+  const action = ['accept', 'revise', 'reject'].includes(b.action) ? b.action : null;
+  if (!action) return c.json({ error: 'Choose accept, revise or reject.' }, 400);
+  try { await nairaDecide(c.req.param('id'), String(b.email ?? ''), action, b.note ? String(b.note) : undefined); return c.json(shown(c, view(c.req.param('id')))); } catch (e: any) {
+    return c.json({ error: e.shortMessage ?? e.message }, 400);
+  }
+});
+// Bachs → us. The signature is checked against the raw body; a failure answers 500 so Bachs retries (handling is idempotent).
+app.post('/api/bachs/webhook', async (c) => {
+  const raw = await c.req.text();
+  if (!verifyBachs(raw, (h) => c.req.header(h))) return c.json({ error: 'bad signature' }, 401);
+  let ev: any;
+  try { ev = JSON.parse(raw); } catch { return c.json({ error: 'bad json' }, 400); }
+  try { const out = await onBachsEvent(ev); console.log(`bachs ${ev.type} ${ev.id}: ${out}`); return c.json({ ok: true, out }); } catch (e: any) {
+    console.error(`bachs ${ev?.type} ${ev?.id}: ${e.shortMessage ?? e.message}`);
+    return c.json({ error: 'not handled' }, 500);
   }
 });
 
@@ -509,7 +546,7 @@ async function escrowTick() {
   ticking = true;
   try {
     await refreshBondFree().catch(() => {});
-    for (const id of escrowPending()) await syncEscrow(id).catch((e) => console.error(`escrow ${id}: ${e.shortMessage ?? e.message}`));
+    for (const id of escrowPending()) await syncEscrow(id).then(() => nairaFollowUp(id)).catch((e) => console.error(`escrow ${id}: ${e.shortMessage ?? e.message}`));
   } finally {
     ticking = false;
   }

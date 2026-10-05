@@ -76,7 +76,9 @@ export function compose(job: Pick<Job, 'deliverable' | 'files'>, o: Order) {
   // A subject is one line (Resend refuses a newline, and form briefs have several): the business name, or the brief's start.
   const about = String((o as any).details?.name || o.brief).replace(/\s+/g, ' ').trim();
   const brief = about.length > 70 ? about.slice(0, 68) + '…' : about;
-  const decide = o.escrow
+  const decide = o.naira && o.escrow
+    ? `You paid ₦${o.naira.ngn.toLocaleString('en-NG')}. On the job page, enter this email to accept the work, ask for your one free revision, or reject it and get your naira back in full, plus a ₦${Math.round(o.quote.bondUsd * o.naira.rate).toLocaleString('en-NG')} bond. Silence for 48 hours counts as acceptance.`
+    : o.escrow
     ? `Your ${o.quote.priceUsd.toFixed(2)} USDC is waiting in escrow on Arc. On the job page, from the wallet that paid, accept to release it, ask for your one free revision, or reject it and get it back plus a ${o.quote.bondUsd.toFixed(2)} USDC bond. Silence for 48 hours counts as acceptance.`
     : o.quote.promo
       ? 'This one was your free first job. Tell us on the job page if it was good.'

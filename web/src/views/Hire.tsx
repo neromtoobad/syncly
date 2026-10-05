@@ -57,6 +57,32 @@ const PAY_LABEL: Record<PayPhase, string> = {
   approving: 'Waiting for Arc…', fund: 'Confirm the payment in your wallet…', funding: 'Paying into escrow…', starting: 'Paid. Starting the team…',
 };
 
+/** Pay in naira through Bachs: bank transfer or a Nigerian card. The naira float on Arc funds the escrow for them. */
+function NairaPay({ order }: { order: QuotedOrder }) {
+  const [q, setQ] = useState<{ enabled: boolean; ngn?: number; why?: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => { api<{ enabled: boolean; ngn?: number; why?: string }>(`/api/orders/${order.id}/naira`).then(setQ).catch(() => setQ({ enabled: false })); }, [order.id]);
+  if (!q?.enabled || !q.ngn) return null;
+  const ngnText = `₦${q.ngn.toLocaleString('en-NG')}`;
+  async function pay() {
+    setBusy(true); setErr(null);
+    try {
+      const r = await api<{ url: string }>(`/api/orders/${order.id}/naira`, { method: 'POST' });
+      window.location.href = r.url;
+    } catch (e: any) { setErr(e.message); setBusy(false); }
+  }
+  return (
+    <div className="card pad paybox naira">
+      <b>Pay {ngnText} by bank transfer or card</b>
+      <p style={{ margin: 0, fontSize: 14 }}>No crypto needed. You pay in naira through Bachs, our payment partner, and Syncly puts {usd(order.quote.priceUsd)} USDC into your job's escrow on Arc for you. You decide on the work from the job page; reject it and your naira comes back in full, plus a bond.</p>
+      {err && <div className="error">{err}</div>}
+      <button className="btn primary lg block" disabled={busy} onClick={pay}>{busy ? 'Opening the payment page…' : `Pay ${ngnText} →`}</button>
+      <p className="muted center" style={{ fontSize: 12.5, margin: 0 }}>or pay in USDC from a crypto wallet below</p>
+    </div>
+  );
+}
+
 /** Paid jobs: the customer's own wallet funds a JobEscrow on Arc. Only that wallet can later accept or reject. */
 function EscrowPay({ order, cfg, onPaid }: { order: QuotedOrder; cfg: EscrowCfg; onPaid: () => void }) {
   const q = order.quote;
@@ -227,7 +253,10 @@ export default function Hire({ service }: { service: string }) {
               {q!.promo ? (
                 <button className="btn primary lg block" disabled={busy} onClick={() => begin('promo')}>Start my free job →</button>
               ) : esc?.enabled ? (
-                <EscrowPay order={order} cfg={esc} onPaid={() => router.push(`/job/${order.id}`)} />
+                <>
+                  <NairaPay order={order} />
+                  <EscrowPay order={order} cfg={esc} onPaid={() => router.push(`/job/${order.id}`)} />
+                </>
               ) : data?.mode === 'demo' ? (
                 <>
                   <button className="btn primary lg block" disabled={busy} onClick={() => begin('simulated')}>Pay {usd(q!.priceUsd)} USDC into escrow (demo)</button>

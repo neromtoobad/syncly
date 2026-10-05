@@ -12,7 +12,7 @@ import { account } from './wallets.ts';
 
 const NET = process.env.OUTLAY_ESCROW_NET ?? (DRY ? '' : 'arc');
 
-type Deployment = { network: string; chainId: number; rpc?: string; escrow: Address; vault: Address; usdc: Address; gatewayWallet: Address; boss: Address };
+type Deployment = { network: string; chainId: number; rpc?: string; escrow: Address; vault: Address; usdc: Address; gatewayWallet: Address; boss: Address; nairaDesk?: Address };
 function load(): Deployment | null {
   if (!NET) return null;
   const f = new URL(`../../deployments/${NET}.json`, import.meta.url).pathname;
@@ -148,3 +148,32 @@ export async function readVault() {
   const n = (x: bigint) => Number(x) / 1e6;
   return { vault: DEP.vault, escrow: DEP.escrow, explorer: EXPLORER, buckets: { operating: n(b[0]), tools: n(b[1]), bond: n(b[2]), reserve: n(b[3]), promo: n(b[4]) }, bondsOutstanding: n(bonds), reserveFloor: n(floor) };
 }
+
+// ---------------------------------------------------------------- NairaDesk: the float that pays escrows for naira customers
+
+const DESK_ABI = parseAbi([
+  'function fund(bytes32 job, bytes32 ref)',
+  'function accept(bytes32 job)',
+  'function requestRevision(bytes32 job)',
+  'function reject(bytes32 job)',
+  'function perPayCap() view returns (uint96)',
+  'function dayCap() view returns (uint96)',
+  'function spentToday() view returns (uint96)',
+  'function dayStart() view returns (uint64)',
+  'function refFor(bytes32) view returns (bytes32)',
+]);
+export const deskAddress = () => DEP?.nairaDesk;
+/** The float, its caps, and what's left of today's cap (the contract resets the day 24 h after it started). */
+export async function readDesk() {
+  const d = DEP?.nairaDesk;
+  if (!d) return null;
+  const r = <T>(functionName: string) => pub.readContract({ address: d, abi: DESK_ABI, functionName } as any) as Promise<T>;
+  const [floatUsd, per, day, spent, start, now] = await Promise.all([usdcOf(d), r<bigint>('perPayCap'), r<bigint>('dayCap'), r<bigint>('spentToday'), r<bigint>('dayStart'), chainNow()]);
+  const fresh = now >= Number(start) + 86400;
+  const dayCapUsd = Number(day) / 1e6, spentUsd = fresh ? 0 : Number(spent) / 1e6;
+  return { address: d, floatUsd, perPayCapUsd: Number(per) / 1e6, dayCapUsd, spentTodayUsd: spentUsd, dayLeftUsd: Math.max(0, dayCapUsd - spentUsd) };
+}
+/** Fund a naira customer's escrow from the float, once per naira payment (`ref` = hash of the checkout id). */
+export const deskFund = (job: Hex, ref: Hex) => cfoWrite(DEP!.nairaDesk!, DESK_ABI, 'fund', [job, ref]);
+/** Relay a naira customer's decision (the desk is the escrow's customer). */
+export const deskDecide = (fn: 'accept' | 'requestRevision' | 'reject', job: Hex) => cfoWrite(DEP!.nairaDesk!, DESK_ABI, fn, [job]);

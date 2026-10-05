@@ -52,6 +52,13 @@ export type Order = {
     closeTx?: Hex; // accept, reject, auto-release, late refund or cancel
   };
   pendingNote?: string; // a revision note sent before the customer's on-chain revision request
+  naira?: {
+    // paid in naira through Bachs; NairaDesk (the float) funded the escrow and is its customer (naira.ts)
+    checkoutId: string; checkoutUrl: string; ngn: number; rate: number; createdAt: string;
+    status: 'open' | 'paid' | 'underpaid' | 'expired' | 'late' | 'refunding' | 'refunded' | 'refund-failed';
+    chargeId?: string; paidAt?: string; paidNgn?: number; fundTx?: Hex; method?: string;
+    refund?: { ngn: number; at: string; id?: string; status: string; bondNgn?: number };
+  };
   demo: boolean;
 };
 
@@ -277,7 +284,7 @@ async function locked<T>(id: string, f: () => Promise<T>): Promise<T> {
 }
 
 /** The CFO opens this quote's escrow on Arc for the customer's wallet and locks the bond in the vault. */
-export function openEscrow(orderId: string, customer: string) {
+export function openEscrow(orderId: string, customer: string, fundMinutes = 30) {
   return locked(orderId, async () => {
     const o = getOrder(orderId);
     if (!o) throw new Error('not found');
@@ -298,7 +305,7 @@ export function openEscrow(orderId: string, customer: string) {
     if (free !== null && o.quote.bondUsd > free + 1e-9) throw new Error('The bond pool changed since your quote. Get a new quote.');
     const spec = specFor(o, customer as Address);
     const id = chain.jobKey(o.id), specHash = chain.hashText(spec);
-    const now = await chain.chainNow(), fundBy = now + 30 * 60, deliverBy = fundBy + Math.max(1, o.quote.deliverHours) * 3600;
+    const now = await chain.chainNow(), fundBy = now + fundMinutes * 60, deliverBy = fundBy + Math.max(1, o.quote.deliverHours) * 3600;
     const r = await chain.openJob(id, customer as Address, o.quote.priceUsd, o.quote.bondUsd, specHash, fundBy, deliverBy);
     o.escrow = {
       id, customer: customer as Address, spec, specHash, fundBy: new Date(fundBy * 1000).toISOString(), deliverBy: new Date(deliverBy * 1000).toISOString(),

@@ -17,7 +17,7 @@ function Stepper({ o }: { o: Order }) {
   const st = o.status;
   const working = ['queued', 'running', 'revision'].includes(st);
   const steps: { label: string; note: string; cls: string }[] = [
-    { label: 'Ordered', note: o.payment ? (o.payment.mode === 'promo' ? 'Free first job' : o.payment.mode === 'simulated' ? 'Paid (demo)' : 'Paid into escrow') : 'Quoted', cls: 'done' },
+    { label: 'Ordered', note: o.payment ? (o.payment.mode === 'promo' ? 'Free first job' : o.payment.mode === 'simulated' ? 'Paid (demo)' : o.naira ? 'Paid in naira' : 'Paid into escrow') : o.naira?.status === 'open' ? 'Awaiting naira' : 'Quoted', cls: 'done' },
     { label: st === 'revision' || (working && o.revisionNote) ? 'Revising' : 'Team working', note: working ? 'Live now' : `${o.runs.length} run${o.runs.length === 1 ? '' : 's'}`, cls: working ? 'now' : 'done' },
     { label: st === 'failed' ? 'Not delivered' : 'Delivered', note: o.deliveredAt ? timeAgo(o.deliveredAt) : st === 'failed' ? 'Refund + bond' : 'Soon', cls: st === 'failed' ? 'bad' : o.deliveredAt ? 'done' : '' },
     {
@@ -243,7 +243,8 @@ export default function Job({ id }: { id: string }) {
   useEffect(() => { load(); }, [id]);
   const active = o && ['queued', 'running', 'revision'].includes(o.status);
   // A delivered order can still change from elsewhere (another tab, the 48 h auto-accept), so keep listening.
-  const listening = active || o?.status === 'delivered' || (o?.status === 'failed' && o.escrow?.state === 'Funded');
+  const awaitingNaira = o?.status === 'quoted' && o?.naira?.status === 'open'; // the page turns into the live job when the naira lands
+  const listening = active || awaitingNaira || o?.status === 'delivered' || (o?.status === 'failed' && o.escrow?.state === 'Funded');
   useEffect(() => {
     if (!listening) return;
     const es = new EventSource(`/api/events?order=${id}`);
@@ -251,9 +252,9 @@ export default function Job({ id }: { id: string }) {
     es.addEventListener('step', bump);
     es.addEventListener('purchase', bump);
     es.addEventListener('order', bump);
-    const t = active ? setInterval(load, 4000) : undefined;
+    const t = active || awaitingNaira ? setInterval(load, 4000) : undefined;
     return () => { es.close(); clearInterval(t); };
-  }, [id, listening, active]);
+  }, [id, listening, active, awaitingNaira]);
 
   const last = o?.runs.at(-1);
   const running = o?.live && (!last || last.id !== o.live.jobId) && active ? o.live : null;
@@ -265,7 +266,7 @@ export default function Job({ id }: { id: string }) {
     setBusy(true); setErr(null);
     try {
       localStorage.setItem('outlay:email', email);
-      setO(await api<Order>(`/api/orders/${id}/${action}`, { method: 'POST', body: JSON.stringify({ email, note }) }));
+      setO(await api<Order>(o?.naira && action !== 'retry' ? `/api/orders/${id}/naira-decide` : `/api/orders/${id}/${action}`, { method: 'POST', body: JSON.stringify(o?.naira ? { email, note, action } : { email, note }) }));
     } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   }
 
@@ -332,12 +333,14 @@ export default function Job({ id }: { id: string }) {
         <aside>
           <section className="card pad">
             <h3 className="t">Your decision</h3>
-            {o.status === 'delivered' && o.escrow ? (
+            {o.status === 'quoted' && o.naira?.status === 'open' ? (
+              <p className="note">Waiting for your naira payment through Bachs. A bank transfer can take a few minutes; this page updates by itself once it lands, and the team starts straight away.</p>
+            ) : o.status === 'delivered' && o.escrow && !o.naira ? (
               cfg ? <EscrowDecision o={o} cfg={cfg} onUpdate={setO} /> : <p className="muted">Loading the escrow…</p>
             ) : o.status === 'delivered' ? (
               <div className="form" style={{ gap: 14 }}>
                 <p style={{ fontSize: 14.5, color: 'var(--ink-2)' }}>
-                  {q.promo ? 'This one was free. Tell us if it was good.' : <>Accept to release <b>{usd(q.priceUsd)} USDC</b>. Reject and you get it all back <b>plus a {usd(q.bondUsd)} USDC bond</b>.</>} Silence for 48 h counts as acceptance.
+                  {q.promo ? 'This one was free. Tell us if it was good.' : o.naira ? <>Accept to release your {`₦${Math.round(o.naira.ngn).toLocaleString('en-NG')}`} payment. Reject and you get it all back in naira <b>plus a ₦{Math.round(q.bondUsd * o.naira.rate).toLocaleString('en-NG')} bond</b>.</> : <>Accept to release <b>{usd(q.priceUsd)} USDC</b>. Reject and you get it all back <b>plus a {usd(q.bondUsd)} USDC bond</b>.</>} Silence for 48 h counts as acceptance.
                 </p>
                 <label className="field">Confirm with your email
                   <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@business.com" />
@@ -359,7 +362,7 @@ export default function Job({ id }: { id: string }) {
             ) : o.status === 'accepted' ? (
               <div className="qa pass"><Avatar role="cfo" /><div>Accepted {o.decision?.by === 'auto' ? 'automatically after 48 h' : 'by you'} · {timeAgo(o.decision!.at)}. Thank you.{o.escrow?.closeTx && <> <Tx cfg={cfg} hash={o.escrow.closeTx}>Payment released on Arc</Tx></>}</div></div>
             ) : o.status === 'rejected' ? (
-              <div className="qa revise"><Avatar role="cfo" /><div>Rejected{o.refund ? `: ${usd(o.refund.priceUsd)} refunded + ${usd(o.refund.bondUsd)} bond paid` : ''}. The CFO will learn from this.{o.refund?.tx && <> <Tx cfg={cfg} hash={o.refund.tx}>Refund on Arc</Tx></>}</div></div>
+              <div className="qa revise"><Avatar role="cfo" /><div>Rejected{o.naira?.refund ? `: ₦${Math.round(o.naira.refund.ngn).toLocaleString('en-NG')} ${o.naira.refund.status === 'paid' ? 'refunded' : 'being refunded'} through Bachs${o.naira.refund.bondNgn ? `, and the ₦${o.naira.refund.bondNgn.toLocaleString('en-NG')} bond is owed to you (we'll send it to your bank account)` : ''}` : o.refund ? `: ${usd(o.refund.priceUsd)} refunded + ${usd(o.refund.bondUsd)} bond paid` : ''}. The CFO will learn from this.{o.refund?.tx && <> <Tx cfg={cfg} hash={o.refund.tx}>Refund on Arc</Tx></>}</div></div>
             ) : o.status === 'failed' ? (
               <div className="form" style={{ gap: 12 }}>
                 <div className="qa revise"><Avatar role="cfo" /><div>We couldn't deliver this one{o.refund ? `: ${usd(o.refund.priceUsd)} refunded + ${usd(o.refund.bondUsd)} bond paid` : ''}. {last?.error}{o.refund?.tx && <> <Tx cfg={cfg} hash={o.refund.tx}>Refund on Arc</Tx></>}</div></div>
@@ -388,7 +391,7 @@ export default function Job({ id }: { id: string }) {
             <div className="srow"><span className="lbl">Price</span><span className="fill" /><span className="v">{q.promo ? 'Free' : `${usd(q.priceUsd)} USDC`}</span></div>
             {!q.promo && <div className="srow"><span className="lbl">In naira</span><span className="fill" /><span className="v">{ngn(q.priceUsd)}</span></div>}
             <div className="srow"><span className="lbl">Bond if rejected</span><span className="fill" /><span className="v">{q.promo ? '—' : `${usd(q.bondUsd)} USDC`}</span></div>
-            <div className="srow"><span className="lbl">Paid via</span><span className="fill" /><span className="v" style={{ fontFamily: 'var(--sans)' }}>{o.payment ? (o.payment.mode === 'promo' ? 'Free first job' : o.payment.mode === 'simulated' ? 'Demo escrow' : 'Escrow on Arc') : '—'}</span></div>
+            <div className="srow"><span className="lbl">Paid via</span><span className="fill" /><span className="v" style={{ fontFamily: 'var(--sans)' }}>{o.naira && o.payment ? `${`₦${Math.round(o.naira.ngn).toLocaleString('en-NG')}`} via Bachs → escrow on Arc` : o.payment ? (o.payment.mode === 'promo' ? 'Free first job' : o.payment.mode === 'simulated' ? 'Demo escrow' : 'Escrow on Arc') : '—'}</span></div>
             {o.escrow && (
               <>
                 <div className="srow"><span className="lbl">Paid by</span><span className="fill" /><span className="v">{short(o.escrow.customer)}</span></div>
