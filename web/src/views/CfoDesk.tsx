@@ -3,15 +3,16 @@
 // decision it made, each signed by the CFO's key and chained to the one before.
 import { useState } from 'react';
 import { api, useApi, usd, timeAgo, Avatar, ROLE_NAME } from '@/lib.tsx';
-import { connect, coSignOnChain, fundVault, hasWallet, short, txUrl, usdcBalance, walletError, type EscrowCfg } from '@/wallet.ts';
+import { connect, coSignOnChain, fundVault, hasWallet, setVaultPolicy, short, txUrl, usdcBalance, walletError, type EscrowCfg } from '@/wallet.ts';
 
 type Decision = { n: number; at: string; kind: string; summary: string; rule: string; inputs: Record<string, unknown>; amount?: number; agent?: string; tx?: string; proposal?: number; status: string; hash: string; sig?: string };
-type Agent = { role: string; balance: number; perJob: number; perJobFrom: string; allowance: number; toppedUp: number };
+type Agent = { role: string; balance: number; perJob: number; perJobFrom: string; allowance: number; toppedUp: number; ready?: number; readyFor?: string };
+type Svc = { id: string; name: string; ready: boolean; short: { role: string; have: number; need: number }[] };
 type Cfo = {
   enabled: boolean; mode: 'live' | 'observe';
   verify: { ok: boolean; entries: number; signer?: string | null; why?: string };
   metrics: { done: number; escalated: number; refused: number; wouldDo: number; proposed: number; cosigned: number };
-  snapshot: null | { at: string; epoch: number; owner: string; cfoGas: number; jobsPerWeek: number; agents: Agent[]; epochToolBudget: number; epochAllocated: number; maxMove: number; vaultUsdc: number; pending: { id: number; from: string; to: string; amount: number }[]; buckets: Record<string, number> };
+  snapshot: null | { at: string; epoch: number; owner: string; cfoGas: number; jobsPerWeek: number; agents: Agent[]; epochToolBudget: number; epochAllocated: number; maxMove: number; reserveFloor: number; promoCap?: number; services?: Svc[]; teamGap?: number; budgetWanted?: number; vaultUsdc: number; pending: { id: number; from: string; to: string; amount: number }[]; buckets: Record<string, number> };
   plan: null | { vaultEpoch: number; openedAt: string; jobsPerWeek: number; allowances: Record<string, number>; commit: string };
   decisions: Decision[];
 };
@@ -31,8 +32,27 @@ export default function CfoDesk() {
   const [err, setErr] = useState<string | null>(null);
   const [all, setAll] = useState(false);
   const [fund, setFund] = useState({ amount: '10', busy: false, err: null as string | null, done: null as string | null });
+  const [pol, setPol] = useState<{ budget: string; maxMove: string; busy: boolean; err: string | null; done: string | null } | null>(null);
   if (!c?.enabled) return null;
   const s = c.snapshot;
+  const policy = pol ?? { budget: String(Math.max(s?.budgetWanted ?? 0, s?.epochToolBudget ?? 0)), maxMove: String(Math.max(s?.maxMove ?? 2, 5)), busy: false, err: null, done: null };
+
+  async function savePolicy() {
+    if (!cfg || !s) return;
+    const budget = Number(policy.budget), maxMove = Number(policy.maxMove);
+    setPol({ ...policy, busy: true, err: null, done: null });
+    try {
+      if (!(budget >= s.epochAllocated)) throw new Error(`The weekly budget can't be below what's already given out this week (${usd(s.epochAllocated)} USDC).`);
+      if (!(maxMove > 0)) throw new Error('Enter how much the CFO may move on its own.');
+      const who = await connect(cfg);
+      if (who.toLowerCase() !== s.owner.toLowerCase()) throw new Error(`Only the Boss wallet (${short(s.owner)}) can change the limits. This is ${short(who)}.`);
+      const tx = await setVaultPolicy(cfg, who, { reserveFloor: s.reserveFloor, maxMove, epochToolBudget: budget, promoCap: s.promoCap ?? 0 });
+      await api('/api/cfo/nudge', { method: 'POST' }).catch(() => {});
+      setPol({ ...policy, busy: false, done: tx });
+      setTimeout(() => api<Cfo>('/api/cfo').then(setData).catch(() => {}), 8000);
+    } catch (e: any) { setPol({ ...policy, busy: false, err: walletError(e) }); }
+  }
+  const notReady = (s?.services ?? []).filter((x) => !x.ready);
 
   async function coSign(id: number) {
     if (!cfg || !s) return;
@@ -91,6 +111,30 @@ export default function CfoDesk() {
         </div>
       )}
 
+      {s?.services && (
+        <div className={`readybox${notReady.length ? ' short' : ''}`}>
+          <b>{notReady.length ? `Ready for ${s.services.length - notReady.length} of ${s.services.length} services` : `The team is funded for every service`}</b>
+          <div className="readychips">{s.services.map((x) => <span key={x.id} className={`chip${x.ready ? ' live' : ''}`} title={x.short.map((r) => `${ROLE_NAME[r.role] ?? r.role}: ${usd(r.have, 3)} of ${usd(r.need, 3)}`).join(' · ')}>{x.ready ? '✓' : '!'} {x.name}</span>)}</div>
+          {notReady.length > 0 && <p style={{ fontSize: 13.5, margin: 0 }}>{notReady.map((x) => `${x.name}: ${x.short.map((r) => `${ROLE_NAME[r.role] ?? r.role} has ${usd(r.have, 2)} of ${usd(r.need, 2)}`).join(', ')}`).join(' · ')}. The vault has the money; the CFO gives out at most {usd(s.epochToolBudget)} USDC a week to the agents{s.epochAllocated >= s.epochToolBudget - 0.01 ? ' and has used it' : ''}. Raising the weekly budget to about <b>{s.budgetWanted} USDC</b> lets it fund everyone now.</p>}
+        </div>
+      )}
+
+      {s && cfg && (
+        <div className="fundbox">
+          <div>
+            <b>The CFO's limits</b>
+            <p className="muted" style={{ fontSize: 13, margin: '4px 0 0' }}>Set on-chain in the vault, so the CFO can't go past them. The weekly budget caps what it gives the agents for tools ({usd(s.epochAllocated)} of {usd(s.epochToolBudget)} given out this week); above the move limit ({usd(s.maxMove)} now) it asks you to co-sign. Only the Boss wallet can change them.</p>
+          </div>
+          <div className="fundrow">
+            <label className="mini-l">Weekly tool budget<input type="text" inputMode="decimal" value={policy.budget} onChange={(e) => setPol({ ...policy, budget: e.target.value })} aria-label="Weekly tool budget in USDC" /></label>
+            <label className="mini-l">Moves alone up to<input type="text" inputMode="decimal" value={policy.maxMove} onChange={(e) => setPol({ ...policy, maxMove: e.target.value })} aria-label="Largest move the CFO makes alone, in USDC" /></label>
+            <button className="btn primary sm" disabled={policy.busy || !hasWallet()} onClick={savePolicy}>{policy.busy ? 'Confirm in your wallet…' : 'Set the limits'}</button>
+          </div>
+          {policy.err && <div className="error">{policy.err}</div>}
+          {policy.done && <div className="ok">Set. <a href={txUrl(cfg, policy.done)} target="_blank" rel="noreferrer">Transaction ↗</a> The CFO re-plans and tops the team up now; watch its log below.</div>}
+        </div>
+      )}
+
       {s && cfg && (
         <div className="fundbox">
           <div>
@@ -117,14 +161,14 @@ export default function CfoDesk() {
                 {s.agents.map((a) => (
                   <tr key={a.role}>
                     <td><span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}><Avatar role={a.role} />{ROLE_NAME[a.role] ?? a.role}</span></td>
-                    <td className={`num${a.balance < a.perJob * 2 ? ' warn' : ''}`}>{Number.isFinite(a.balance) ? usd(a.balance, 3) : '—'}</td>
+                    <td className={`num${a.balance < Math.max(a.perJob * 2, a.ready ?? 0) ? ' warn' : ''}`} title={a.ready ? `one ${a.readyFor} job needs ${usd(a.ready, 3)}` : undefined}>{Number.isFinite(a.balance) ? usd(a.balance, 3) : '—'}</td>
                     <td className="num" title={a.perJobFrom}>{usd(a.perJob, 3)}</td>
                     <td className="num">{usd(a.toppedUp, 2)} / {usd(a.allowance, 2)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            <p className="muted" style={{ fontSize: 12.5, marginTop: 8 }}>“This week” is topped up / allowed. An agent is topped up when it can afford fewer than two of its jobs. CFO gas: {usd(s.cfoGas, 4)} USDC.</p>
+            <p className="muted" style={{ fontSize: 12.5, marginTop: 8 }}>“This week” is topped up / allowed. An agent is topped up when it can afford fewer than two of its usual jobs, or less than one job of the most expensive service it works on. CFO gas: {usd(s.cfoGas, 4)} USDC.</p>
           </div>
           <div>
             <h4 className="subh">This week's plan <small>week {c.plan?.vaultEpoch ?? s.epoch}</small></h4>

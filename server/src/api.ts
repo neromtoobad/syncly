@@ -22,7 +22,7 @@ import { FORMATS, countScan, posterHtml, posterTargets, scanStats, type PosterOp
 import { renderPoster } from './browser.ts';
 import { autoAcceptDue, createQuote, decide, escrowPending, getOrder, noteForRevision, openEscrow, readJob, replay, resumeInterrupted, retry, start, syncEscrow } from './orders.ts';
 import { escrowConfig, refreshBondFree } from './escrow.ts';
-import { MODE as CFO_MODE, POLICY as CFO_POLICY, freshSnapshot, startTreasury, teamShortfall } from './cfo/treasury.ts';
+import { MODE as CFO_MODE, POLICY as CFO_POLICY, freshSnapshot, startTreasury, teamShortfall, tick as cfoTick } from './cfo/treasury.ts';
 import { decisions as cfoDecisions, verifyLog } from './cfo/log.ts';
 import { tractionReport } from './traction.ts';
 import { approveBill, booksCsv, cancelDoc, confirmBusiness, createBill, createInvoice, desk, getDoc, payConfig, payTick, payWatchlist, publicDoc, registerBusiness, reportFor, syncPaid } from './pay.ts';
@@ -431,6 +431,16 @@ app.get('/api/stats', async (c) => {
 
 // The CFO in public: what it sees, the rules it follows, and every decision it made (signed, hash-chained).
 let verified: { at: number; v: Awaited<ReturnType<typeof verifyLog>> } | null = null;
+// After the Boss changes the vault's limits from the Books page: the CFO re-plans now instead of at its next tick.
+const nudges: number[] = [];
+app.post('/api/cfo/nudge', (c) => {
+  const now = Date.now();
+  while (nudges.length && now - nudges[0] > 3600_000) nudges.shift();
+  if (nudges.length >= 12) return c.json({ ok: false }, 429);
+  nudges.push(now);
+  void cfoTick('the Boss changed the vault limits');
+  return c.json({ ok: true });
+});
 app.get('/api/cfo', async (c) => {
   if (!verified || Date.now() - verified.at > 60_000) verified = { at: Date.now(), v: await verifyLog() };
   const log = cfoDecisions(150);

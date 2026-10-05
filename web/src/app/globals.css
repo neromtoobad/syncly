@@ -981,7 +981,7 @@ label.check input { margin-top: 3px; }
 .aprow { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
 .btn.sm { padding: 7px 12px; font-size: 13px; }
 .fundbox { margin-top: 16px; border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; display: grid; gap: 10px; background: #fff; }
-.fundrow { display: flex; gap: 8px; align-items: center; }
+.fundrow { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
 .fundrow input { width: 120px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; font: inherit; font-variant-numeric: tabular-nums; }
 .fundbox .ok { font-size: 13.5px; color: var(--green, #2E7A38); }
 .screenbox.alert { border-color: #ecd9ae; background: #fffaf0; }
@@ -1091,3 +1091,8 @@ label.check input { margin-top: 3px; }
   .sedit__close { display: inline-flex; }
   .sedit__peek { display: inline-flex; position: fixed; right: 16px; bottom: 16px; z-index: 10; box-shadow: 0 10px 30px -10px rgba(19, 39, 28, 0.5); }
 }
+.readybox { margin-top: 14px; display: grid; gap: 10px; border: 1px solid #CFE6BC; background: var(--accent-soft); border-radius: 14px; padding: 14px 16px; }
+.readybox.short { border-color: #f1dca8; background: var(--amber-soft); }
+.readychips { display: flex; flex-wrap: wrap; gap: 6px; }
+.mini-l { display: grid; gap: 4px; font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.mini-l input { width: 120px; }

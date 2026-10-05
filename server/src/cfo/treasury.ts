@@ -26,7 +26,7 @@ export const POLICY = {
   tickMinutes: 10,
   epochDays: 7, // allowances are planned a week at a time
   minJobsPerWeek: 5, // plan for at least this much work, even in a quiet week
-  jobsAhead: 5, // fund each agent for this many of its jobs
+  jobsAhead: 3, // fund each agent for this many of its usual jobs (and at least 1.5 jobs of its most expensive service)
   lowWaterJobs: 2, // top an agent up when it can afford fewer than this many jobs
   minFloat: 0.05, // smallest float worth planning for an agent that pays for anything
   bondTarget: 3, // bond cover to hold: two jobs at the top bond (30% of a 5 USDC job)
@@ -49,6 +49,7 @@ const VAULT = parseAbi([
   'function reserveFloor() view returns (uint256)',
   'function maxMove() view returns (uint256)',
   'function epochToolBudget() view returns (uint256)',
+  'function promoCapPerEpoch() view returns (uint256)',
   'function epoch() view returns (uint64)',
   'function epochAllocated() view returns (uint256)',
   'function owner() view returns (address)',
@@ -72,12 +73,18 @@ const r6 = (x: number) => Math.round(x * 1e6) / 1e6;
 const usd = (x: number) => x.toFixed(x < 1 ? 4 : 2);
 const median = (xs: number[]) => { const s = [...xs].sort((a, b) => a - b); const m = s.length >> 1; return s.length ? (s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2) : NaN; };
 
-export type AgentView = { role: Role; address: Address; balance: number; perJob: number; perJobFrom: string; allowance: number; toppedUp: number; current: boolean };
+export type AgentView = { role: Role; address: Address; balance: number; perJob: number; perJobFrom: string; allowance: number; toppedUp: number; current: boolean; ready: number; readyFor: string };
+/** Readiness: below `ready` (one job of the most expensive live service it works on) some service can't be taken. */
+const lowOf = (a: AgentView) => Math.max(a.perJob * POLICY.lowWaterJobs, a.ready);
+const targetOf = (a: AgentView) => Math.max(POLICY.minFloat, a.perJob * POLICY.jobsAhead, a.ready * 1.5);
+const works = (a: AgentView) => Math.max(a.perJob, a.ready) > 0;
 export type Snapshot = {
   at: string; mode: string;
   buckets: Record<Bucket, number>; vaultUsdc: number; unsynced: number;
   bondsOutstanding: number; reserveFloor: number; maxMove: number; epochToolBudget: number; epoch: number; epochAllocated: number;
-  agents: AgentView[]; jobsPerWeek: number; cfoGas: number; owner: Address;
+  agents: AgentView[]; jobsPerWeek: number; cfoGas: number; owner: Address; promoCap: number;
+  services: { id: string; name: string; ready: boolean; short: { role: Role; have: number; need: number }[] }[];
+  teamGap: number; budgetWanted: number; // USDC the team is short of being ready for every service; the weekly budget that covers it
   pending: { id: number; from: Bucket; to: Bucket; amount: number; reason: Hex }[];
   proposals: { total: number; cosigned: number };
 };
@@ -119,11 +126,12 @@ async function agentBalance(role: Role): Promise<number> {
 async function observe(): Promise<Snapshot> {
   const v = DEP!.vault;
   const read = <T>(functionName: string, args: unknown[] = []) => pub.readContract({ address: v, abi: VAULT, functionName, args } as any) as Promise<T>;
-  const [bal, total, bonds, floor, maxMove, budget, epoch, allocated, owner, count, usdcInVault] = await Promise.all([
+  const [bal, total, bonds, floor, maxMove, budget, epoch, allocated, owner, count, usdcInVault, promoCap] = await Promise.all([
     read<readonly bigint[]>('balances'), read<bigint>('total'), read<bigint>('bondsOutstanding'), read<bigint>('reserveFloor'),
     read<bigint>('maxMove'), read<bigint>('epochToolBudget'), read<bigint>('epoch'), read<bigint>('epochAllocated'), read<Address>('owner'),
-    read<bigint>('proposalCount'), pub.readContract({ address: DEP!.usdc, abi: ERC20, functionName: 'balanceOf', args: [v] }),
+    read<bigint>('proposalCount'), pub.readContract({ address: DEP!.usdc, abi: ERC20, functionName: 'balanceOf', args: [v] }), read<bigint>('promoCapPerEpoch'),
   ]);
+  const { need, by, perService } = readyNeeds();
   const { per, jobsThisWeek } = spendHistory();
   const agents: AgentView[] = [];
   const live = new Set(CATALOG.filter((c) => c.live).flatMap((c) => c.team));
@@ -133,8 +141,15 @@ async function observe(): Promise<Snapshot> {
     const hist = (per[role] ?? []).slice(-20);
     const perJob = hist.length ? median(hist) : DEFAULT_PER_JOB[role] ?? 0;
     const current = Number(a[1]) === Number(epoch);
-    agents.push({ role, address, balance, perJob: r6(perJob), perJobFrom: hist.length ? `median of its last ${hist.length} jobs` : 'starting estimate', allowance: current ? u6(a[2]) : 0, toppedUp: current ? u6(a[3]) : 0, current });
+    agents.push({ role, address, balance, perJob: r6(perJob), perJobFrom: hist.length ? `median of its last ${hist.length} jobs` : 'starting estimate', allowance: current ? u6(a[2]) : 0, toppedUp: current ? u6(a[3]) : 0, current, ready: r6(need[role] ?? 0), readyFor: by[role] ?? '' });
   }
+  const bal1 = new Map(agents.map((x) => [x.role, x.balance]));
+  const services = perService.map(({ id, name, spend }) => {
+    const short = (Object.entries(spend) as [Role, number][]).filter(([r, n]) => n > 0.0005 && Number.isFinite(bal1.get(r) ?? NaN) && (bal1.get(r) ?? 0) < n).map(([role, n]) => ({ role, have: r6(bal1.get(role) ?? 0), need: r6(n) }));
+    return { id, name, ready: !short.length, short };
+  });
+  // what it takes to have every agent at its readiness target, beyond the allowance it still has this week
+  const teamGap = r6(agents.filter(works).reduce((t, x) => t + Math.max(0, targetOf(x) - (Number.isFinite(x.balance) ? x.balance : 0) - Math.max(0, x.allowance - x.toppedUp)), 0));
   const pending: Snapshot['pending'] = [];
   let cosigned = 0;
   for (let i = Math.max(0, Number(count) - 25); i < Number(count); i++) {
@@ -147,6 +162,7 @@ async function observe(): Promise<Snapshot> {
     at: new Date().toISOString(), mode: MODE, buckets, vaultUsdc: u6(usdcInVault as bigint), unsynced: r6(u6(usdcInVault as bigint) - u6(total)),
     bondsOutstanding: u6(bonds), reserveFloor: u6(floor), maxMove: u6(maxMove), epochToolBudget: u6(budget), epoch: Number(epoch), epochAllocated: u6(allocated),
     agents, jobsPerWeek: Math.max(POLICY.minJobsPerWeek, jobsThisWeek), cfoGas: Number(await pub.getBalance({ address: cfoAddress() })) / 1e18,
+    promoCap: u6(promoCap as bigint), services, teamGap, budgetWanted: Math.ceil(u6(allocated) + teamGap),
     owner, pending, proposals: { total: Number(count), cosigned },
   };
 }
@@ -198,6 +214,14 @@ async function cachedBalance(role: Role): Promise<number> {
 
 
 
+/** For each agent, one job of the most expensive live service it works on (and which), from each service's spend. */
+function readyNeeds() {
+  const need: Partial<Record<Role, number>> = {}, by: Partial<Record<Role, string>> = {};
+  const perService = CATALOG.filter((c) => c.live).map((c) => ({ id: c.id, name: c.name, spend: spendFor(c.id) }));
+  for (const { name, spend } of perService) for (const [r, v] of Object.entries(spend) as [Role, number][]) if ((v ?? 0) > (need[r] ?? 0)) { need[r] = v; by[r] = name; }
+  return { need, by, perService };
+}
+
 /** Per-agent spend on this service's past live jobs (median of the last 10), or the demo measurement. */
 function spendFor(service: string): Partial<Record<Role, number>> {
   const runs: Partial<Record<Role, number>>[] = [];
@@ -233,6 +257,7 @@ export async function teamShortfall(service: string): Promise<string | undefined
   const who = short.map((r) => `${r.role} (${usd(r.have)} of ${usd(r.need)})`).join(', ');
   await escalate(`unfunded:${service}`, `Declined a ${item.name} quote: ${who} can't cover their part of a job. Asking the Boss to fund them.`,
     'never start a job the team can’t pay its tools for', { service, rows: rows.map((r) => ({ ...r, have: Number.isFinite(r.have) ? r6(r.have) : null })) });
+  void tick(`a ${item.name} quote was declined: ${short.map((r) => r.role).join(', ')} short`); // re-plan and top up now, within the budget
   return `The ${item.name} team isn't funded for this job yet, so the CFO won't take it (it would fail halfway). It has asked the owner to fund them; please try again later.`;
 }
 
@@ -265,14 +290,24 @@ export async function tick(reason = 'scheduled') {
     const plan = existsSync(planFile) ? JSON.parse(readFileSync(planFile, 'utf8')) : null;
     const stale = !plan || plan.vaultEpoch !== s.epoch || Date.now() - Date.parse(plan.openedAt) > POLICY.epochDays * 86400_000;
     if (stale) {
-      const want = Object.fromEntries(s.agents.filter((a) => a.perJob > 0).map((a) => [a.role, Math.max(POLICY.minFloat, a.perJob * s.jobsPerWeek)]));
-      const sum = Object.values(want).reduce((t, x) => t + x, 0);
-      const scale = sum > s.epochToolBudget ? s.epochToolBudget / sum : 1;
-      const allowances = Object.fromEntries(Object.entries(want).map(([r, x]) => [r, Math.floor(x * scale * 1e4) / 1e4]));
+      // Readiness first (every agent able to do one and a half jobs of the priciest service it works on, so no
+      // service is turned away), then the week's expected spend in whatever budget is left.
+      const workers = s.agents.filter(works);
+      const ready = Object.fromEntries(workers.map((a) => [a.role, r6(Math.max(0, targetOf(a) - (Number.isFinite(a.balance) ? a.balance : 0)))]));
+      const spend = Object.fromEntries(workers.map((a) => [a.role, r6(a.perJob * s.jobsPerWeek)]));
+      const sumReady = Object.values(ready).reduce((t, x) => t + x, 0), sumSpend = Object.values(spend).reduce((t, x) => t + x, 0);
+      const readyScale = sumReady > s.epochToolBudget ? s.epochToolBudget / sumReady : 1;
+      const spendScale = sumSpend > 0 ? Math.max(0, Math.min(1, (s.epochToolBudget - sumReady * readyScale) / sumSpend)) : 0;
+      const want = Object.fromEntries(workers.map((a) => [a.role, ready[a.role] + spend[a.role]]));
+      const scale = readyScale < 1 ? readyScale : spendScale;
+      if (readyScale < 1) await escalate(`budget-short:w${s.epoch + 1}`, `Getting every agent ready for any service this week takes ${usd(sumReady)} USDC of tools, but the vault's weekly tool budget is ${usd(s.epochToolBudget)}. Raise it to at least ${Math.ceil(sumReady + 0.5)} on the Books page so no service is turned away.`, "plan inside the Boss's weekly budget", { ready, spend, budget: s.epochToolBudget });
+      let allowances = Object.fromEntries(workers.map((a) => [a.role, Math.max(POLICY.minFloat, Math.floor((ready[a.role] * readyScale + spend[a.role] * spendScale) * 1e4) / 1e4)]));
+      const total = Object.values(allowances).reduce((t, x) => t + x, 0); // the floors can tip it over: the vault would refuse the last one
+      if (total > s.epochToolBudget) allowances = Object.fromEntries(Object.entries(allowances).map(([r, x]) => [r, Math.floor((x * s.epochToolBudget) / total * 1e4) / 1e4]));
       const next = { vaultEpoch: s.epoch + 1, openedAt: new Date().toISOString(), jobsPerWeek: s.jobsPerWeek, allowances, perJob: Object.fromEntries(s.agents.map((a) => [a.role, a.perJob])), scale: r6(scale), budget: s.epochToolBudget };
       const commit = keccak256(toBytes(JSON.stringify(next)));
       const lines = Object.entries(allowances).map(([r, x]) => `${r} ${usd(x)}`).join(', ');
-      const planned = { kind: 'epoch' as const, summary: `Planned week ${next.vaultEpoch}: ${s.jobsPerWeek} jobs expected, so allowances ${lines}${scale < 1 ? ` (scaled to fit the ${s.epochToolBudget} USDC weekly budget)` : ''}. The plan's hash is sealed on-chain before any money moves.`, rule: 'plan allowances weekly from measured spend per job', inputs: { plan: next, commit }, key: `epoch:${next.vaultEpoch}` };
+      const planned = { kind: 'epoch' as const, summary: `Planned week ${next.vaultEpoch}: every agent ready for any service${readyScale < 1 ? ' (as far as the budget goes)' : ''}, then ${s.jobsPerWeek} jobs of usual work${readyScale >= 1 && spendScale < 1 ? ' scaled to fit' : ''}, so allowances ${lines} inside the ${s.epochToolBudget} USDC weekly budget. The plan's hash is sealed on-chain before any money moves.`, rule: 'plan allowances weekly from measured spend per job', inputs: { plan: next, commit }, key: `epoch:${next.vaultEpoch}` };
       if (MODE === 'observe') await act({ ...planned, tx: async () => ({ hash: '0x' as Hex }) });
       else {
         const closing = plan ? keccak256(toBytes(JSON.stringify(decisions(500).filter((d) => Date.parse(d.at) >= Date.parse(plan.openedAt)).map((d) => d.hash)))) : null;
@@ -298,13 +333,13 @@ export async function tick(reason = 'scheduled') {
     const plan2 = new Map(s.agents.map((a) => [a.role, a.allowance]));
     let replanned = false;
     for (const a of s.agents) {
-      if (!(a.perJob > 0) || !Number.isFinite(a.balance) || funded < POLICY.dust) continue;
-      const low = a.perJob * POLICY.lowWaterJobs, target = Math.max(POLICY.minFloat, a.perJob * POLICY.jobsAhead);
+      if (!works(a) || !Number.isFinite(a.balance) || funded < POLICY.dust) continue;
+      const low = lowOf(a), target = targetOf(a);
       const mine = plan2.get(a.role)!;
       if (a.balance >= low || r6(mine - a.toppedUp) >= POLICY.dust) continue;
       const want = r6(target - a.balance);
       // agents stocked to their target don't need their unused allowance this week
-      const donors = s.agents.filter((d) => d.role !== a.role && Number.isFinite(d.balance) && d.balance >= Math.max(POLICY.minFloat, d.perJob * POLICY.jobsAhead))
+      const donors = s.agents.filter((d) => d.role !== a.role && Number.isFinite(d.balance) && d.balance >= targetOf(d))
         .map((d) => ({ d, spare: r6(plan2.get(d.role)! - d.toppedUp) })).filter((x) => x.spare >= POLICY.dust).sort((x, y) => y.spare - x.spare);
       const cuts: { role: Role; address: Address; from: number; to: number }[] = [];
       let found = Math.min(room, want);
@@ -322,7 +357,7 @@ export async function tick(reason = 'scheduled') {
       const why = cuts.length ? `; ${cuts.map((c) => c.role).join(' and ')} ${cuts.length === 1 ? 'is' : 'are'} stocked and won't need it this week` : '';
       const ok = await act({
         kind: 'allowance', agent: a.role, amount: raise, inputs, rule: "re-plan mid-week inside the vault's weekly tool budget", key: `replan:${a.role}:w${s.epoch}:${Date.now()}`,
-        summary: `Re-planned mid-week: ${a.role} ${mine > 0 ? `used all ${usd(mine)} USDC of its allowance` : 'had no allowance this week'} and has ${usd(a.balance)} left, under two jobs' worth. Gave it ${usd(raise)} more, to ${usd(to)}: ${[fromRoom >= POLICY.dust ? `${usd(fromRoom)} from the budget's unplanned room` : '', moved].filter(Boolean).join(' and ')}${why}. The week stays inside its ${usd(s.epochToolBudget)} USDC budget; the vault refuses anything past it.`,
+        summary: `Re-planned mid-week: ${a.role} ${mine > 0 ? `used all ${usd(mine)} USDC of its allowance` : 'had no allowance this week'} and has ${usd(a.balance)} left, ${a.ready > a.perJob * POLICY.lowWaterJobs ? `less than one ${a.readyFor} job needs (${usd(a.ready)})` : "under two jobs' worth"}. Gave it ${usd(raise)} more, to ${usd(to)}: ${[fromRoom >= POLICY.dust ? `${usd(fromRoom)} from the budget's unplanned room` : '', moved].filter(Boolean).join(' and ')}${why}. The week stays inside its ${usd(s.epochToolBudget)} USDC budget; the vault refuses anything past it.`,
         tx: async () => {
           for (const c of cuts) await cfoWrite(DEP!.vault, VAULT, 'setAllowance', [c.address, atomic(c.to)]); // free the room first
           return cfoWrite(DEP!.vault, VAULT, 'setAllowance', [a.address, atomic(to)]);
@@ -334,7 +369,7 @@ export async function tick(reason = 'scheduled') {
 
     // 3. Put revenue to work, in order: TOOLS for this week's remaining allowances, BOND to its target,
     //    RESERVE to its floor. The rest stays in OPERATING. Alone, the CFO moves at most maxMove per
-    //    bucket pair per week; beyond that it proposes and the Boss co-signs. It never splits a move.
+    //    bucket pair per week; it moves what that allows and asks the Boss to co-sign the rest.
     const toolsNeed = r6(s.agents.reduce((t, a) => t + Math.max(0, a.allowance - a.toppedUp), 0) - s.buckets.tools);
     const wants: [Bucket, number, string][] = [
       ['tools', toolsNeed, `cover the ${usd(toolsNeed + s.buckets.tools)} USDC agents may still draw this week`],
@@ -347,11 +382,13 @@ export async function tick(reason = 'scheduled') {
       if (amount < POLICY.dust) continue;
       const movedThisWeek = decisions(500).filter((d) => d.kind === 'move' && d.status === 'done' && d.key?.startsWith(`move:operating>${to}:w${s.epoch}`)).reduce((t, d) => t + (d.amount ?? 0), 0);
       const base = { summary: '', rule: 'revenue goes to TOOLS, then BOND, then RESERVE', inputs: { ...seen, gap, movedThisWeek, maxMove: s.maxMove }, amount };
-      if (movedThisWeek + amount <= s.maxMove) {
-        await act({ ...base, kind: 'move', summary: `Moved ${usd(amount)} USDC from OPERATING to ${to.toUpperCase()} to ${why}.`, key: `move:operating>${to}:w${s.epoch}:${Date.now()}`, tx: write('move', [B.operating, B[to], atomic(amount), reasonOf({ ...base, kind: 'move', key: '' })]) });
-      } else if (!s.pending.some((p) => p.from === 'operating' && p.to === to)) {
+      const alone = r6(Math.min(amount, Math.max(0, s.maxMove - movedThisWeek))), rest = r6(amount - alone);
+      if (alone >= POLICY.dust) {
+        await act({ ...base, amount: alone, kind: 'move', summary: `Moved ${usd(alone)} USDC from OPERATING to ${to.toUpperCase()} to ${why}${rest >= POLICY.dust ? ` (all it moves alone this week; it asks the Boss for the other ${usd(rest)})` : ''}.`, key: `move:operating>${to}:w${s.epoch}:${Date.now()}`, tx: write('move', [B.operating, B[to], atomic(alone), reasonOf({ ...base, kind: 'move', key: '' })]) });
+      }
+      if (rest >= POLICY.dust && !s.pending.some((p) => p.from === 'operating' && p.to === to)) {
         const id = s.proposals.total;
-        await act({ ...base, kind: 'propose', summary: `Asked the Boss to co-sign moving ${usd(amount)} USDC from OPERATING to ${to.toUpperCase()} to ${why}: more than the ${s.maxMove} USDC a week the CFO moves alone.`, key: `propose:operating>${to}:w${s.epoch}`, tx: write('propose', [2, '0x0000000000000000000000000000000000000000', B.operating, B[to], atomic(amount), reasonOf({ ...base, kind: 'propose', key: '' })]) }, { escalated: true, proposal: async () => id });
+        await act({ ...base, amount: rest, kind: 'propose', summary: `Asked the Boss to co-sign moving ${usd(rest)} USDC from OPERATING to ${to.toUpperCase()} to ${why}: past the ${s.maxMove} USDC a week the CFO moves alone.`, key: `propose:operating>${to}:w${s.epoch}:${Date.now()}`, tx: write('propose', [2, '0x0000000000000000000000000000000000000000', B.operating, B[to], atomic(rest), reasonOf({ ...base, kind: 'propose', key: '' })]) }, { escalated: true, proposal: async () => id });
       }
       operating = r6(operating - amount);
     }
@@ -361,19 +398,21 @@ export async function tick(reason = 'scheduled') {
     let tools = s.buckets.tools;
     const starved: string[] = [];
     for (const a of s.agents) {
-      if (!(a.perJob > 0) || !Number.isFinite(a.balance)) continue;
-      const low = a.perJob * POLICY.lowWaterJobs, target = Math.max(POLICY.minFloat, a.perJob * POLICY.jobsAhead);
+      if (!works(a) || !Number.isFinite(a.balance)) continue;
+      const low = lowOf(a), target = targetOf(a);
       if (a.balance >= low) continue;
       const want = r6(target - a.balance), left = r6(a.allowance - a.toppedUp);
       const amount = r6(Math.min(want, left, tools));
-      const inputs = { balance: a.balance, perJob: a.perJob, perJobFrom: a.perJobFrom, lowWater: r6(low), target: r6(target), allowanceLeft: left, tools };
+      const inputs = { balance: a.balance, perJob: a.perJob, perJobFrom: a.perJobFrom, ready: a.ready, readyFor: a.readyFor, lowWater: r6(low), target: r6(target), allowanceLeft: left, tools };
       if (amount >= POLICY.dust) {
-        const after = a.balance + amount, jobs = Math.floor(after / a.perJob + 1e-9);
+        const after = a.balance + amount, jobs = a.perJob > 0 ? Math.floor(after / a.perJob + 1e-9) : 0;
         const capped = amount < want - 1e-9 ? (amount === left ? ', as far as its weekly allowance goes' : ', all that TOOLS holds') : '';
-        await act({ kind: 'top-up', summary: `${a.role} had ${usd(a.balance)} USDC, under two jobs' worth (${usd(low)}). Topped it up by ${usd(amount)} to ${usd(after)}, ${jobs < 1 ? "less than one job's worth" : `about ${jobs} job${jobs === 1 ? "'s" : "s'"} worth`}${capped}.`, rule: 'keep every agent funded for its next jobs', inputs, key: `topup:${a.role}:${Date.now()}`, amount, agent: a.role, tx: write('topUp', [a.address, atomic(amount), reasonOf({ kind: 'top-up', summary: '', rule: 'keep every agent funded for its next jobs', inputs, key: '', amount, agent: a.role })]) });
+        const why = a.ready > a.perJob * POLICY.lowWaterJobs ? `less than one ${a.readyFor} job needs (${usd(a.ready)})` : `under two jobs' worth (${usd(low)})`;
+        const now = after >= a.ready ? `ready for any job it works on${jobs > 1 ? `, about ${jobs} of its usual jobs` : ''}` : jobs < 1 ? "less than one job's worth" : `about ${jobs} job${jobs === 1 ? "'s" : "s'"} worth`;
+        await act({ kind: 'top-up', summary: `${a.role} had ${usd(a.balance)} USDC, ${why}. Topped it up by ${usd(amount)} to ${usd(after)}, ${now}${capped}.`, rule: 'keep every agent funded for its next jobs', inputs, key: `topup:${a.role}:${Date.now()}`, amount, agent: a.role, tx: write('topUp', [a.address, atomic(amount), reasonOf({ kind: 'top-up', summary: '', rule: 'keep every agent funded for its next jobs', inputs, key: '', amount, agent: a.role })]) });
         tools = r6(tools - amount);
       } else if (left < POLICY.dust) {
-        await escalate(`allowance:${a.role}:w${s.epoch}`, `${a.role} is low (${usd(a.balance)} USDC) and has used its whole allowance for this week. It waits for next week's plan unless the Boss raises the weekly budget.`, 'never top up past the weekly allowance', inputs);
+        await escalate(`allowance:${a.role}:w${s.epoch}`, `${a.role} is low (${usd(a.balance)} USDC${a.ready > a.balance ? `; a ${a.readyFor} job needs ${usd(a.ready)}` : ''}) and has used its whole allowance for this week. Raise the weekly tool budget on the Books page (to about ${s.budgetWanted} USDC) and the CFO funds it within minutes.`, 'never top up past the weekly allowance', inputs);
       } else starved.push(`${a.role} (${usd(a.balance)})`);
     }
     if (starved.length) {

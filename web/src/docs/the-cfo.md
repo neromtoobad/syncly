@@ -28,7 +28,7 @@ Every 10 minutes, and 30 seconds after any job is accepted, delivered, failed or
 1. **Reads** the vault's five buckets, each agent's Gateway balance, and the past week's spend per agent per job.
 2. **Plans the week.** Each agent's allowance is its measured spend per job times the jobs expected (at least 5 a week), scaled to fit the vault's weekly tool budget. **The plan's hash is sealed on-chain (`openEpoch`) before any money moves.**
 3. **Puts revenue to work**, in order: TOOLS for the week's remaining allowances, then BOND up to 3 USDC of cover, then RESERVE up to its floor. The rest stays in OPERATING.
-4. **Tops up** any agent that can afford fewer than 2 of its jobs, to about 5 jobs' worth, within its allowance.
+4. **Tops up** any agent that can afford fewer than 2 of its usual jobs, or less than one job of the most expensive service it works on (a Get Found job costs the Researcher 1.25 USDC of tools, a website costs it 0.01), to about one and a half of those jobs or three usual ones, within its allowance. Every week it plans that readiness first, so no service is turned away, and the Books page shows which services the team is funded for.
 5. **Re-plans mid-week** when an agent has used its whole allowance and is running low: it gives that agent more, first from the week's unplanned budget, then from allowance that fully stocked agents won't need. `setAllowance` still enforces the weekly tool budget on-chain, so a re-plan can never spend more in a week than the Boss allowed.
 6. **Escalates** to the Boss when it can't act: the TOOLS bucket is empty, it is low on gas, or the week's whole budget is used.
 
@@ -43,7 +43,7 @@ The Boss doesn't split money between agents by hand. They send USDC to the vault
 These limits are enforced by the [SynclyVault](/docs/on-chain) contract, not by a prompt:
 
 - **It can't send money out.** The CFO key can move money between the vault's buckets, top up registered agents' Gateway balances within their allowance, and pay approved human reviewers. No function lets it send vault money anywhere else.
-- **It moves at most 2 USDC in one step** (`maxMove`). Anything bigger must be a `propose`, and only the Boss's wallet can `coSign` it. The CFO's own policy also limits it to 2 USDC per bucket pair per week, and it never splits a move to get under the limit.
+- **It moves at most 2 USDC in one step** (`maxMove`). Anything bigger must be a `propose`, and only the Boss's wallet can `coSign` it. The CFO's own policy also limits it to `maxMove` per bucket pair per week: it moves what that allows and asks the Boss to co-sign the rest. The Boss sets `maxMove` and the weekly tool budget from the Books page.
 - **Allowances can't exceed the weekly tool budget** of 3 USDC across all agents.
 - **The reserve can't drop below its floor** (1 USDC), and **bonds must always be covered** by the BOND bucket.
 

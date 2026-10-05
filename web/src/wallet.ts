@@ -160,7 +160,17 @@ export async function decideOnChain(c: EscrowCfg, who: Address, id: Hex, action:
 export const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 export const txUrl = (c: { explorer: string | null } | null | undefined, hash?: string) => (c?.explorer && hash ? `${c.explorer}/tx/${hash}` : undefined);
 
-const VAULT = parseAbi(['function coSign(uint256 id)']);
+const VAULT = parseAbi(['function coSign(uint256 id)', 'function setPolicy(uint256 reserveFloor, uint256 maxMove, uint256 epochToolBudget, uint256 promoCap)']);
+/** The Boss changes the vault's limits: the reserve floor, what the CFO moves alone, the weekly tool budget, the promo cap. */
+export async function setVaultPolicy(c: EscrowCfg, who: Address, p: { reserveFloor: number; maxMove: number; epochToolBudget: number; promoCap: number }): Promise<Hex> {
+  await ensureChain(c);
+  const { pub, wallet } = clients(c, who);
+  const a = (x: number) => BigInt(Math.round(x * 1e6));
+  const hash = await wallet.writeContract({ address: c.vault, abi: VAULT, functionName: 'setPolicy', args: [a(p.reserveFloor), a(p.maxMove), a(p.epochToolBudget), a(p.promoCap)], ...fees(c) });
+  const r = await pub.waitForTransactionReceipt({ hash });
+  if (r.status !== 'success') throw new Error('The vault refused the new limits.');
+  return hash;
+}
 /** The Boss approves a CFO proposal from the vault owner's wallet. */
 export async function coSignOnChain(c: EscrowCfg, who: Address, id: number): Promise<Hex> {
   await ensureChain(c);
