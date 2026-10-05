@@ -11,7 +11,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DATA_DIR, DRY } from '../config.ts';
 import { account, hasSeed, type Role } from '../wallets.ts';
-import { DEP, cfoAddress, cfoWrite, pub } from '../escrow.ts';
+import { DEP, cfoAddress, cfoSendGas, cfoWrite, pub } from '../escrow.ts';
 import { gateway } from '../x402.ts';
 import { MAIL } from '../mail.ts';
 import { CATALOG } from '../services/index.ts';
@@ -28,6 +28,7 @@ export const POLICY = {
   minJobsPerWeek: 5, // plan for at least this much work, even in a quiet week
   jobsAhead: 3, // fund each agent for this many of its usual jobs (and at least 1.5 jobs of its most expensive service)
   lowWaterJobs: 2, // top an agent up when it can afford fewer than this many jobs
+  reclaimMin: 0.25, // surplus worth taking back to the vault (a withdrawal costs a few cents)
   minFloat: 0.05, // smallest float worth planning for an agent that pays for anything
   bondTarget: 3, // bond cover to hold: two jobs at the top bond (30% of a 5 USDC job)
   cfoGasMin: 0.01, // below this the CFO can't send transactions; tell the Boss
@@ -76,7 +77,8 @@ const median = (xs: number[]) => { const s = [...xs].sort((a, b) => a - b); cons
 export type AgentView = { role: Role; address: Address; balance: number; perJob: number; perJobFrom: string; allowance: number; toppedUp: number; current: boolean; ready: number; readyFor: string };
 /** Readiness: below `ready` (one job of the most expensive live service it works on) some service can't be taken. */
 const lowOf = (a: AgentView) => Math.max(a.perJob * POLICY.lowWaterJobs, a.ready);
-const targetOf = (a: AgentView) => Math.max(POLICY.minFloat, a.perJob * POLICY.jobsAhead, a.ready * 1.5);
+// Money follows spend: three of the agent's usual jobs, and never less than its priciest job (plus 10% for price drift).
+const targetOf = (a: AgentView) => Math.max(POLICY.minFloat, a.perJob * POLICY.jobsAhead, a.ready * 1.1);
 const works = (a: AgentView) => Math.max(a.perJob, a.ready) > 0;
 export type Snapshot = {
   at: string; mode: string;
@@ -85,6 +87,7 @@ export type Snapshot = {
   agents: AgentView[]; jobsPerWeek: number; cfoGas: number; owner: Address; promoCap: number;
   services: { id: string; name: string; ready: boolean; short: { role: Role; have: number; need: number }[] }[];
   teamGap: number; budgetWanted: number; // USDC the team is short of being ready for every service; the weekly budget that covers it
+  surplus: { role: Role; balance: number; keep: number; extra: number; ready: number; readyFor: string }[]; // more than an agent needs: the Boss can send it back
   pending: { id: number; from: Bucket; to: Bucket; amount: number; reason: Hex }[];
   proposals: { total: number; cosigned: number };
 };
@@ -162,7 +165,7 @@ async function observe(): Promise<Snapshot> {
     at: new Date().toISOString(), mode: MODE, buckets, vaultUsdc: u6(usdcInVault as bigint), unsynced: r6(u6(usdcInVault as bigint) - u6(total)),
     bondsOutstanding: u6(bonds), reserveFloor: u6(floor), maxMove: u6(maxMove), epochToolBudget: u6(budget), epoch: Number(epoch), epochAllocated: u6(allocated),
     agents, jobsPerWeek: Math.max(POLICY.minJobsPerWeek, jobsThisWeek), cfoGas: Number(await pub.getBalance({ address: cfoAddress() })) / 1e18,
-    promoCap: u6(promoCap as bigint), services, teamGap, budgetWanted: Math.ceil(u6(allocated) + teamGap),
+    promoCap: u6(promoCap as bigint), services, teamGap, budgetWanted: Math.ceil(u6(allocated) + teamGap), surplus: surplusOf(agents),
     owner, pending, proposals: { total: Number(count), cosigned },
   };
 }
@@ -213,6 +216,47 @@ async function cachedBalance(role: Role): Promise<number> {
 }
 
 
+
+/** Agents holding well over their target (from an older, bigger buffer, or a service that stopped): what can go back. */
+function surplusOf(agents: AgentView[]) {
+  return agents.filter((a) => Number.isFinite(a.balance)).map((a) => {
+    const keep = r6(targetOf(a) + 0.05), extra = Math.floor((a.balance - keep) * 100) / 100;
+    return { role: a.role, balance: a.balance, keep, extra, ready: a.ready, readyFor: a.readyFor };
+  }).filter((x) => x.extra >= POLICY.reclaimMin);
+}
+
+/**
+ * The Boss's "send the surplus back": each agent holding well over its target withdraws the extra from Circle
+ * Gateway straight to the vault (a burn intent Circle attests, then a mint on Arc that the agent's own wallet
+ * sends, so the CFO first gives it a few cents of gas). The vault credits it to OPERATING, and the CFO gives it
+ * out to the agents that spend more per job, inside the weekly budget as always.
+ */
+export async function reclaimSurplus(): Promise<{ role: Role; amount: number; tx?: string; error?: string }[]> {
+  if (!DEP || !hasSeed() || DEP.network !== 'arc') throw new Error('Taking money back from agents works on Arc mainnet only (it goes through Circle Gateway).');
+  if (running) throw new Error('The CFO is in the middle of a check. Try again in a minute.');
+  running = true;
+  const out: { role: Role; amount: number; tx?: string; error?: string }[] = [];
+  try {
+    const s = (last = await observe());
+    for (const x of s.surplus) {
+      const inputs = { balance: x.balance, keep: x.keep, ready: x.ready, readyFor: x.readyFor };
+      const why = x.ready > 0 ? `its priciest job (${x.readyFor}) takes ${usd(x.ready)}` : 'it has little work';
+      try {
+        const gas = await cfoSendGas(account(x.role).address);
+        const r = await gateway(x.role).withdraw(x.extra.toFixed(2), { recipient: DEP.vault, maxFee: '0.05' });
+        await record({ kind: 'reclaim', summary: `Took back ${usd(x.extra)} USDC from ${x.role}: it held ${usd(x.balance)} and needs about ${usd(x.keep)} (${why}). Sent to the vault for the agents that spend more per job.`, rule: 'money sits with the agents that spend it', inputs: { ...inputs, gasTx: gas }, key: `reclaim:${x.role}:${Date.now()}`, agent: x.role, amount: x.extra, tx: r.mintTxHash, status: 'done' });
+        out.push({ role: x.role, amount: x.extra, tx: r.mintTxHash });
+      } catch (e: any) {
+        const msg = String(e?.shortMessage ?? e?.message ?? e).split('\n')[0].slice(0, 160);
+        await record({ kind: 'reclaim', summary: `Tried to take back ${usd(x.extra)} USDC from ${x.role} and couldn't: ${msg}. Its balance is unchanged.`, rule: 'money sits with the agents that spend it', inputs, key: `reclaim-failed:${x.role}:${Date.now()}`, agent: x.role, amount: x.extra, status: 'failed' });
+        out.push({ role: x.role, amount: x.extra, error: msg });
+      }
+      balances.delete(x.role);
+    }
+  } finally { running = false; }
+  setTimeout(() => void tick('surplus came back to the vault'), 5000); // the watcher credits it to OPERATING
+  return out;
+}
 
 /** For each agent, one job of the most expensive live service it works on (and which), from each service's spend. */
 function readyNeeds() {

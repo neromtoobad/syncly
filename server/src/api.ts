@@ -22,7 +22,7 @@ import { FORMATS, countScan, posterHtml, posterTargets, scanStats, type PosterOp
 import { renderPoster } from './browser.ts';
 import { autoAcceptDue, createQuote, decide, escrowPending, getOrder, noteForRevision, openEscrow, readJob, replay, resumeInterrupted, retry, start, syncEscrow } from './orders.ts';
 import { escrowConfig, refreshBondFree } from './escrow.ts';
-import { MODE as CFO_MODE, POLICY as CFO_POLICY, freshSnapshot, startTreasury, teamShortfall, tick as cfoTick } from './cfo/treasury.ts';
+import { MODE as CFO_MODE, POLICY as CFO_POLICY, freshSnapshot, reclaimSurplus, startTreasury, teamShortfall, tick as cfoTick } from './cfo/treasury.ts';
 import { decisions as cfoDecisions, verifyLog } from './cfo/log.ts';
 import { tractionReport } from './traction.ts';
 import { approveBill, booksCsv, cancelDoc, confirmBusiness, createBill, createInvoice, desk, getDoc, payConfig, payTick, payWatchlist, publicDoc, registerBusiness, reportFor, syncPaid } from './pay.ts';
@@ -440,6 +440,11 @@ app.post('/api/cfo/nudge', (c) => {
   nudges.push(now);
   void cfoTick('the Boss changed the vault limits');
   return c.json({ ok: true });
+});
+// The Boss sends what agents hold beyond their need back to the vault (owner only: it moves real money).
+app.post('/api/cfo/reclaim', async (c) => {
+  if (!isOwner(c)) return c.json({ error: 'owner only' }, 401);
+  try { return c.json({ returned: await reclaimSurplus() }); } catch (e: any) { return c.json({ error: String(e?.message ?? e).split('\n')[0] }, 400); }
 });
 app.get('/api/cfo', async (c) => {
   if (!verified || Date.now() - verified.at > 60_000) verified = { at: Date.now(), v: await verifyLog() };

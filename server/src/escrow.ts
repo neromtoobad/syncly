@@ -78,6 +78,15 @@ export function cfoWrite(address: Address, abi: Abi, functionName: string, args:
 }
 const send = (functionName: 'open' | 'submit' | 'autoRelease' | 'refundLate' | 'cancelUnfunded', args: readonly unknown[]) => cfoWrite(DEP!.escrow, ESCROW_ABI, functionName, args);
 export const cfoAddress = () => wallet().account!.address;
+/** Arc gas is paid in USDC: give a wallet a few cents so it can send its own transaction (a Gateway withdrawal's mint). */
+export async function cfoSendGas(to: Address, minUsd = 0.01, topTo = 0.03): Promise<Hex | null> {
+  const have = Number(await pub.getBalance({ address: to })) / 1e18;
+  if (have >= minUsd) return null;
+  const w = wallet();
+  const hash: Hex = await (w as any).sendTransaction({ to, value: BigInt(Math.round((topTo - have) * 1e6)) * 10n ** 12n, chain, account: w.account!, ...FEES });
+  await pub.waitForTransactionReceipt({ hash });
+  return hash;
+}
 
 export const openJob = (id: Hex, customer: Address, priceUsd: number, bondUsd: number, specHash: Hex, fundBy: number, deliverBy: number) =>
   send('open', [id, customer, units(priceUsd), units(bondUsd), specHash, BigInt(fundBy), BigInt(deliverBy)]);

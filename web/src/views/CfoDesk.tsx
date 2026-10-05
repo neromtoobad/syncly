@@ -12,7 +12,7 @@ type Cfo = {
   enabled: boolean; mode: 'live' | 'observe';
   verify: { ok: boolean; entries: number; signer?: string | null; why?: string };
   metrics: { done: number; escalated: number; refused: number; wouldDo: number; proposed: number; cosigned: number };
-  snapshot: null | { at: string; epoch: number; owner: string; cfoGas: number; jobsPerWeek: number; agents: Agent[]; epochToolBudget: number; epochAllocated: number; maxMove: number; reserveFloor: number; promoCap?: number; services?: Svc[]; teamGap?: number; budgetWanted?: number; vaultUsdc: number; pending: { id: number; from: string; to: string; amount: number }[]; buckets: Record<string, number> };
+  snapshot: null | { at: string; epoch: number; owner: string; cfoGas: number; jobsPerWeek: number; agents: Agent[]; epochToolBudget: number; epochAllocated: number; maxMove: number; reserveFloor: number; promoCap?: number; services?: Svc[]; teamGap?: number; budgetWanted?: number; surplus?: { role: string; balance: number; keep: number; extra: number; ready: number; readyFor: string }[]; vaultUsdc: number; pending: { id: number; from: string; to: string; amount: number }[]; buckets: Record<string, number> };
   plan: null | { vaultEpoch: number; openedAt: string; jobsPerWeek: number; allowances: Record<string, number>; commit: string };
   decisions: Decision[];
 };
@@ -20,7 +20,7 @@ type Cfo = {
 const KIND: Record<string, string> = {
   epoch: 'Weekly plan', allowance: 'Allowance', 'top-up': 'Top-up', move: 'Move', propose: 'Asked the Boss', escalate: 'Escalated',
   hold: 'Held', 'payee-pinned': 'Payee pinned', 'payee-refused': 'Payment refused', 'screen-refused': 'Screened out',
-  autopay: 'Autopaid a bill', 'pay-propose': 'Asked a business', screen: 'Screening', report: 'Weekly report',
+  autopay: 'Autopaid a bill', 'pay-propose': 'Asked a business', screen: 'Screening', report: 'Weekly report', reclaim: 'Took back surplus',
 };
 const STATUS: Record<string, string> = { done: 'done', 'would-do': 'would do', escalated: 'to the Boss', refused: 'refused', failed: 'failed' };
 
@@ -32,6 +32,7 @@ export default function CfoDesk() {
   const [err, setErr] = useState<string | null>(null);
   const [all, setAll] = useState(false);
   const [fund, setFund] = useState({ amount: '10', busy: false, err: null as string | null, done: null as string | null });
+  const [back, setBack] = useState<{ busy: boolean; msg: string | null; err: string | null }>({ busy: false, msg: null, err: null });
   const [pol, setPol] = useState<{ budget: string; maxMove: string; busy: boolean; err: string | null; done: string | null } | null>(null);
   if (!c?.enabled) return null;
   const s = c.snapshot;
@@ -53,6 +54,17 @@ export default function CfoDesk() {
     } catch (e: any) { setPol({ ...policy, busy: false, err: walletError(e) }); }
   }
   const notReady = (s?.services ?? []).filter((x) => !x.ready);
+  const extra = s?.surplus ?? [];
+  async function reclaim() {
+    if (!confirm(`Send ${usd(extra.reduce((t, x) => t + x.extra, 0))} USDC from ${extra.map((x) => ROLE_NAME[x.role] ?? x.role).join(', ')} back to the vault?`)) return;
+    setBack({ busy: true, msg: null, err: null });
+    try {
+      const r = await api<{ returned: { role: string; amount: number; tx?: string; error?: string }[] }>('/api/cfo/reclaim', { method: 'POST' });
+      const ok = r.returned.filter((x) => x.tx), bad = r.returned.filter((x) => x.error);
+      setBack({ busy: false, msg: ok.length ? `Sent back ${usd(ok.reduce((t, x) => t + x.amount, 0))} USDC from ${ok.map((x) => ROLE_NAME[x.role] ?? x.role).join(', ')}. The CFO credits it to OPERATING within a minute.` : null, err: bad.length ? bad.map((x) => `${ROLE_NAME[x.role] ?? x.role}: ${x.error}`).join(' · ') : null });
+      setTimeout(() => api<Cfo>('/api/cfo').then(setData).catch(() => {}), 6000);
+    } catch (e: any) { setBack({ busy: false, msg: null, err: e.message }); }
+  }
 
   async function coSign(id: number) {
     if (!cfg || !s) return;
@@ -116,6 +128,19 @@ export default function CfoDesk() {
           <b>{notReady.length ? `Ready for ${s.services.length - notReady.length} of ${s.services.length} services` : `The team is funded for every service`}</b>
           <div className="readychips">{s.services.map((x) => <span key={x.id} className={`chip${x.ready ? ' live' : ''}`} title={x.short.map((r) => `${ROLE_NAME[r.role] ?? r.role}: ${usd(r.have, 3)} of ${usd(r.need, 3)}`).join(' · ')}>{x.ready ? '✓' : '!'} {x.name}</span>)}</div>
           {notReady.length > 0 && <p style={{ fontSize: 13.5, margin: 0 }}>{notReady.map((x) => `${x.name}: ${x.short.map((r) => `${ROLE_NAME[r.role] ?? r.role} has ${usd(r.have, 2)} of ${usd(r.need, 2)}`).join(', ')}`).join(' · ')}. The vault has the money; the CFO gives out at most {usd(s.epochToolBudget)} USDC a week to the agents{s.epochAllocated >= s.epochToolBudget - 0.01 ? ' and has used it' : ''}. Raising the weekly budget to about <b>{s.budgetWanted} USDC</b> lets it fund everyone now.</p>}
+        </div>
+      )}
+
+      {(extra.length > 0 || back.msg || back.err) && (
+        <div className="fundbox">
+          <div>
+            <b>Money sitting with agents that don't need it</b>
+            <p className="muted" style={{ fontSize: 13, margin: '4px 0 0' }}>Each agent keeps three of its usual jobs, and never less than its priciest job. Above that, the money does more in the vault, where the CFO gives it to the agents that spend more per job. Each return is a Circle Gateway withdrawal to the vault and costs a few cents.</p>
+          </div>
+          {extra.length > 0 && <ul className="rules" style={{ fontSize: 14, margin: 0 }}>{extra.map((x) => <li key={x.role}><b>{ROLE_NAME[x.role] ?? x.role}</b> holds {usd(x.balance, 2)} and needs about {usd(x.keep, 2)}{x.ready > 0 ? ` (priciest job: ${x.readyFor}, ${usd(x.ready, 2)})` : ''}: <b>{usd(x.extra, 2)}</b> can go back</li>)}</ul>}
+          {extra.length > 0 && <div className="fundrow"><button className="btn primary sm" disabled={back.busy} onClick={reclaim}>{back.busy ? 'Sending it back…' : `Send ${usd(extra.reduce((t, x) => t + x.extra, 0))} USDC back to the vault`}</button></div>}
+          {back.msg && <div className="ok">{back.msg}</div>}
+          {back.err && <div className="error">{back.err}</div>}
         </div>
       )}
 
