@@ -8,6 +8,7 @@ import { connect, decideOnChain, hasWallet, short, txUrl, walletError, type Escr
 import type { Address } from 'viem';
 import type { ReactNode } from 'react';
 import Office from '@/office/Office.tsx';
+import type { OfficeEvent } from '@/office/scene.ts';
 import { useRouter } from 'next/navigation';
 import { saveBusiness } from './BusinessForm.tsx';
 import { AnimatePresence, motion } from 'motion/react';
@@ -219,6 +220,15 @@ function EscrowDecision({ o, cfg, onUpdate }: { o: Order; cfg: EscrowCfg; onUpda
   );
 }
 
+/** What already happened on a live job (the brief arriving, its steps and payments so far), for the office to catch up on. */
+function missedEvents(o: Order): OfficeEvent[] {
+  const live = (o as any).live as { steps?: Step[]; receipt?: Receipt[] } | null;
+  const ev: OfficeEvent[] = [{ type: 'order', orderId: o.id, at: (o as any).payment?.at ?? o.createdAt, data: { status: 'queued', service: o.service, team: (o as any).team ?? [], promo: o.quote.promo, price: o.quote.priceUsd, bond: o.quote.bondUsd, brief: o.brief.length > 90 ? o.brief.slice(0, 88) + '…' : o.brief } }];
+  for (const s of live?.steps ?? []) ev.push({ type: 'step', orderId: o.id, at: s.at, data: s });
+  for (const p of live?.receipt ?? []) ev.push({ type: 'purchase', orderId: o.id, at: p.at, data: p });
+  return [ev[0], ...ev.slice(1).sort((a, b) => (a.at ?? '').localeCompare(b.at ?? ''))];
+}
+
 export default function Job({ id }: { id: string }) {
   const [o, setO] = useState<Order | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -280,7 +290,7 @@ export default function Job({ id }: { id: string }) {
       <div className="jobgrid">
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 20, minWidth: 0 }}>
           <div className="minioffice">
-            <Office orderId={o.id} team={(o as any).team} idleReplayMs={0} replayToken={replay} />
+            <Office orderId={o.id} team={(o as any).team} idleReplayMs={0} replayToken={replay} backlog={active ? missedEvents(o) : undefined} working={active ? (o as any).team : null} directorOnStart={!!active} />
             <div className="overlay">
               {active ? <span className="chip live"><span className="dot" />Live: the team on your job</span>
                 : o.runs.length > 0 && <button className="btn secondary sm" onClick={() => setReplay((x) => x + 1)}>▶ Replay this job</button>}

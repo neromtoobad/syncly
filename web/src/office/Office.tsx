@@ -18,12 +18,19 @@ type Props = {
   fullLink?: boolean; // show a button that opens the office on its own (/live)
   soundOnFirstClick?: boolean; // the /live stage: the first click anywhere turns the music on
   onSound?: (on: boolean) => void;
+  backlog?: OfficeEvent[]; // job page: what already happened on a live job, played quickly once the office has loaded
+  working?: string[] | null; // job page: the team on a live job keeps working between events
+  directorOnStart?: boolean; // start with the camera following the action
 };
+const evKey = (e: OfficeEvent) => `${e.type}:${e.data?.at ?? e.at ?? ''}:${e.data?.step ?? e.data?.transaction ?? e.data?.status ?? ''}`;
 
 const wait = (ms: number, signal: { stop: boolean }) => new Promise<void>((r) => { const t = setInterval(() => { if (signal.stop) { clearInterval(t); r(); } }, 100); setTimeout(() => { clearInterval(t); r(); }, ms); });
 
-export default function Office({ orderId, team, idleReplayMs = 12000, onFeed, onMode, replayToken, controls = true, onAgentClick, fill = false, fullLink = !fill, soundOnFirstClick = false, onSound }: Props) {
-  const [director, setDirector] = useState(false); // the whole building by default; Director follows the action
+export default function Office({ orderId, team, idleReplayMs = 12000, onFeed, onMode, replayToken, controls = true, onAgentClick, fill = false, fullLink = !fill, soundOnFirstClick = false, onSound, backlog, working, directorOnStart = false }: Props) {
+  const [director, setDirector] = useState(directorOnStart); // the whole building by default; Director follows the action
+  const backlogRef = useRef(backlog);
+  backlogRef.current = backlog;
+  const catching = useRef<OfficeEvent[] | null>(null); // live events that arrive while the office catches up
   const [sound, setSound] = useState(false);
   const el = useRef<HTMLDivElement>(null);
   const scene = useRef<OfficeScene | null>(null);
@@ -49,6 +56,8 @@ export default function Office({ orderId, team, idleReplayMs = 12000, onFeed, on
     return () => { cancelled = true; replaying.current && (replaying.current.stop = true); s?.destroy(); scene.current = null; };
   }, []);
   useEffect(() => { if (ready) scene.current?.focus(team ?? null); }, [ready, team?.join(',')]);
+  useEffect(() => { if (ready) scene.current?.setWorking(working ?? null); }, [ready, working?.join(',')]);
+  useEffect(() => { if (ready && directorOnStart) scene.current?.setDirector(true); }, [ready]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (ready && scene.current) scene.current.onAgentClick = (id) => cb.current.onAgentClick?.(id); }, [ready]);
 
   // the wall screen in the office shows the team's real work
@@ -64,9 +73,26 @@ export default function Office({ orderId, team, idleReplayMs = 12000, onFeed, on
   useEffect(() => {
     if (!ready) return;
     const es = new EventSource(orderId ? `/api/events?order=${orderId}` : '/api/events');
+    // A live job's office loads a few seconds after the job starts: play what it missed (the brief arriving,
+    // then the latest steps) quickly, holding new events until it has caught up.
+    const missed = backlogRef.current ?? [];
+    const sig = { stop: false };
+    if (missed.length) {
+      catching.current = [];
+      (async () => {
+        const seen = new Set(missed.map(evKey));
+        const [first, ...rest] = missed;
+        if (first.type === 'order') { scene.current?.handle(first); await wait(5200, sig); } else rest.unshift(first);
+        for (const e of rest.slice(-6)) { if (sig.stop) return; scene.current?.handle(e); cb.current.onFeed?.({ at: e.at ?? '', kind: 'live', e }); await wait(900, sig); }
+        const held = catching.current ?? [];
+        catching.current = null;
+        for (const e of held) if (!seen.has(evKey(e))) scene.current?.handle(e);
+      })();
+    }
     const onEvent = (msg: MessageEvent) => {
       const e = JSON.parse(msg.data) as OfficeEvent;
       if (!e.type) return;
+      if (catching.current) { catching.current.push(e); return; }
       if (replaying.current) { replaying.current.stop = true; replaying.current = null; }
       lastLive.current = Date.now();
       scene.current?.handle(e);
@@ -74,7 +100,7 @@ export default function Office({ orderId, team, idleReplayMs = 12000, onFeed, on
       cb.current.onMode?.({ mode: 'live', orderId: e.orderId });
     };
     for (const t of ['step', 'purchase', 'order']) es.addEventListener(t, onEvent);
-    return () => es.close();
+    return () => { sig.stop = true; catching.current = null; es.close(); };
   }, [ready, orderId]);
 
   // replay recorded events when idle (or on demand)

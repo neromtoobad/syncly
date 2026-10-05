@@ -431,6 +431,17 @@ export class OfficeScene {
     this.dir.follow = a; this.dir.current = 'follow';
     if (a) { gsap.killTweensOf(this.cam); this.tw(this.cam, { w: 1650, duration: 1.1, ease: 'power2.inOut' }); this.onShot?.('follow'); }
   }
+  /** While a job runs, its team keeps working between events: laptops lit, typing, until it's delivered. */
+  setWorking(team: string[] | null) {
+    clearInterval(this.workingTimer);
+    this.workingTeam = team ?? [];
+    if (!team?.length) { for (const b of this.bubbles.values()) b.until = Math.min(b.until, performance.now() + 1500); return; }
+    const keep = () => { for (const r of team) { const a = this.actors.get(r); if (a && a.mode === 'seat') a.busyUntil = Math.max(a.busyUntil, performance.now() + 2600); } };
+    keep();
+    this.workingTimer = setInterval(keep, 2000);
+  }
+  private workingTimer: ReturnType<typeof setInterval> | undefined;
+  private workingTeam: string[] = [];
   setDirector(on: boolean) {
     this.dir.on = on;
     this.dir.pending = [];
@@ -454,7 +465,7 @@ export class OfficeScene {
     if (this.dir.on) {
       if (this.dir.follow) { this.cam.cx += (this.dir.follow.pos.x - this.cam.cx) * 0.06; this.cam.cy += (this.dir.follow.pos.y - 160 - this.cam.cy) * 0.06; }
       else if (now >= this.dir.lockUntil && this.dir.pending.length) { const p = this.dir.pending.shift()!; this.go(p.shot); this.dir.lockUntil = now + p.hold; }
-      else if (this.dir.current !== 'wide' && now - this.dir.lastEvent > 7000 && now >= this.dir.lockUntil) this.go('wide', 1.8);
+      else if (this.dir.current !== 'wide' && !this.workingTeam.length && now - this.dir.lastEvent > 7000 && now >= this.dir.lockUntil) this.go('wide', 1.8);
     }
     if (this.shake > 0.3) this.shake *= 0.86; else this.shake = 0;
     this.applyCam();
@@ -731,7 +742,10 @@ export class OfficeScene {
       const a = this.actors.get(seat); if (!a) return;
       a.busyUntil = performance.now() + 7000;
       if (d.agent === 'auditor' && (d.step === 'check' || d.step === 'audit') && !/fail|missing|revise/i.test(String(d.note ?? ''))) { this.signOff(`${d.step} · ${d.note ?? 'pass'}`); return; }
-      if (a.mode === 'seat' || a.id === 'cfo') this.say(seat, `${tag}${d.step}${d.note ? ` · ${d.note}` : ''}`);
+      // on a live job the newest step stays up until the next one (a long step doesn't look idle); the last one fades
+      const live = this.workingTeam.length > 0;
+      if (live) for (const [k, b] of this.bubbles) if (k !== seat) b.until = Math.min(b.until, performance.now() + 1200);
+      if (a.mode === 'seat' || a.id === 'cfo') this.say(seat, `${tag}${d.step}${d.note ? ` · ${d.note}` : ''}`, live ? 45000 : 3600);
       else a.last = `${tag}${d.step}${d.note ? ` · ${d.note}` : ''}`;
       this.want('work', 2600);
     } else if (e.type === 'purchase') {
@@ -803,6 +817,7 @@ export class OfficeScene {
 
   destroy() {
     this.destroyed = true;
+    clearInterval(this.workingTimer);
     this.ro?.disconnect();
     this.sfx.destroy();
     for (const t of this.tweens) t.kill();
