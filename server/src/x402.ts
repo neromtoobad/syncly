@@ -35,8 +35,8 @@ export class SpendRefused extends Error {}
 // take the payment ("verification temporarily unavailable") is retried; checked on mainnet that such a
 // payment never settles. A timeout or dropped connection after signing is ambiguous: the seller may
 // already have taken it. Retrying then is how an agent pays twice, so we stop and say so instead.
-const TRANSIENT = /temporarily unavailable|please retry|try again|timed? ?out|ETIMEDOUT|ECONNRESET|EAI_AGAIN|fetch failed|socket hang up|\b(429|502|503|504)\b|rate limit/i;
-const SELLER_DECLINED = /verification temporarily unavailable|please retry/i;
+const TRANSIENT = /temporarily unavailable|please retry|payment verification failed|try again|timed? ?out|ETIMEDOUT|ECONNRESET|EAI_AGAIN|fetch failed|socket hang up|\b(429|502|503|504)\b|rate limit/i;
+const SELLER_DECLINED = /verification temporarily unavailable|payment verification failed|please retry/i; // the seller refused the signature, so nothing was taken
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // One client per agent, with ONE price-cap hook that reads the cap for the call in flight.
