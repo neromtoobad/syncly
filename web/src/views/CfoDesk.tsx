@@ -3,11 +3,12 @@
 // decision it made, each signed by the CFO's key and chained to the one before.
 import { useState } from 'react';
 import { api, useApi, usd, timeAgo, Avatar, ROLE_NAME } from '@/lib.tsx';
-import { connect, coSignOnChain, fundVault, hasWallet, setVaultPolicy, short, txUrl, usdcBalance, walletError, type EscrowCfg } from '@/wallet.ts';
+import { connect, coSignOnChain, fundDesk, fundVault, hasWallet, setVaultPolicy, short, txUrl, usdcBalance, walletError, type EscrowCfg } from '@/wallet.ts';
 
 type Decision = { n: number; at: string; kind: string; summary: string; rule: string; inputs: Record<string, unknown>; amount?: number; agent?: string; tx?: string; proposal?: number; status: string; hash: string; sig?: string };
 type Agent = { role: string; balance: number; perJob: number; perJobFrom: string; allowance: number; toppedUp: number; ready?: number; readyFor?: string };
 type Svc = { id: string; name: string; ready: boolean; short: { role: string; have: number; need: number }[] };
+type Naira = { enabled: boolean; live: boolean; ngnPerUsd: number | null; paid: number; receivedNgn: number; desk: null | { address: `0x${string}`; floatUsd: number; perPayCapUsd: number; dayCapUsd: number; spentTodayUsd: number; dayLeftUsd: number } };
 type Cfo = {
   enabled: boolean; mode: 'live' | 'observe';
   verify: { ok: boolean; entries: number; signer?: string | null; why?: string };
@@ -33,6 +34,8 @@ export default function CfoDesk() {
   const [all, setAll] = useState(false);
   const [fund, setFund] = useState({ amount: '10', busy: false, err: null as string | null, done: null as string | null });
   const [back, setBack] = useState<{ busy: boolean; msg: string | null; err: string | null }>({ busy: false, msg: null, err: null });
+  const { data: nd, setData: setNd } = useApi<Naira>('/api/naira', 30000);
+  const [desk, setDesk] = useState({ amount: '20', busy: false, err: null as string | null, done: null as string | null });
   const [pol, setPol] = useState<{ budget: string; maxMove: string; busy: boolean; err: string | null; done: string | null } | null>(null);
   if (!c?.enabled) return null;
   const s = c.snapshot;
@@ -89,6 +92,21 @@ export default function CfoDesk() {
       const tx = await fundVault(cfg, who, n);
       setFund((f) => ({ ...f, busy: false, done: tx }));
     } catch (e: any) { setFund((f) => ({ ...f, busy: false, err: walletError(e) })); }
+  }
+
+  async function topUpDesk() {
+    if (!cfg || !nd?.desk) return;
+    const n = Number(desk.amount);
+    setDesk((d) => ({ ...d, busy: true, err: null, done: null }));
+    try {
+      if (!(n > 0)) throw new Error('Enter an amount in USDC.');
+      const who = await connect(cfg);
+      const have = await usdcBalance(cfg, who);
+      if (have < n + 0.02) throw new Error(`This wallet has ${usd(have)} USDC on Arc. Leave a few cents for gas: send at most ${usd(Math.max(0, have - 0.02))}.`);
+      const tx = await fundDesk(cfg, who, nd.desk.address, n);
+      setDesk((d) => ({ ...d, busy: false, done: tx }));
+      setTimeout(() => api<Naira>('/api/naira').then(setNd).catch(() => {}), 4000);
+    } catch (e: any) { setDesk((d) => ({ ...d, busy: false, err: walletError(e) })); }
   }
 
   const shown = all ? c.decisions : c.decisions.slice(0, 12);
@@ -173,6 +191,26 @@ export default function CfoDesk() {
           {fund.err && <div className="error">{fund.err}</div>}
           {fund.done && <div className="ok">Sent. <a href={txUrl(cfg, fund.done)} target="_blank" rel="noreferrer">Transaction ↗</a> Watch the CFO's log below.</div>}
           {!hasWallet() && <p className="muted" style={{ fontSize: 12.5, margin: 0 }}>Open this page in a wallet browser, or send USDC on Arc to <span className="mono">{cfg.vault}</span>.</p>}
+        </div>
+      )}
+
+      {cfg && nd?.desk && (
+        <div className={`fundbox${nd.enabled && nd.desk.floatUsd < nd.desk.perPayCapUsd ? ' short' : ''}`}>
+          <div>
+            <b>Naira float <small className="muted">NairaDesk, {usd(nd.desk.floatUsd)} USDC</small></b>
+            <p className="muted" style={{ fontSize: 13, margin: '4px 0 0' }}>
+              Customers who pay in naira through Bachs get their job's escrow funded from this float. It can only pay Syncly's own escrow, at most {usd(nd.desk.perPayCapUsd)} USDC a job and {usd(nd.desk.dayCapUsd)} a day ({usd(nd.desk.dayLeftUsd)} left today), and only the Boss wallet can take it back out.
+              {nd.enabled ? ` Naira is on${nd.ngnPerUsd ? ` at ₦${Math.round(nd.ngnPerUsd).toLocaleString()} per dollar` : ''}; ${nd.paid} paid so far (₦${nd.receivedNgn.toLocaleString()}).` : ' Naira checkout is off until the Bachs keys are set.'}
+              {nd.desk.floatUsd < 2 ? ' While the float is below a job\'s price, customers only see the USDC option.' : ''}
+            </p>
+          </div>
+          <div className="fundrow">
+            <input type="text" inputMode="decimal" value={desk.amount} onChange={(e) => setDesk((d) => ({ ...d, amount: e.target.value }))} aria-label="USDC to add to the naira float" />
+            <button className="btn primary sm" disabled={desk.busy || !hasWallet()} onClick={topUpDesk}>{desk.busy ? 'Confirm in your wallet…' : 'Top up the desk'}</button>
+          </div>
+          {desk.err && <div className="error">{desk.err}</div>}
+          {desk.done && <div className="ok">Added. <a href={txUrl(cfg, desk.done)} target="_blank" rel="noreferrer">Transaction ↗</a> The float updates in a few seconds.</div>}
+          {!hasWallet() && <p className="muted" style={{ fontSize: 12.5, margin: 0 }}>Open this page in a wallet browser. A plain send to the desk is refused on Arc; it has to be a USDC token transfer, which this button makes.</p>}
         </div>
       )}
 

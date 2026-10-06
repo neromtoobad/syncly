@@ -181,12 +181,16 @@ export async function coSignOnChain(c: EscrowCfg, who: Address, id: number): Pro
   return hash;
 }
 
-/** Send USDC to the company's vault. The CFO credits it to OPERATING and puts it to work inside the vault's limits. */
-export async function fundVault(c: EscrowCfg, who: Address, amountUsd: number): Promise<Hex> {
+/** Send USDC through its ERC-20 interface. Contracts like NairaDesk refuse a plain (native) send on Arc. */
+async function sendUsdc(c: EscrowCfg, who: Address, to: Address, amountUsd: number): Promise<Hex> {
   await ensureChain(c);
   const { pub, wallet } = clients(c, who);
-  const hash = await wallet.writeContract({ address: c.usdc, abi: ERC20, functionName: 'transfer', args: [c.vault, BigInt(Math.round(amountUsd * 1e6))], ...fees(c) });
+  const hash = await wallet.writeContract({ address: c.usdc, abi: ERC20, functionName: 'transfer', args: [to, BigInt(Math.round(amountUsd * 1e6))], ...fees(c) });
   const r = await pub.waitForTransactionReceipt({ hash });
   if (r.status !== 'success') throw new Error('The transfer failed on-chain.');
   return hash;
 }
+/** Send USDC to the company's vault. The CFO credits it to OPERATING and puts it to work inside the vault's limits. */
+export const fundVault = (c: EscrowCfg, who: Address, amountUsd: number) => sendUsdc(c, who, c.vault, amountUsd);
+/** Top up NairaDesk, the float that funds escrow for customers who pay in naira. Only the Boss can take it back out. */
+export const fundDesk = (c: EscrowCfg, who: Address, desk: Address, amountUsd: number) => sendUsdc(c, who, desk, amountUsd);
