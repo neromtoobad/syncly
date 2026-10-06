@@ -34,6 +34,9 @@
     const CHORDS = Object.assign({}, DEFAULT_CHORDS, opts.chords || {});
     const PROG = opts.prog || DEFAULT_PROG;
     const at = (id) => reel.at(id);
+    // A style varies the track from ad to ad: key, arpeggio, instruments, groove and swing. Without one it's the default track.
+    const ST = Object.assign({ transpose: 0, arp: 'classic', pluck: 'soft', pad: 'saw', drums: 'four', swing: 0, bassStyle: 'pulse' }, opts.style || {});
+    const TR = ST.transpose | 0;
 
     /* ---------- sections: explicit [[bar, name], ...] or derived from holds ---------- */
     const secOf = (() => {
@@ -100,6 +103,7 @@
     function bass(t, dur, m, v = 0.34) {
       v *= musicLevel;
       const o = ctx.createOscillator(), o2 = ctx.createOscillator(), g = ctx.createGain(), lp = ctx.createBiquadFilter(), g2 = ctx.createGain();
+      m += TR;
       o.type = 'sine'; o2.type = 'triangle'; o.frequency.value = mtof(m); o2.frequency.value = mtof(m + 12); g2.gain.value = 0.22;
       lp.type = 'lowpass'; lp.frequency.value = 700;
       o.connect(g); o2.connect(g2); g2.connect(g); g.connect(lp); lp.connect(duck);
@@ -108,16 +112,36 @@
     }
     function pad(t, dur, notes, v = 0.032) {
       v *= musicLevel;
+      if (ST.pad === 'warm') v *= 1.25; else if (ST.pad === 'organ') v *= 0.7;
       for (const m of notes) for (const det of [-6, 6]) {
-        const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sawtooth'; o.frequency.value = mtof(m); o.detune.value = det;
+        const o = ctx.createOscillator(), g = ctx.createGain(); o.type = ST.pad === 'warm' ? 'triangle' : ST.pad === 'organ' ? 'square' : 'sawtooth'; o.frequency.value = mtof(m + TR); o.detune.value = det;
         g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(v, t + 0.35); g.gain.setValueAtTime(v, t + dur); g.gain.linearRampToValueAtTime(0.0001, t + dur + 0.6);
         o.connect(g); g.connect(padLP); o.start(t); o.stop(t + dur + 0.7);
       }
     }
     function pluck(t, m, v = 0.1, bright = 1) {
-      v *= musicLevel;
+      v *= musicLevel; m += TR;
+      if (ST.pluck === 'marimba') {
+        // a struck bar: a sine with a quick fourth-partial knock
+        const o = ctx.createOscillator(), k = ctx.createOscillator(), g = ctx.createGain(), kg = ctx.createGain();
+        o.type = 'sine'; k.type = 'sine'; o.frequency.value = mtof(m); k.frequency.value = mtof(m) * 3.98;
+        g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(v * 1.5, t + 0.003); g.gain.exponentialRampToValueAtTime(0.0008, t + 0.38);
+        kg.gain.setValueAtTime(v * 0.5, t); kg.gain.exponentialRampToValueAtTime(0.0005, t + 0.05);
+        o.connect(g); k.connect(kg); kg.connect(g); g.connect(out); g.connect(dl); const s2 = ctx.createGain(); s2.gain.value = 0.3; g.connect(s2); s2.connect(rev);
+        o.start(t); k.start(t); o.stop(t + 0.4); k.stop(t + 0.08);
+        return;
+      }
+      if (ST.pluck === 'keys') {
+        // an electric-piano-ish tone: a sine with a soft bell partial, longer decay
+        const o = ctx.createOscillator(), mo = ctx.createOscillator(), mg = ctx.createGain(), g = ctx.createGain();
+        o.frequency.value = mtof(m); mo.frequency.value = mtof(m) * 2; mg.gain.setValueAtTime(mtof(m) * 0.9, t); mg.gain.exponentialRampToValueAtTime(2, t + 0.5);
+        mo.connect(mg); mg.connect(o.frequency); o.connect(g); g.connect(out); g.connect(dl); const s2 = ctx.createGain(); s2.gain.value = 0.4; g.connect(s2); s2.connect(rev);
+        g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(v * 1.1, t + 0.006); g.gain.exponentialRampToValueAtTime(0.0008, t + 0.8);
+        o.start(t); mo.start(t); o.stop(t + 0.85); mo.stop(t + 0.85);
+        return;
+      }
       const o = ctx.createOscillator(), o2 = ctx.createOscillator(), g = ctx.createGain(), lp = ctx.createBiquadFilter(), g2 = ctx.createGain();
-      o.type = 'triangle'; o2.type = 'square'; o.frequency.value = mtof(m); o2.frequency.value = mtof(m + 12); o2.detune.value = 4; g2.gain.value = 0.18;
+      o.type = 'triangle'; o2.type = ST.pluck === 'bright' ? 'sawtooth' : 'square'; o.frequency.value = mtof(m); o2.frequency.value = mtof(m + 12); o2.detune.value = 4; g2.gain.value = ST.pluck === 'bright' ? 0.26 : 0.18;
       lp.type = 'lowpass'; lp.frequency.setValueAtTime(900 + 3200 * bright, t); lp.frequency.exponentialRampToValueAtTime(500, t + 0.25);
       o.connect(g); o2.connect(g2); g2.connect(g); g.connect(lp); lp.connect(out); lp.connect(dl);
       const s = ctx.createGain(); s.gain.value = 0.35; lp.connect(s); s.connect(rev);
@@ -129,6 +153,7 @@
     const au = {
       BEAT, BAR, at, reel,
       bell(t, m, v = 0.1) {
+        m += TR;
         const c = ctx.createOscillator(), mo = ctx.createOscillator(), mg = ctx.createGain(), g = ctx.createGain();
         c.frequency.value = mtof(m); mo.frequency.value = mtof(m) * 3.5; mg.gain.setValueAtTime(mtof(m) * 2.2, t); mg.gain.exponentialRampToValueAtTime(1, t + 1.2);
         mo.connect(mg); mg.connect(c.frequency); c.connect(g); g.connect(sfx); g.connect(sfxRev); g.connect(dl);
@@ -189,7 +214,30 @@
     };
 
     /* ---------- the music ---------- */
-    const ARP = [0, 2, 1, 3, 2, 4, 3, 1, 0, 2, 1, 3, 4, 3, 2, 1];
+    const ARPS = {
+      classic: [0, 2, 1, 3, 2, 4, 3, 1, 0, 2, 1, 3, 4, 3, 2, 1],
+      up: [0, 1, 2, 3, 4, 3, 2, 1, 0, 1, 2, 3, 4, 3, 2, 1],
+      skip: [0, -1, 2, -1, 1, 3, -1, 2, 0, -1, 2, 4, -1, 3, 1, -1],
+      sparse: [0, -1, -1, 2, -1, -1, 1, -1, 3, -1, -1, 2, -1, -1, 4, -1],
+      call: [4, 3, 2, -1, 4, 3, 1, -1, 2, 3, 4, -1, 1, 2, 0, -1],
+    };
+    const ARP = ARPS[ST.arp] || ARPS.classic;
+    const sw = (s) => (s % 2 ? ST.swing * BEAT / 4 : 0); // swung 16ths
+    function shaker(t, v = 0.04, pan = 0) { hat(t, v, false, pan); }
+    function rim(t, v = 0.12) {
+      v *= musicLevel;
+      const o = ctx.createOscillator(), g = ctx.createGain(), bp = ctx.createBiquadFilter(); o.type = 'triangle'; o.frequency.value = 1750; bp.type = 'bandpass'; bp.frequency.value = 1800; bp.Q.value = 3;
+      g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.0006, t + 0.06); o.connect(bp); bp.connect(g); g.connect(out); o.start(t); o.stop(t + 0.07);
+    }
+    // where the kick, snare/clap and rim fall in a bar (in beats), per groove
+    const GROOVES = {
+      four: { kick: [0, 1, 2, 3], clap: [1, 3], liftOnly: true },
+      half: { kick: [0, 1.5, 2.75], clap: [2], liftOnly: false },
+      afro: { kick: [0, 1.75, 2.5], clap: [1, 3], rim: [0.75, 1.5, 2.25, 3.5], shaker: true, liftOnly: false },
+      piano: { kick: [0, 2], clap: [3], rim: [1.25, 2.75], shaker: true, logBass: true, liftOnly: false },
+      none: { kick: [], clap: [], shaker: true, liftOnly: false },
+    };
+    const GR = GROOVES[ST.drums] || GROOVES.four;
     const padCut = Object.assign({ intro: 700, groove: 1200, riser: 1200, lift: 1800, break: 520, outro: 800 }, opts.padCut || {});
     for (let bar = 0; bar < BARS + 2; bar++) {
       const t = bar * BAR, b = bar % BARS, sec = secOf(b), chd = CHORDS[PROG[b % PROG.length]];
@@ -198,12 +246,28 @@
       pad(t, BAR, chd.p, sec === 'intro' || sec === 'outro' ? 0.026 : sec === 'break' ? 0.028 : 0.032);
       const tones = [...chd.p.map((m) => m + 12), chd.p[0] + 24];
       for (let s = 0; s < 16; s++) {
-        const ts = t + (s * BEAT) / 4;
+        const ts = t + (s * BEAT) / 4 + sw(s);
+        if (ARP[s] < 0) continue;
         if (sec === 'intro' || sec === 'outro') { if (s % 2 === 0) pluck(ts, tones[ARP[s]], 0.075, 0.35); continue; }
         if (sec === 'break') { if (s % 4 === 0) pluck(ts, tones[ARP[s]] - 12, 0.06, 0.15); continue; }
         pluck(ts, tones[ARP[s]], 0.1 * (s % 4 === 0 ? 1 : s % 2 === 0 ? 0.8 : 0.6), sec === 'lift' ? 0.9 : 0.6);
       }
       const drums = sec === 'groove' || sec === 'lift';
+      if (opts.style && drums) {
+        // the styled groove: bass follows the kick (a gliding log-drum bass for 'piano'), plus the groove's own percussion
+        for (const k of GR.kick.length ? GR.kick : [0, 2]) {
+          if (GR.logBass) { bass(t + k * BEAT, BEAT * 0.9, chd.b + 12, 0.32); } else bass(t + k * BEAT, BEAT * (GR.kick.length ? 0.45 : 1.6), chd.b, ST.drums === 'none' ? 0.2 : 0.33);
+        }
+        for (const k of GR.kick) kick(t + k * BEAT, k === 0 ? 1 : 0.85);
+        if (!GR.liftOnly || sec === 'lift') for (const c of GR.clap) clap(t + c * BEAT, ST.drums === 'half' ? 0.36 : 0.3);
+        for (const r of GR.rim || []) rim(t + r * BEAT + sw(Math.round(r * 4)), 0.1);
+        for (let s2 = 0; s2 < 16; s2++) {
+          const th = t + (s2 * BEAT) / 4 + sw(s2);
+          if (GR.shaker) shaker(th, s2 % 4 === 2 ? 0.05 : 0.025, s2 % 2 ? -0.3 : 0.3);
+          else if (s2 % 4 === 2) hat(th, 0.085, sec === 'lift' && s2 === 14, s2 % 8 ? -0.25 : 0.25);
+        }
+        continue;
+      }
       if (drums) { bass(t, BEAT / 2 - 0.02, chd.b, 0.3); for (let e = 1; e < 8; e += 2) bass(t + (e * BEAT) / 2, BEAT / 2 - 0.02, chd.b, 0.34); }
       else if (sec === 'break') { bass(t, BEAT * 1.5, chd.b, 0.14); bass(t + BEAT * 2, BEAT * 1.5, chd.b, 0.11); }
       else if (sec === 'riser') for (let e = 0; e < 16; e++) bass(t + (e * BEAT) / 4, BEAT / 4 - 0.02, chd.b, 0.12 + 0.012 * e);

@@ -14,7 +14,7 @@ import { MODELS } from '../config.ts';
 import { HOSTS, llm, parseJson, webRead, type Msg } from '../tools.ts';
 import { download, ffmpeg } from '../media.ts';
 import { reelAudio, reelStills, renderReel, siteImages } from '../browser.ts';
-import { cleanStoryboard, preparePhoto, writePromo, FONTS, type Photo, type Storyboard } from '../promo.ts';
+import { cleanStoryboard, pickMusic, preparePhoto, writePromo, FONTS, type Photo, type Storyboard } from '../promo.ts';
 import { MAIL_BUDGET_USD, MAIL_HOST } from '../mail.ts';
 import type { BusinessDetails } from '../details.ts';
 import { readUpload } from '../uploads.ts';
@@ -211,6 +211,9 @@ Scene types (pick 5 to 7; the first is a hook, the last is the cta):
 - {"type":"statement","text":"one line, max 40","tone":"dark"|"accent"|"light"}
 - {"type":"price","label":"max 32","price":"exactly as given","note":"max 40"} only for a real stated price or offer
 - {"type":"cta","headline":"max 30, e.g. Order today","sub":"max 44, e.g. Delivery across Abuja & Lagos"} (the button text is added for you)
+A good storyboard, for an electronics and solar shop in Abuja that sent four photos (a TV, two inverters, a rooftop solar install) and whose site lists warranty, pay on delivery and free delivery on 3+ items:
+{"font":"bold","palette":{"accent":"#d4a017","dark":"#14120e","light":"#f6f1e6"},"scenes":[{"type":"hook","eyebrow":"EasyPower Hub · Abuja","lines":["Power up","your home"]},{"type":"product","photo":"photo-1.png","tag":"Smart TVs","title":"43\" QLED TVs, new 2025 models"},{"type":"showcase","photo":"photo-2.png","tag":"Solar & inverters","title":"Hybrid inverters","note":"Premium solar and smart home systems, installed for you."},{"type":"grid","photos":["photo-1.png","photo-2.png","photo-3.png","photo-4.jpg"],"title":"And so much more","items":["Fans","Fridges","Stabilizers","Gas burners","Irons"]},{"type":"points","title":"Why EasyPower","points":["Warranty on all products","Pay on delivery","Free delivery on 3+ items"],"photo":"photo-4.jpg"},{"type":"cta","headline":"Order today","sub":"Delivery across Abuja & Lagos"}]}
+Why it works: a short hook that names the benefit, the strongest product first and full frame, every title says what the photo shows, the range in one grid, three concrete reasons taken from the site, and a calm end card. Write yours for this business in the same spirit; don't copy its words.
 Rules: use ONLY facts in the brief and the site text; never invent prices, discounts, ratings, stats or testimonials. Put each photo with words that describe what is IN it (look at the pictures); never caption a photo with a product it doesn't show. Prefer product and showcase scenes for the best photos. Short, concrete, confident copy in plain English a Nigerian shopper would say. Palette: ${spec.palette || 'from the brand colours, if stated; else confident colours that suit the business'}; the accent must read well with dark text on it. Mood: ${spec.mood}.`;
   const user: Msg = { role: 'user', content: [
     { type: 'text', text: `Business: ${spec.business}\nOffer: ${spec.offer}\nSelling points: ${spec.points.join(' | ') || '(none given)'}\nPrices: ${spec.prices.join(' | ') || '(none given: show no prices)'}\nArea: ${spec.area ?? '(not stated)'}\nCall to action (the button): ${spec.cta || 'Visit us'}\nBrief: ${o.brief}${o.siteText ? `\n\nTheir site says:\n${o.siteText}` : ''}\n\nPhotos you can use (by file name):${photos.length ? photos.map((p) => `\n- ${p.name}: ${p.about}${p.cut ? ' (a cut-out product shot)' : ''}`).join('') : ' none: use hook, list, points, statement and cta scenes only'}` },
@@ -223,18 +226,20 @@ Rules: use ONLY facts in the brief and the site text; never invent prices, disco
   job.log('producer', 'storyboard', `${o.seconds} s ${o.format}: scenes, words and photos, with the pictures in view`);
   let raw = await board([{ role: 'system', content: system }, user], 'storyboard the ad');
   let sb = cleanStoryboard(parseJson<Storyboard>(raw, { scenes: [] }), opts);
-  const file = writePromo(o.work, sb, { size: o.size, fps: o.fps, business: spec.business, logo, photos, files });
+  const music = pickMusic(spec.mood);
+  job.log('producer', 'music', `${music.label}, in ${music.key}: composed for this ad from its own timeline`);
+  const file = writePromo(o.work, sb, { size: o.size, fps: o.fps, business: spec.business, logo, photos, files, music });
   let look = await review(job, spec.business, file, o.size, o.seconds);
   if (look.problems.length) {
     job.log('producer', 'revise', `${look.problems.length} notes from the review`);
     raw = await board([{ role: 'system', content: system }, user, { role: 'assistant', content: raw }, { role: 'user', content: `The auditor looked at a still of every scene. Fix every note below and return the full corrected storyboard JSON only.\n- ${look.problems.join('\n- ')}` }], 'revise the storyboard');
     sb = cleanStoryboard(parseJson<Storyboard>(raw, { scenes: [] }), opts);
-    writePromo(o.work, sb, { size: o.size, fps: o.fps, business: spec.business, logo, photos, files });
+    writePromo(o.work, sb, { size: o.size, fps: o.fps, business: spec.business, logo, photos, files, music });
     look = await review(job, spec.business, file, o.size, o.seconds);
   }
   if (look.problems.some((p) => /did not load|page error/.test(p))) throw new Error(`the scene doesn't run: ${look.problems[0]}`);
   const kinds = sb.scenes.map((x) => x.type);
-  return { file, look, what: [`${sb.scenes.length} full-frame scenes: ${kinds.join(', ')}, cut on the beat`, `${photos.length ? `${photos.length} of your own pictures${photos.some((p) => p.name.startsWith('site-')) ? ', some from your website' : ''}` : 'type and colour only (send photos for product scenes)'}`] };
+  return { file, look, what: [`${sb.scenes.length} full-frame scenes: ${kinds.join(', ')}, cut on the beat`, `Music: an original "${music.label}" track in ${music.key}, made for this ad`, `${photos.length ? `${photos.length} of your own pictures${photos.some((p) => p.name.startsWith('site-')) ? ', some from your website' : ''}` : 'type and colour only (send photos for product scenes)'}`] };
 }
 
 /** Score, render, package. */

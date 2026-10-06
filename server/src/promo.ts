@@ -3,9 +3,10 @@
 // goes where; the templates own the layout, so text is always big, inside the frame and readable. This module
 // prepares the photos, cleans the storyboard (lengths, timing on the beat, a hook first and the call to action
 // last, only photos that exist) and writes the scene page the renderer plays.
-import { copyFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ffmpeg } from './media.ts';
+import { DATA_DIR } from './config.ts';
 
 const KIT = new URL('../assets/promo/', import.meta.url).pathname;
 const REEL = new URL('../assets/reel/', import.meta.url).pathname;
@@ -101,8 +102,38 @@ export function cleanStoryboard(sb: Storyboard, o: { seconds: number; photos: Ph
   };
 }
 
+// The soundtrack changes from ad to ad: eight styles (harmony, arpeggio, instruments, groove, swing), each in a random
+// key, never one of the last few used. The tempo stays at 120 BPM so every cut lands on the beat; the groove changes the feel.
+export const MUSIC = {
+  sunny: { label: 'Sunny Afro', prog: ['F', 'G', 'C', 'Am'], style: { arp: 'skip', pluck: 'marimba', pad: 'warm', drums: 'afro', swing: 0.12 }, mood: /warm|playful|fun|food|happy|cheer/ },
+  highlife: { label: 'Highlife', prog: ['C', 'F', 'G', 'C'], style: { arp: 'call', pluck: 'marimba', pad: 'organ', drums: 'afro', swing: 0.18 }, mood: /warm|playful|party|food|lively|festive/ },
+  logdrum: { label: 'Log Drum', prog: ['Am', 'Dm', 'G', 'C'], style: { arp: 'skip', pluck: 'keys', pad: 'warm', drums: 'piano', swing: 0.1 }, mood: /bold|street|fashion|young|night|party|cool/ },
+  night: { label: 'Night Drive', prog: ['Am', 'F', 'C', 'G'], style: { arp: 'up', pluck: 'bright', pad: 'saw', drums: 'four' }, mood: /bold|energetic|modern|tech|fast|power/ },
+  bounce: { label: 'Pop Bounce', prog: ['F', 'G', 'Em', 'Am'], style: { arp: 'classic', pluck: 'soft', pad: 'saw', drums: 'four' }, mood: /confident|bright|fresh|clean|modern/ },
+  uplift: { label: 'Uplift', prog: ['C', 'G', 'Am', 'F'], style: { arp: 'up', pluck: 'soft', pad: 'saw', drums: 'half' }, mood: /hopeful|inspiring|confident|warm|friendly/ },
+  gold: { label: 'Soft Gold', prog: ['C', 'Em', 'F', 'G'], style: { arp: 'sparse', pluck: 'keys', pad: 'warm', drums: 'half' }, mood: /calm|premium|elegant|soft|beauty|spa|gentle/ },
+  lux: { label: 'Lux', prog: ['Dm', 'G', 'C', 'Am'], style: { arp: 'sparse', pluck: 'keys', pad: 'warm', drums: 'none' }, mood: /premium|luxury|calm|elegant|quiet/ },
+} as const;
+const KEYS = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+export type Music = { id: keyof typeof MUSIC; label: string; transpose: number; key: string };
+
+/** A soundtrack style for this ad: suited to the mood when one fits, never one of the last three used. */
+export function pickMusic(mood = ''): Music {
+  const f = join(DATA_DIR, 'music-recent.json');
+  let recent: string[] = [];
+  try { if (existsSync(f)) recent = JSON.parse(readFileSync(f, 'utf8')); } catch { /* start fresh */ }
+  const ids = Object.keys(MUSIC) as (keyof typeof MUSIC)[];
+  const fresh = ids.filter((id) => !recent.slice(-3).includes(id));
+  const pool = fresh.length ? fresh : ids;
+  const weighted = pool.flatMap((id) => (MUSIC[id].mood.test(mood.toLowerCase()) ? [id, id, id] : [id]));
+  const id = weighted[Math.floor(Math.random() * weighted.length)];
+  const transpose = Math.floor(Math.random() * 10) - 4; // -4..+5 semitones: same style, a different key each time
+  try { writeFileSync(f, JSON.stringify([...recent, id].slice(-8))); } catch { /* not remembering is fine */ }
+  return { id, label: MUSIC[id].label, transpose, key: KEYS[(12 + transpose) % 12] };
+}
+
 /** Write the scene folder: the page, the engine, the score engine and the photos. Returns the page's path. */
-export function writePromo(dir: string, sb: ReturnType<typeof cleanStoryboard>, o: { size: [number, number]; fps: number; business: string; logo?: string; photos: Photo[]; files: { name: string; buf: Buffer }[]; score?: Record<string, unknown> }): string {
+export function writePromo(dir: string, sb: ReturnType<typeof cleanStoryboard>, o: { size: [number, number]; fps: number; business: string; logo?: string; photos: Photo[]; files: { name: string; buf: Buffer }[]; music?: Music; score?: Record<string, unknown> }): string {
   const [W, H] = o.size, font = FONTS[(sb.font ?? 'bold') as FontKey];
   for (const f of ['promo.js', 'promo.css']) copyFileSync(join(KIT, f), join(dir, f));
   copyFileSync(join(REEL, 'score.js'), join(dir, 'score.js'));
@@ -112,7 +143,16 @@ export function writePromo(dir: string, sb: ReturnType<typeof cleanStoryboard>, 
     size: o.size, fps: o.fps, bpm: 120, palette: sb.palette, font: { display: font.display, body: font.body },
     brand: { name: o.business, logo: o.logo ?? null }, cutouts: o.photos.filter((p) => p.cut).map((p) => p.name),
     scenes: sb.scenes.map((s, i) => ({ ...s, id: ids[i] })),
-    score: { prog: ['F', 'G', 'Em', 'Am', 'F', 'G', 'C', 'C'], hits: [{ state: ids[0], boom: 0.45, motif: [72, 76, 79] }, { state: ids[ids.length - 1], boom: 0.5, motif: [72, 76, 79, 84] }], musicLevel: 1, sfxLevel: 0.8, ...(o.score ?? {}) },
+    score: (() => {
+      const m = MUSIC[o.music?.id ?? 'bounce'], seconds = sb.scenes.reduce((a, x) => a + x.dur, 0), bars = Math.round(seconds / 2);
+      return {
+        prog: m.prog, style: { ...m.style, transpose: o.music?.transpose ?? 0 },
+        // a quiet first bar, the groove, a fuller second half, and a last bar that eases out
+        sections: [[0, 'intro'], [1, 'groove'], [Math.ceil(bars / 2), 'lift'], [Math.max(2, bars - 1), 'outro']],
+        hits: [{ state: ids[0], boom: 0.4, motif: [72, 76, 79] }, { state: ids[ids.length - 1], boom: 0.5, motif: [72, 76, 79, 84] }],
+        musicLevel: 1, sfxLevel: 0.8, ...(o.score ?? {}),
+      };
+    })(),
   };
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>${o.business.replace(/</g, '')}</title>
 <link href="https://fonts.googleapis.com/css2?${font.css}&display=block" rel="stylesheet">
