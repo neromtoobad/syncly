@@ -27,6 +27,8 @@
   }
 
   async function render(reel, opts = {}, sfxHook) {
+    // the renderer can override the scene's score, e.g. to render only the sound design under a licensed track
+    if (typeof window !== 'undefined' && window.SCORE_OVERRIDE) opts = Object.assign({}, opts, window.SCORE_OVERRIDE);
     const SR = 48000, DUR = reel.DUR, TAIL = 4, BPM = reel.BPM, BEAT = 60 / BPM, BAR = BEAT * 4;
     const BARS = Math.round(DUR / BAR);
     const ctx = new OfflineAudioContext(2, SR * (DUR + TAIL), SR);
@@ -284,7 +286,7 @@
     for (const h of opts.hits || []) {
       const t = at(h.state);
       if (h.boom !== 0) au.boom(t, h.boom ?? 0.5);
-      (h.motif || [72, 76, 79]).forEach((m, i) => au.bell(t + (i * BEAT) / 2, m, h.bell ?? 0.085));
+      if (opts.hitBells !== false) (h.motif || [72, 76, 79]).forEach((m, i) => au.bell(t + (i * BEAT) / 2, m, h.bell ?? 0.085));
     }
     if (opts.holdRiser !== false) for (const h of reel.HOLDS()) { const next = reel.PLAN[reel.stateAt(h.t1) + 1]; au.riser(h.t0, next ? next.t0 : h.t1 + 0.1); }
 

@@ -60,7 +60,7 @@ export async function preparePhoto(buf: Buffer, name: string, about: string, max
 
 /** Make a storyboard safe to render: known scene types, short copy, real photos, a hook first, the CTA last,
  *  every cut on a beat (0.5 s at 120 BPM) and the lengths adding up to exactly `seconds`. */
-export function cleanStoryboard(sb: Storyboard, o: { seconds: number; photos: Photo[]; cta: string; business: string; brandColour?: string }): Storyboard & { scenes: (Scene & { dur: number })[] } {
+export function cleanStoryboard(sb: Storyboard, o: { seconds: number; photos: Photo[]; cta: string; business: string; brandColour?: string; beat?: number }): Storyboard & { scenes: (Scene & { dur: number })[] } {
   const have = new Set(o.photos.map((p) => p.name));
   const pic = (p: unknown) => (typeof p === 'string' && have.has(p) ? p : undefined);
   const out: Scene[] = [];
@@ -88,11 +88,16 @@ export function cleanStoryboard(sb: Storyboard, o: { seconds: number; photos: Ph
   // trim to fit: about 2.5 s a scene at least
   while (out.length > Math.max(3, Math.floor(o.seconds / 2.5))) out.splice(out.length - 2, 1);
 
-  // lengths: what each scene wants, scaled to the ad, on the half-second beat, the remainder on the call to action
+  // lengths: what each scene wants, scaled to the ad, every cut on the music's beat (whole bars in all), the
+  // remainder on the call to action
+  const beat = o.beat ?? 0.5, unit = beat >= 0.6 ? beat : beat * 2;
+  const total = Math.max(4, Math.round(o.seconds / (4 * beat))) * 4 * beat;
+  const q = (x: number) => Math.round(x / unit) * unit, minD = Math.ceil(1.5 / unit) * unit;
   const want = out.map((s) => WANT[s.type]), sum = want.reduce((a, b) => a + b, 0);
-  const durs = want.map((w) => Math.max(1.5, Math.round(((w * o.seconds) / sum) * 2) / 2));
-  durs[durs.length - 1] += o.seconds - durs.reduce((a, b) => a + b, 0);
-  if (durs[durs.length - 1] < 2.5) { const need = 2.5 - durs[durs.length - 1]; durs[durs.length - 1] = 2.5; for (let i = durs.length - 2, left = need; i >= 0 && left > 0; i--) { const take = Math.min(left, Math.max(0, durs[i] - 1.5)); durs[i] -= take; left -= take; } }
+  const durs = want.map((w) => Math.max(minD, q((w * total) / sum)));
+  durs[durs.length - 1] = total - durs.slice(0, -1).reduce((a, b) => a + b, 0);
+  const minLast = Math.ceil(2.5 / unit) * unit;
+  if (durs[durs.length - 1] < minLast) { let need = minLast - durs[durs.length - 1]; durs[durs.length - 1] = minLast; for (let i = durs.length - 2; i >= 0 && need > 1e-6; i--) { const take = Math.min(need, Math.max(0, durs[i] - minD)); durs[i] -= take; need -= take; } }
 
   const pal = sb?.palette ?? {};
   return {
@@ -133,18 +138,18 @@ export function pickMusic(mood = ''): Music {
 }
 
 /** Write the scene folder: the page, the engine, the score engine and the photos. Returns the page's path. */
-export function writePromo(dir: string, sb: ReturnType<typeof cleanStoryboard>, o: { size: [number, number]; fps: number; business: string; logo?: string; photos: Photo[]; files: { name: string; buf: Buffer }[]; music?: Music; score?: Record<string, unknown> }): string {
+export function writePromo(dir: string, sb: ReturnType<typeof cleanStoryboard>, o: { size: [number, number]; fps: number; business: string; logo?: string; photos: Photo[]; files: { name: string; buf: Buffer }[]; music?: Music; bpm?: number; score?: Record<string, unknown> }): string {
   const [W, H] = o.size, font = FONTS[(sb.font ?? 'bold') as FontKey];
   for (const f of ['promo.js', 'promo.css']) copyFileSync(join(KIT, f), join(dir, f));
   copyFileSync(join(REEL, 'score.js'), join(dir, 'score.js'));
   for (const f of o.files) writeFileSync(join(dir, f.name), f.buf);
   const ids = sb.scenes.map((_, i) => `s${i}`);
   const PROMO = {
-    size: o.size, fps: o.fps, bpm: 120, palette: sb.palette, font: { display: font.display, body: font.body },
+    size: o.size, fps: o.fps, bpm: o.bpm ?? 120, palette: sb.palette, font: { display: font.display, body: font.body },
     brand: { name: o.business, logo: o.logo ?? null }, cutouts: o.photos.filter((p) => p.cut).map((p) => p.name),
     scenes: sb.scenes.map((s, i) => ({ ...s, id: ids[i] })),
     score: (() => {
-      const m = MUSIC[o.music?.id ?? 'bounce'], seconds = sb.scenes.reduce((a, x) => a + x.dur, 0), bars = Math.round(seconds / 2);
+      const m = MUSIC[o.music?.id ?? 'bounce'], seconds = sb.scenes.reduce((a, x) => a + x.dur, 0), bars = Math.round(seconds / ((4 * 60) / (o.bpm ?? 120)));
       return {
         prog: m.prog, style: { ...m.style, transpose: o.music?.transpose ?? 0 },
         // a quiet first bar, the groove, a fuller second half, and a last bar that eases out

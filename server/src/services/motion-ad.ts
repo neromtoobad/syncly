@@ -15,6 +15,7 @@ import { HOSTS, llm, parseJson, webRead, type Msg } from '../tools.ts';
 import { download, ffmpeg } from '../media.ts';
 import { reelAudio, reelStills, renderReel, siteImages } from '../browser.ts';
 import { cleanStoryboard, pickMusic, preparePhoto, writePromo, FONTS, type Photo, type Storyboard } from '../promo.ts';
+import { MUSIC_LICENSE, pickTrack, trackAudio, trackFile, trackGrid, type Track } from '../music.ts';
 import { MAIL_BUDGET_USD, MAIL_HOST } from '../mail.ts';
 import type { BusinessDetails } from '../details.ts';
 import { readUpload } from '../uploads.ts';
@@ -83,7 +84,7 @@ export const motionAd = {
       // Apps and software keep the UI reel below (one shape, a cursor driving it).
       if (spec.kind !== 'app') {
         const made = await promoScene(job, { spec, brief, siteText, format, size: [W, H], seconds, fps, work, logo: d?.logo, uploads: d?.photos ?? [] });
-        return await finish(job, { spec, file: made.file, size: [W, H], seconds, fps, work, look: made.look, scene: readFileSync(made.file, 'utf8'), what: made.what });
+        return await finish(job, { spec, file: made.file, size: [W, H], seconds: made.seconds, fps, work, look: made.look, scene: readFileSync(made.file, 'utf8'), what: made.what, track: made.track });
       }
 
       // 1. Storyboard + scene, written against the engine's real API and craft rules
@@ -149,7 +150,10 @@ ${kit('template.html')}`;
       }
       if (look.problems.some((p) => /did not load|page error/.test(p))) throw new Error(`the scene still doesn't run: ${look.problems[0]}`);
 
-      return await finish(job, { spec, file, size, seconds, fps, work, look, scene, what: [`${look.stills.length} moments, one shape that never cuts, every change caused by a tap, a drag or a press-and-hold`] });
+      // a licensed track near the reel's 120 BPM, nudged onto it; the synthesised score if Mixkit can't be reached
+      let track: Track | undefined = pickTrack(spec.mood, 120);
+      try { await trackFile(track); } catch (e: any) { job.log('producer', 'music', `the track didn't download (${String(e?.message ?? e).slice(0, 60)}); composing one instead`); track = undefined; }
+      return await finish(job, { spec, file, size, seconds, fps, work, look, scene, track, tempo: 120, what: [`${look.stills.length} moments, one shape that never cuts, every change caused by a tap, a drag or a press-and-hold`] });
     } catch (e: any) {
       job.status = 'failed';
       job.error = String(e?.message ?? e);
@@ -221,33 +225,45 @@ Rules: use ONLY facts in the brief and the site text; never invent prices, disco
   ] };
   const dryBoard = (): string => JSON.stringify({ font: 'bold', palette: { accent: '#f2b705', dark: '#151310', light: '#f7f3ea' }, scenes: [{ type: 'hook', eyebrow: spec.business, lines: ['Hungry?', 'We deliver'] }, ...(photos[0] ? [{ type: 'product', photo: photos[0].name, tag: 'Bestseller', title: spec.offer.slice(0, 30) }] : []), { type: 'points', title: 'Why us', points: spec.points.slice(0, 3).length >= 2 ? spec.points.slice(0, 3) : ['Fresh every day', 'Fast delivery'] }, { type: 'cta', headline: 'Order today' }] });
   const board = (msgs: Msg[], why: string) => llm(job, 'producer', msgs, why, { model: MODELS.maker, maxTokens: 1600, json: true, maxUsd: 0.12, dry: dryBoard });
-  const opts = { seconds: o.seconds, photos, cta: spec.cta, business: spec.business, brandColour: (spec.palette.match(/#[0-9a-f]{6}/i) ?? [])[0] };
+  // the music comes first: the scenes are cut on its beat
+  let track: Track | undefined = pickTrack(spec.mood);
+  let grid: { bpm: number; start: number } | undefined;
+  try { grid = await trackGrid(track); job.log('producer', 'music', `"${track.title}" by ${track.author} (${Math.round(grid.bpm)} BPM): every cut lands on its beat`); }
+  catch (e: any) { job.log('producer', 'music', `the track didn't download (${String(e?.message ?? e).slice(0, 60)}); composing one instead`); track = undefined; }
+  const music = track ? undefined : pickMusic(spec.mood);
+  const opts = { seconds: o.seconds, photos, cta: spec.cta, business: spec.business, brandColour: (spec.palette.match(/#[0-9a-f]{6}/i) ?? [])[0], beat: 60 / (grid?.bpm ?? 120) };
+  const bpm = grid?.bpm ?? 120;
 
   job.log('producer', 'storyboard', `${o.seconds} s ${o.format}: scenes, words and photos, with the pictures in view`);
   let raw = await board([{ role: 'system', content: system }, user], 'storyboard the ad');
   let sb = cleanStoryboard(parseJson<Storyboard>(raw, { scenes: [] }), opts);
-  const music = pickMusic(spec.mood);
-  job.log('producer', 'music', `${music.label}, in ${music.key}: composed for this ad from its own timeline`);
-  const file = writePromo(o.work, sb, { size: o.size, fps: o.fps, business: spec.business, logo, photos, files, music });
-  let look = await review(job, spec.business, file, o.size, o.seconds);
+  const total = () => Math.round(sb.scenes.reduce((a, x) => a + x.dur, 0) * 1000) / 1000;
+  const file = writePromo(o.work, sb, { size: o.size, fps: o.fps, business: spec.business, logo, photos, files, music, bpm });
+  let look = await review(job, spec.business, file, o.size, total());
   if (look.problems.length) {
     job.log('producer', 'revise', `${look.problems.length} notes from the review`);
     raw = await board([{ role: 'system', content: system }, user, { role: 'assistant', content: raw }, { role: 'user', content: `The auditor looked at a still of every scene. Fix every note below and return the full corrected storyboard JSON only.\n- ${look.problems.join('\n- ')}` }], 'revise the storyboard');
     sb = cleanStoryboard(parseJson<Storyboard>(raw, { scenes: [] }), opts);
-    writePromo(o.work, sb, { size: o.size, fps: o.fps, business: spec.business, logo, photos, files, music });
-    look = await review(job, spec.business, file, o.size, o.seconds);
+    writePromo(o.work, sb, { size: o.size, fps: o.fps, business: spec.business, logo, photos, files, music, bpm });
+    look = await review(job, spec.business, file, o.size, total());
   }
   if (look.problems.some((p) => /did not load|page error/.test(p))) throw new Error(`the scene doesn't run: ${look.problems[0]}`);
   const kinds = sb.scenes.map((x) => x.type);
-  return { file, look, what: [`${sb.scenes.length} full-frame scenes: ${kinds.join(', ')}, cut on the beat`, `Music: an original "${music.label}" track in ${music.key}, made for this ad`, `${photos.length ? `${photos.length} of your own pictures${photos.some((p) => p.name.startsWith('site-')) ? ', some from your website' : ''}` : 'type and colour only (send photos for product scenes)'}`] };
+  return { file, look, track, seconds: total(), what: [`${sb.scenes.length} full-frame scenes: ${kinds.join(', ')}, cut on the beat`, track ? `Music: "${track.title}" by ${track.author}, licensed from Mixkit: free to use on social media and in online ads, not for TV or radio` : `Music: an original "${music!.label}" track in ${music!.key}, made for this ad`, `${photos.length ? `${photos.length} of your own pictures${photos.some((p) => p.name.startsWith('site-')) ? ', some from your website' : ''}` : 'type and colour only (send photos for product scenes)'}`] };
 }
 
 /** Score, render, package. */
-async function finish(job: Job, o: { spec: Spec; file: string; size: [number, number]; seconds: number; fps: number; work: string; look: Look; scene: string; what: string[] }): Promise<Job> {
+async function finish(job: Job, o: { spec: Spec; file: string; size: [number, number]; seconds: number; fps: number; work: string; look: Look; scene: string; what: string[]; track?: Track; tempo?: number }): Promise<Job> {
   const { spec, size, seconds, fps, look } = o;
-  job.log('producer', 'score', 'synthesising the soundtrack from the timeline');
-  const wav = await reelAudio(o.file, size);
-  job.log('producer', 'render', `${seconds * fps} frames at ${size[0]}x${size[1]}`);
+  let wav: Buffer | undefined;
+  if (o.track) {
+    // the scene's own whooshes and impacts (no synthesised music, no pitched bells to clash with the song) under the track
+    job.log('producer', 'mix', `"${o.track.title}" from its first full-strength bar, with the scene's sound design underneath`);
+    const sfx = await reelAudio(o.file, size, { musicLevel: 0, hitBells: false }).catch(() => undefined);
+    wav = await trackAudio(o.track, seconds, { tempo: o.tempo, sfx }).catch((e) => { job.log('producer', 'music', `mixing the track failed (${String(e?.message ?? e).slice(0, 60)}); composing one instead`); return undefined; });
+  }
+  if (!wav) { job.log('producer', 'score', 'synthesising the soundtrack from the timeline'); wav = await reelAudio(o.file, size); }
+  job.log('producer', 'render', `${Math.round(seconds * fps)} frames at ${size[0]}x${size[1]}`);
   const out = join(o.work, 'ad.mp4');
   const r = await renderReel(o.file, size, out, { workers: 2, audio: wav, onProgress: (d, t) => { if (d % 150 === 0) job.log('producer', 'render', `${d} of ${t} frames`); } });
   const mp4 = readFileSync(out);
@@ -257,12 +273,12 @@ async function finish(job: Job, o: { spec: Spec; file: string; size: [number, nu
   if (!o.file.endsWith('index.html') || o.scene.includes('Reel.define')) job.files.push({ name: 'scene.html', content: o.scene });
   job.deliverable = [
     `# Motion ad: ${spec.business}`,
-    `**${seconds} seconds · ${size[0]}×${size[1]} · ${fps} fps · original soundtrack.** Watch it above; \`poster.jpg\` is a cover frame.`,
+    `**${Math.round(seconds * 10) / 10} seconds · ${size[0]}×${size[1]} · ${fps} fps · ${o.track ? 'licensed music' : 'original soundtrack'}.** Watch it above; \`poster.jpg\` is a cover frame.`,
     `## What's in it`,
     ...o.what.map((w) => `- ${w}`),
     `- Your offer${spec.points.length ? `: ${spec.points.join('; ')}` : ''}${spec.prices.length ? `. Prices shown: ${spec.prices.join(', ')}` : ''}`,
     `- It ends on your call to action${spec.cta ? `: "${spec.cta}"` : ''}`,
-    `- The music is composed for this ad from its own timeline (no licensing), mastered for social`,
+    o.track ? `- Music licence: ${MUSIC_LICENSE} Our sound design sits underneath, and the mix is levelled for social` : `- The music is composed for this ad from its own timeline (no licensing), mastered for social`,
     `## Checks`,
     `- The scene ran with ${r.errors.length ? `${r.errors.length} page warnings` : 'no page errors'} and lasts exactly ${(r.frames / r.fps).toFixed(1)} s`,
     `- A vision model looked at every scene: ${look.problems.length ? `notes left: ${look.problems.join('; ')}` : 'no problems found'}`,

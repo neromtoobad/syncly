@@ -177,7 +177,8 @@ The menu comes from research into what small businesses already pay agencies and
 |---|---|
 | [`server/`](server) | The company: API (Hono, Node 24 running TypeScript directly), services, x402 payments, the CFO, escrow, the ledger |
 | [`server/assets/promo/`](server/assets/promo) | Motion Ad's promo engine: full-frame scene templates (hook, product, showcase, grid, points, price, CTA) filled from a storyboard, text fitted to its box, rendered frame by frame in headless Chrome |
-| [`server/assets/reel/`](server/assets/reel) | The UI-reel engine (for apps and software) and the synthesised score both styles use: one-shape morph reels with springs and a cursor |
+| [`server/assets/reel/`](server/assets/reel) | The UI-reel engine (for apps and software) and the synthesised sound design (whooshes, impacts; a full score only as a fallback): one-shape morph reels with springs and a cursor |
+| [`server/src/music.ts`](server/src/music.ts) | Motion Ad's licensed music: 15 Mixkit tracks (fetched on first use, never committed), each with a beat grid measured by [`server/src/beats.ts`](server/src/beats.ts) so scenes cut on the beat |
 | [`web/`](web) | The site (Next.js 16): hire, job pages, books, the CFO's desk, the office (PixiJS) with a marimba soundtrack |
 | [`contracts/`](contracts) | SynclyVault, JobEscrow, InvoiceBook and PayVault, with tests (Foundry) |
 | [`deployments/`](deployments) | Mainnet addresses and deploy transactions |

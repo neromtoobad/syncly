@@ -90,10 +90,10 @@ export async function reelStills(file: string, size: [number, number], times: nu
 }
 
 /** The reel's own score (Web Audio, rendered offline in the page), as WAV. */
-export async function reelAudio(file: string, size: [number, number]): Promise<Buffer | undefined> {
+export async function reelAudio(file: string, size: [number, number], override?: Record<string, unknown>): Promise<Buffer | undefined> {
   const s = await openScene(file, size);
   try {
-    const res = await s.page.evaluate(() => (window as any).renderAudio?.());
+    const res = await s.page.evaluate((o) => { if (o) (window as any).SCORE_OVERRIDE = o; return (window as any).renderAudio?.(); }, override ?? null);
     return res?.wav ? Buffer.from(res.wav, 'base64') : undefined;
   } finally { await s.browser.close(); }
 }
