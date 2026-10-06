@@ -243,6 +243,7 @@ export default function Job({ id }: { id: string }) {
   useEffect(() => { load(); }, [id]);
   const active = o && ['queued', 'running', 'revision'].includes(o.status);
   // A delivered order can still change from elsewhere (another tab, the 48 h auto-accept), so keep listening.
+  const retryPaid = !!o && o.status === 'failed' && !o.refund && o.escrow?.state === 'Funded' && Date.now() < Date.parse(o.escrow.deliverBy) - 20 * 60_000; // matches canRetryPaid on the server
   const awaitingNaira = o?.status === 'quoted' && o?.naira?.status === 'open'; // the page turns into the live job when the naira lands
   const listening = active || awaitingNaira || o?.status === 'delivered' || (o?.status === 'failed' && o.escrow?.state === 'Funded');
   useEffect(() => {
@@ -366,10 +367,12 @@ export default function Job({ id }: { id: string }) {
             ) : o.status === 'failed' ? (
               <div className="form" style={{ gap: 12 }}>
                 <div className="qa revise"><Avatar role="cfo" /><div>We couldn't deliver this one{o.refund ? `: ${usd(o.refund.priceUsd)} refunded + ${usd(o.refund.bondUsd)} bond paid` : ''}. {last?.error}{o.refund?.tx && <> <Tx cfg={cfg} hash={o.refund.tx}>Refund on Arc</Tx></>}</div></div>
-                {o.escrow && !o.refund && <p style={{ fontSize: 14, color: 'var(--ink-2)' }}>Your {usd(q.priceUsd)} USDC is safe in escrow. At the deadline ({when(o.escrow.deliverBy)}) the contract refunds it plus the {usd(q.bondUsd)} USDC bond. The CFO triggers the refund, and anyone can.</p>}
-                {o.payment?.mode === 'promo' && (
+                {o.escrow && !o.refund && (o.naira
+                  ? <p style={{ fontSize: 14, color: 'var(--ink-2)' }}>Your ₦{Math.round(o.naira.ngn).toLocaleString('en-NG')} is safe: the {usd(q.priceUsd)} USDC it paid for is held in escrow on Arc. If the job isn't delivered by the deadline ({when(o.escrow.deliverBy)}), the contract refunds it and we send your ₦{Math.round(o.naira.ngn).toLocaleString('en-NG')} back through Bachs, plus a ₦{Math.round(q.bondUsd * o.naira.rate).toLocaleString('en-NG')} bond.</p>
+                  : <p style={{ fontSize: 14, color: 'var(--ink-2)' }}>Your {usd(q.priceUsd)} USDC is safe in escrow. At the deadline ({when(o.escrow.deliverBy)}) the contract refunds it plus the {usd(q.bondUsd)} USDC bond. The CFO triggers the refund, and anyone can.</p>)}
+                {(o.payment?.mode === 'promo' || retryPaid) && (
                   <>
-                    <p style={{ fontSize: 14, color: 'var(--ink-2)' }}>It's still your free job. The team can try again; you only see what they spend on the receipt.</p>
+                    <p style={{ fontSize: 14, color: 'var(--ink-2)' }}>{retryPaid ? "The team can try again now, at no extra cost to you. If it still can't deliver, the refund above stands." : "It's still your free job. The team can try again; you only see what they spend on the receipt."}</p>
                     <label className="field">Confirm with your email
                       <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@business.com" />
                     </label>

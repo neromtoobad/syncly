@@ -1,6 +1,6 @@
 // Paid tools on Arc mainnet (x402 via Circle Gateway). Prices are the listed amounts from
 // Circle's discovery API on 2026-09-22/27; each call is capped a little above list.
-import { buy, NoWalletFunds } from './x402.ts';
+import { buy, NoWalletFunds, SpendRefused } from './x402.ts';
 import { MODELS } from './config.ts';
 import type { Job } from './job.ts';
 import type { Role } from './wallets.ts';
@@ -192,7 +192,7 @@ const ARC_ONLY = /claude-opus-5|claude-sonnet-5|claude-fable/;
 
 export async function llm(
   job: Job, agent: Role, messages: Msg[], reason: string,
-  opts: { model?: string; fallback?: string; maxTokens?: number; maxUsd?: number; json?: boolean; dry?: () => string } = {},
+  opts: { model?: string; fallback?: string; alt?: string | null; maxTokens?: number; maxUsd?: number; json?: boolean; dry?: () => string } = {},
 ): Promise<string> {
   const model = opts.model ?? MODELS.maker;
   const direct = ARC_ONLY.test(model);
@@ -205,14 +205,27 @@ export async function llm(
       dryData: () => ({ choices: [{ message: { content: opts.dry ? opts.dry() : `(dry) ${reason}` } }] }),
     });
     return String(data?.choices?.[0]?.message?.content ?? '');
-  } catch (e) {
+  } catch (e: any) {
     // The newest models need USDC in the agent's own wallet. When it's empty the job doesn't stall:
     // the same work goes to the fallback model through Gateway, and the step log says so.
-    if (!(e instanceof NoWalletFunds) || !opts.fallback) throw e;
-    job.log(agent, 'fallback', `${model.split('/')[1]} is paid from the ${agent}'s own wallet, which is empty; using ${opts.fallback.split('/')[1]} through Gateway`);
-    return llm(job, agent, messages, reason, { ...opts, model: opts.fallback, fallback: undefined });
+    if (e instanceof NoWalletFunds && opts.fallback) {
+      job.log(agent, 'fallback', `${model.split('/')[1]} is paid from the ${agent}'s own wallet, which is empty; using ${opts.fallback.split('/')[1]} through Gateway`);
+      return llm(job, agent, messages, reason, { ...opts, model: opts.fallback, fallback: undefined });
+    }
+    // The model's provider is down (BlockRun says so): the step goes once to a model from another provider
+    // instead of failing a paid job. It's a new call for a different model, never a second payment for the same one.
+    const alt = opts.alt === undefined ? altModel(model) : opts.alt;
+    if (alt && !(e instanceof SpendRefused) && PROVIDER_DOWN.test(String(e?.message ?? e))) {
+      job.log(agent, 'fallback', `${model.split('/')[1]} is down at its provider; the same step goes to ${alt.split('/')[1]}`);
+      return llm(job, agent, messages, reason, { ...opts, model: alt, fallback: undefined, alt: null });
+    }
+    throw e;
   }
 }
+
+const PROVIDER_DOWN = /provider api issue|provider (error|unavailable)|upstream|overloaded|model (is )?unavailable/i;
+/** Another provider's model for the same step: Anthropic's go to OpenAI's and back. Opus has its own fallback. */
+const altModel = (model: string) => (/opus|fable/.test(model) ? null : model.startsWith('anthropic/') ? MODELS.auditor : MODELS.maker);
 
 export function parseJson<T>(s: string, fallback: T): T {
   const m = s.match(/\{[\s\S]*\}/);

@@ -251,10 +251,16 @@ export function resumeInterrupted() {
   }
 }
 
-/** A free job we failed to deliver can be run again (paid ones were already refunded + bonded). */
+/** A paid job still funded in escrow can be tried again until 20 minutes before its delivery deadline. */
+export const canRetryPaid = (o: Order) =>
+  o.status === 'failed' && !o.refund && o.escrow?.state === 'Funded' && Date.now() < Date.parse(o.escrow.deliverBy) - 20 * 60_000;
+
+/** A failed job can run again: a free one, or a paid one whose escrow is still funded well before the deadline. */
 export function retry(o: Order) {
   if (o.status !== 'failed') throw new Error(`order is ${o.status}`);
-  if (o.payment?.mode !== 'promo') throw new Error('paid orders that failed were refunded with the bond; place a new order');
+  if (o.payment?.mode !== 'promo' && !canRetryPaid(o)) {
+    throw new Error(o.escrow && !o.refund ? 'Too close to the deadline to try again. The contract refunds you, plus the bond, at the deadline.' : 'This order was refunded with the bond; place a new order.');
+  }
   o.status = 'queued';
   saveOrder(o);
   void run(o);
