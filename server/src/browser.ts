@@ -78,7 +78,9 @@ export async function reelStills(file: string, size: [number, number], times: nu
     // 'states': one still in the middle of each state, where its content is at rest.
     // __starts holds the start of every state after the first, in seconds.
     const cuts: number[] = times === 'states' ? [0, ...(await s.page.evaluate(() => (window as any).__starts ?? [])), s.total / s.fps] : [];
-    const at = times === 'states' ? cuts.slice(0, -1).map((a, i) => (a + cuts[i + 1]) / 2) : times;
+    // a scene that knows when its content has settled says so (__rest); otherwise the middle of the state
+    const rest: number[] | undefined = times === 'states' ? await s.page.evaluate(() => (window as any).__rest) : undefined;
+    const at = times === 'states' ? rest ?? cuts.slice(0, -1).map((a, i) => (a + cuts[i + 1]) / 2) : times;
     for (const t of at) {
       await s.page.evaluate((n) => (window as any).renderFrame(n), Math.min(s.total - 1, Math.round(t * s.fps)));
       stills.push({ t, png: Buffer.from(await s.page.screenshot({ type: 'png' })) });
@@ -166,3 +168,35 @@ export async function renderPoster(html: string, w: number, h: number, kind: 'pd
     return Buffer.from(await page.screenshot({ type: 'png', clip: { x: 0, y: 0, width: w, height: h } }));
   } finally { await browser.close(); }
 }
+
+/** The big pictures on a business's own site (product shots, banners), largest first, for its ads. Only public
+ *  http(s) pages and images; icons, logos of payment providers and tiny images are skipped. */
+export async function siteImages(url: string, max = 8): Promise<{ src: string; alt: string; w: number; h: number }[]> {
+  if (!/^https?:\/\//i.test(url) || privateHost(url)) return [];
+  const browser = await launch();
+  try {
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1366, height: 900 });
+    await page.goto(url, { waitUntil: 'load', timeout: 30_000 }).catch(() => undefined);
+    await page.waitForNetworkIdle({ idleTime: 600, timeout: 8000 }).catch(() => undefined);
+    const found: { src: string; alt: string; w: number; h: number }[] = await page.evaluate(async () => {
+      for (let y = 0; y < Math.min(document.body.scrollHeight, 9000); y += 700) { scrollTo(0, y); await new Promise((r) => setTimeout(r, 150)); }
+      const out: { src: string; alt: string; w: number; h: number }[] = [];
+      for (const i of [...document.images]) if (i.naturalWidth >= 320 && i.naturalHeight >= 240) out.push({ src: i.currentSrc || i.src, alt: (i.alt || i.title || '').slice(0, 80), w: i.naturalWidth, h: i.naturalHeight });
+      return out;
+    }).catch(() => []);
+    const seen = new Set<string>();
+    return found
+      .filter((x) => /^https?:\/\//.test(x.src) && !privateHost(x.src) && !/logo|icon|sprite|avatar|badge|visa|mastercard|paystack|flutterwave/i.test(x.src + x.alt))
+      .filter((x) => (seen.has(x.src) ? false : (seen.add(x.src), true)))
+      .sort((a, b) => b.w * b.h - a.w * a.h)
+      .slice(0, max);
+  } finally { await browser.close(); }
+}
+
+const privateHost = (u: string) => {
+  try {
+    const h = new URL(u).hostname.toLowerCase();
+    return h === 'localhost' || h.endsWith('.local') || h.endsWith('.internal') || h.endsWith('.railway.internal') || /^(127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|0\.|\[?::1\]?$|\[?f[cd])/.test(h);
+  } catch { return true; }
+};

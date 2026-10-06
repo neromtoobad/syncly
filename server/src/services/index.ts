@@ -62,7 +62,7 @@ export const CATALOG = [
   {
     id: 'motion-ad', name: 'Motion Ad', dept: 'Growth Studio', live: true, priceUsd: 1, listedCostUsd: 0.9, etaMin: 4,
     tagline: 'A designer-grade motion video of your offer, with its own soundtrack.',
-    youGet: ['A 12–24 s motion video, vertical for Reels, TikTok and Status (square or landscape on request)', 'One shape that morphs through your offer, every change driven by a tap, drag or hold', 'An original soundtrack composed from the video’s own timeline, no licensing', 'Every state reviewed for legibility before rendering', 'The editable scene file, so changes are cheap'],
+    youGet: ['A 12–24 s motion video, vertical for Reels, TikTok and Status (square or landscape on request)', 'Full-frame scenes of your products, your selling points and your call to action, cut on the beat', 'Your own photos, plus product pictures from your website', 'An original soundtrack composed from the video’s own timeline, no licensing', 'Every scene reviewed for legibility before rendering'],
     team: ['researcher', 'reader', 'producer', 'auditor', 'messenger'],
     example: 'A 16 second vertical ad for Tolu’s Small Chops: party trays, ₦25,000 for 20 guests, order on WhatsApp 0803 555 0142',
   },

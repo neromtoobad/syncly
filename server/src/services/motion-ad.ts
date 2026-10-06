@@ -12,8 +12,9 @@ import { join } from 'node:path';
 import { Job } from '../job.ts';
 import { MODELS } from '../config.ts';
 import { HOSTS, llm, parseJson, webRead, type Msg } from '../tools.ts';
-import { ffmpeg } from '../media.ts';
-import { reelAudio, reelStills, renderReel } from '../browser.ts';
+import { download, ffmpeg } from '../media.ts';
+import { reelAudio, reelStills, renderReel, siteImages } from '../browser.ts';
+import { cleanStoryboard, preparePhoto, writePromo, FONTS, type Photo, type Storyboard } from '../promo.ts';
 import { MAIL_BUDGET_USD, MAIL_HOST } from '../mail.ts';
 import type { BusinessDetails } from '../details.ts';
 import { readUpload } from '../uploads.ts';
@@ -24,7 +25,7 @@ const KIT = new URL('../../assets/reel/', import.meta.url).pathname;
 const kit = (f: string) => readFileSync(join(KIT, f), 'utf8');
 const FORMATS = { vertical: [1080, 1920], square: [1080, 1080], landscape: [1920, 1080] } as const;
 type Format = keyof typeof FORMATS;
-type Spec = { business: string; offer: string; points: string[]; prices: string[]; cta: string; palette: string; format: Format; seconds: number; website?: string; mood: string };
+type Spec = { business: string; offer: string; points: string[]; prices: string[]; cta: string; palette: string; format: Format; seconds: number; website?: string; mood: string; kind?: 'app' | 'business'; area?: string };
 
 export const motionAd = {
   id: 'motion-ad',
@@ -39,7 +40,7 @@ export const motionAd = {
       job.log('researcher', 'parse', 'the offer, the moments worth showing, and the format');
       const spec = parseJson<Spec>(
         await llm(job, 'researcher', [
-          { role: 'system', content: 'Parse a request for a short motion ad for a small business. Reply JSON only: {"business": name, "offer": what they sell (one sentence), "points": [3-5 short selling points stated in the brief], "prices": [prices exactly as stated in the brief, else []], "cta": the call to action exactly as given (e.g. "Order on WhatsApp 0803 555 0142", "Book at site.com"), "palette": colours they asked for or their brand colours if stated, else "", "format": "vertical" (default, for Reels/TikTok/Status) | "square" | "landscape", "seconds": 16 (default; 12-24, a multiple of 2), "website": url or null, "mood": e.g. "warm and playful", "premium and calm"}' },
+          { role: 'system', content: 'Parse a request for a short motion ad for a small business. Reply JSON only: {"business": name, "offer": what they sell (one sentence), "points": [3-5 short selling points stated in the brief], "prices": [prices exactly as stated in the brief, else []], "cta": the call to action exactly as given (e.g. "Order on WhatsApp 0803 555 0142", "Book at site.com"), "palette": colours they asked for or their brand colours if stated, else "", "format": "vertical" (default, for Reels/TikTok/Status) | "square" | "landscape", "seconds": 16 (default; 12-24, a multiple of 2), "website": url or null, "mood": e.g. "warm and playful", "premium and calm", "kind": "app" if what they sell is software, an app or an online platform, else "business", "area": the city or area they serve if stated, else null}' },
           { role: 'user', content: brief },
         ], 'parse the ad brief', { model: MODELS.fast, maxTokens: 500, json: true,
           dry: () => JSON.stringify({ business: 'Tolu’s Small Chops', offer: 'Small chops trays for parties and offices in Lagos', points: ['Puff-puff, samosa, spring rolls, gizzard', 'Delivered hot, on time', 'Trays for 20 to 200 guests'], prices: ['₦25,000 for 20 guests'], cta: 'Order on WhatsApp 0803 555 0142', palette: 'warm red, gold and cream', format: 'landscape', seconds: 24, website: null, mood: 'warm and playful' }) }),
@@ -77,6 +78,13 @@ export const motionAd = {
       const images: { name: string; about: string; buf: Buffer }[] = [];
       if (d?.logo) { const b = readUpload(d.logo); if (b) images.push({ name: 'logo.jpg', about: 'their logo', buf: (await prepPhoto(b, 480, 3)).buf }); }
       for (const [i, id] of (d?.photos ?? []).slice(0, 3).entries()) { const b = readUpload(id); if (b) images.push({ name: `photo-${i + 1}.jpg`, about: `their own product photo ${i + 1}`, buf: (await prepPhoto(b, 1200, 4)).buf }); }
+
+      // A shop, a kitchen or a service gets the promo style: full-frame scenes from designed templates.
+      // Apps and software keep the UI reel below (one shape, a cursor driving it).
+      if (spec.kind !== 'app') {
+        const made = await promoScene(job, { spec, brief, siteText, format, size: [W, H], seconds, fps, work, logo: d?.logo, uploads: d?.photos ?? [] });
+        return await finish(job, { spec, file: made.file, size: [W, H], seconds, fps, work, look: made.look, scene: readFileSync(made.file, 'utf8'), what: made.what });
+      }
 
       // 1. Storyboard + scene, written against the engine's real API and craft rules
       const zoomHint = format === 'vertical' ? 'about min(900 / w, 1500 / h)' : format === 'square' ? 'about min(880 / w, 880 / h)' : 'about min(1500 / w, 870 / h)';
@@ -141,34 +149,7 @@ ${kit('template.html')}`;
       }
       if (look.problems.some((p) => /did not load|page error/.test(p))) throw new Error(`the scene still doesn't run: ${look.problems[0]}`);
 
-      // 3. Render: the score, then every frame (on our own server; no per-job cost)
-      job.log('producer', 'score', 'synthesising the soundtrack from the timeline');
-      const wav = await reelAudio(file, size);
-      job.log('producer', 'render', `${seconds * fps} frames at ${size[0]}x${size[1]}`);
-      const out = join(work, 'ad.mp4');
-      const r = await renderReel(file, size, out, { workers: 2, audio: wav, onProgress: (d, t) => { if (d % 150 === 0) job.log('producer', 'render', `${d} of ${t} frames`); } });
-      const mp4 = readFileSync(out);
-      if (mp4.length < 100_000) throw new Error('the render came out empty');
-      const poster = await ffmpeg({ 'in.png': look.stills[Math.min(2, look.stills.length - 1)].png }, (f, o) => ['-i', f['in.png'], '-q:v', '3', o], 'jpg');
-
-      job.files.push({ name: 'motion-ad.mp4', content: mp4 }, { name: 'poster.jpg', content: poster }, { name: 'scene.html', content: scene });
-      job.deliverable = [
-        `# Motion ad: ${spec.business}`,
-        `**${seconds} seconds · ${size[0]}×${size[1]} · ${fps} fps · original soundtrack.** Watch it above or download \`motion-ad.mp4\`; \`poster.jpg\` is a cover frame.`,
-        `## What's in it`,
-        `- ${look.stills.length} moments, one shape that never cuts, every change caused by a tap, a drag or a press-and-hold`,
-        `- Your offer${spec.points.length ? `: ${spec.points.join('; ')}` : ''}${spec.prices.length ? `. Prices shown: ${spec.prices.join(', ')}` : ''}`,
-        `- It ends on your call to action${spec.cta ? `: "${spec.cta}"` : ''}, and the last frame loops into the first, so it plays forever on a Status or a Story`,
-        `- The music is composed for this ad from its own timeline (no licensing), mastered to −16 LUFS for social`,
-        `## Checks`,
-        `- The scene ran with ${r.errors.length ? `${r.errors.length} page warnings` : 'no page errors'} and lasts exactly ${(r.frames / r.fps).toFixed(1)} s`,
-        `- A vision model reviewed every state for cut-off text, legibility and broken layout: ${look.problems.length ? `open notes: ${look.problems.join('; ')}` : 'no problems found'}`,
-        `- The audio was checked by loudness normalisation, not by ear. Have a listen.`,
-        `## Changes`,
-        `Ask for a revision with what to change (wording, colours, the order of moments, length, square or landscape). \`scene.html\` is the editable source.`,
-      ].join('\n\n');
-      job.qa = { verdict: look.problems.length ? 'revise' : 'pass', notes: look.problems.join(' | ') || `${look.stills.length} states reviewed; rendered ${r.frames} frames`, model: `rules + ${MODELS.vision}` };
-      job.status = 'delivered';
+      return await finish(job, { spec, file, size, seconds, fps, work, look, scene, what: [`${look.stills.length} moments, one shape that never cuts, every change caused by a tap, a drag or a press-and-hold`] });
     } catch (e: any) {
       job.status = 'failed';
       job.error = String(e?.message ?? e);
@@ -180,3 +161,112 @@ ${kit('template.html')}`;
     return job;
   },
 };
+
+type Look = { problems: string[]; stills: { t: number; png: Buffer }[] };
+
+/** Stills of every scene, checked in code and by a vision model for anything unreadable, cut off or broken. */
+async function review(job: Job, business: string, file: string, size: [number, number], seconds: number): Promise<Look> {
+  const problems: string[] = [];
+  let shot: Awaited<ReturnType<typeof reelStills>> | undefined;
+  try { shot = await reelStills(file, size, 'states'); }
+  catch (e: any) { return { problems: [`the scene did not load: ${String(e?.message ?? e).slice(0, 200)}`], stills: [] }; }
+  if (shot.errors.length) problems.push(...shot.errors.slice(0, 5).map((e) => `page error: ${e.slice(0, 160)}`));
+  if (Math.abs(shot.total / shot.fps - seconds) > 0.1) problems.push(`the ad lasts ${(shot.total / shot.fps).toFixed(1)} s, not ${seconds} s`);
+  const jpgs = await Promise.all(shot.stills.map((s) => ffmpeg({ 'in.png': s.png }, (f, out) => ['-i', f['in.png'], '-vf', 'scale=iw/2:-1', '-q:v', '5', out], 'jpg')));
+  job.log('auditor', 'look', `reviewing ${jpgs.length} scenes with ${MODELS.vision.split('/')[1]}`);
+  const v = parseJson<{ issues: string[] }>(await llm(job, 'auditor', [
+    { role: 'system', content: 'You review stills (one per scene, in order) of a short motion ad for a small business. List concrete problems only: text cut off or overlapping a product, text too small to read on a phone, a photo that is the wrong one for its words (e.g. a TV under "inverters"), a blank or broken-looking scene, unreadable colour contrast, a spelling mistake, a missing call to action at the end. Reply JSON only: {"issues": [short specific strings naming the scene number]} (empty if it looks professional).' },
+    { role: 'user', content: [{ type: 'text', text: `${business}: ${jpgs.length} scenes in order.` }, ...jpgs.map((j) => ({ type: 'image_url' as const, image_url: { url: `data:image/jpeg;base64,${j.toString('base64')}` } }))] },
+  ], 'look at every scene', { model: MODELS.vision, maxTokens: 700, json: true, maxUsd: 0.12, dry: () => JSON.stringify({ issues: [] }) }), { issues: [] });
+  return { problems: [...problems, ...(v.issues ?? []).map(String)], stills: shot.stills };
+}
+
+/** The promo style: gather the photos (uploads, then the business's own site), storyboard with the photos in view,
+ *  render stills, let the auditor look, revise the storyboard once if needed. */
+async function promoScene(job: Job, o: { spec: Spec; brief: string; siteText: string; format: Format; size: [number, number]; seconds: number; fps: number; work: string; logo?: string; uploads: string[] }) {
+  const { spec } = o;
+  const photos: Photo[] = [], files: { name: string; buf: Buffer }[] = [];
+  let logo: string | undefined;
+  if (o.logo) { const b = readUpload(o.logo); if (b) { const r = await preparePhoto(b, 'logo', 'their logo', 600); logo = r.photo.name; files.push(r.file); } }
+  for (const [i, id] of o.uploads.slice(0, 4).entries()) { const b = readUpload(id); if (b) { const r = await preparePhoto(b, `photo-${i + 1}`, `their own photo ${i + 1}`); photos.push(r.photo); files.push(r.file); } }
+  if (spec.website && photos.length < 5) {
+    job.log('reader', 'photos', `looking for product pictures on ${spec.website}`);
+    const found = await siteImages(spec.website.startsWith('http') ? spec.website : `https://${spec.website}`, 8).catch(() => []);
+    for (const [i, im] of found.slice(0, 6 - photos.length).entries()) {
+      try { const r = await preparePhoto(await download(im.src, 8), `site-${i + 1}`, im.alt ? `from their website: ${im.alt}` : 'a picture from their website'); photos.push(r.photo); files.push(r.file); } catch { /* a picture that won't download is skipped */ }
+    }
+    job.log('reader', 'photos', `${photos.length} pictures to work with${found.length ? ` (${Math.min(found.length, 6)} from the site)` : ''}`);
+  }
+  const thumbs = await Promise.all(files.filter((f) => photos.some((p) => p.name === f.name)).map(async (f) => ({ name: f.name, jpg: await ffmpeg({ in: f.buf }, (x, out) => ['-i', x.in, '-vf', "scale=320:-2,format=yuvj420p", '-q:v', '6', '-frames:v', '1', out], 'jpg') })));
+
+  const system = `You are the art director of a ${o.seconds}-second ${o.format} motion ad (${o.size[0]}x${o.size[1]}) for a small business. You don't write code: you write the storyboard, and designed templates lay it out. Reply JSON only:
+{"font": one of ${Object.keys(FONTS).map((k) => `"${k}"`).join(', ')}, "palette": {"accent": "#hex brand colour", "dark": "#hex near-black", "light": "#hex warm off-white"}, "scenes": [ ... ]}
+Scene types (pick 5 to 7; the first is a hook, the last is the cta):
+- {"type":"hook","eyebrow":"business name · area","lines":["2-3 short lines","max 22 characters each"],"tone":"accent"|"dark"} a question or a promise that stops the scroll
+- {"type":"product","photo":"<file>","tag":"category, max 26","title":"max 34 characters","price":"only if given"} one product, full frame
+- {"type":"showcase","photo":"<file>","tag":"...","title":"max 34","note":"one sentence, max 90","price":"only if given"} a product beside its copy
+- {"type":"grid","photos":["2-4 files"],"title":"max 30","items":["up to 6 short names of the range"]} the range
+- {"type":"list","title":"max 30","items":["2-5 lines, max 30"]} the range without photos
+- {"type":"points","title":"max 30","points":["2-4 reasons to buy, max 32 each"],"photo":"<file, optional>"}
+- {"type":"statement","text":"one line, max 40","tone":"dark"|"accent"|"light"}
+- {"type":"price","label":"max 32","price":"exactly as given","note":"max 40"} only for a real stated price or offer
+- {"type":"cta","headline":"max 30, e.g. Order today","sub":"max 44, e.g. Delivery across Abuja & Lagos"} (the button text is added for you)
+Rules: use ONLY facts in the brief and the site text; never invent prices, discounts, ratings, stats or testimonials. Put each photo with words that describe what is IN it (look at the pictures); never caption a photo with a product it doesn't show. Prefer product and showcase scenes for the best photos. Short, concrete, confident copy in plain English a Nigerian shopper would say. Palette: ${spec.palette || 'from the brand colours, if stated; else confident colours that suit the business'}; the accent must read well with dark text on it. Mood: ${spec.mood}.`;
+  const user: Msg = { role: 'user', content: [
+    { type: 'text', text: `Business: ${spec.business}\nOffer: ${spec.offer}\nSelling points: ${spec.points.join(' | ') || '(none given)'}\nPrices: ${spec.prices.join(' | ') || '(none given: show no prices)'}\nArea: ${spec.area ?? '(not stated)'}\nCall to action (the button): ${spec.cta || 'Visit us'}\nBrief: ${o.brief}${o.siteText ? `\n\nTheir site says:\n${o.siteText}` : ''}\n\nPhotos you can use (by file name):${photos.length ? photos.map((p) => `\n- ${p.name}: ${p.about}${p.cut ? ' (a cut-out product shot)' : ''}`).join('') : ' none: use hook, list, points, statement and cta scenes only'}` },
+    ...thumbs.flatMap((t) => [{ type: 'text' as const, text: t.name }, { type: 'image_url' as const, image_url: { url: `data:image/jpeg;base64,${t.jpg.toString('base64')}` } }]),
+  ] };
+  const dryBoard = (): string => JSON.stringify({ font: 'bold', palette: { accent: '#f2b705', dark: '#151310', light: '#f7f3ea' }, scenes: [{ type: 'hook', eyebrow: spec.business, lines: ['Hungry?', 'We deliver'] }, ...(photos[0] ? [{ type: 'product', photo: photos[0].name, tag: 'Bestseller', title: spec.offer.slice(0, 30) }] : []), { type: 'points', title: 'Why us', points: spec.points.slice(0, 3).length >= 2 ? spec.points.slice(0, 3) : ['Fresh every day', 'Fast delivery'] }, { type: 'cta', headline: 'Order today' }] });
+  const board = (msgs: Msg[], why: string) => llm(job, 'producer', msgs, why, { model: MODELS.maker, maxTokens: 1600, json: true, maxUsd: 0.12, dry: dryBoard });
+  const opts = { seconds: o.seconds, photos, cta: spec.cta, business: spec.business, brandColour: (spec.palette.match(/#[0-9a-f]{6}/i) ?? [])[0] };
+
+  job.log('producer', 'storyboard', `${o.seconds} s ${o.format}: scenes, words and photos, with the pictures in view`);
+  let raw = await board([{ role: 'system', content: system }, user], 'storyboard the ad');
+  let sb = cleanStoryboard(parseJson<Storyboard>(raw, { scenes: [] }), opts);
+  const file = writePromo(o.work, sb, { size: o.size, fps: o.fps, business: spec.business, logo, photos, files });
+  let look = await review(job, spec.business, file, o.size, o.seconds);
+  if (look.problems.length) {
+    job.log('producer', 'revise', `${look.problems.length} notes from the review`);
+    raw = await board([{ role: 'system', content: system }, user, { role: 'assistant', content: raw }, { role: 'user', content: `The auditor looked at a still of every scene. Fix every note below and return the full corrected storyboard JSON only.\n- ${look.problems.join('\n- ')}` }], 'revise the storyboard');
+    sb = cleanStoryboard(parseJson<Storyboard>(raw, { scenes: [] }), opts);
+    writePromo(o.work, sb, { size: o.size, fps: o.fps, business: spec.business, logo, photos, files });
+    look = await review(job, spec.business, file, o.size, o.seconds);
+  }
+  if (look.problems.some((p) => /did not load|page error/.test(p))) throw new Error(`the scene doesn't run: ${look.problems[0]}`);
+  const kinds = sb.scenes.map((x) => x.type);
+  return { file, look, what: [`${sb.scenes.length} full-frame scenes: ${kinds.join(', ')}, cut on the beat`, `${photos.length ? `${photos.length} of your own pictures${photos.some((p) => p.name.startsWith('site-')) ? ', some from your website' : ''}` : 'type and colour only (send photos for product scenes)'}`] };
+}
+
+/** Score, render, package. */
+async function finish(job: Job, o: { spec: Spec; file: string; size: [number, number]; seconds: number; fps: number; work: string; look: Look; scene: string; what: string[] }): Promise<Job> {
+  const { spec, size, seconds, fps, look } = o;
+  job.log('producer', 'score', 'synthesising the soundtrack from the timeline');
+  const wav = await reelAudio(o.file, size);
+  job.log('producer', 'render', `${seconds * fps} frames at ${size[0]}x${size[1]}`);
+  const out = join(o.work, 'ad.mp4');
+  const r = await renderReel(o.file, size, out, { workers: 2, audio: wav, onProgress: (d, t) => { if (d % 150 === 0) job.log('producer', 'render', `${d} of ${t} frames`); } });
+  const mp4 = readFileSync(out);
+  if (mp4.length < 100_000) throw new Error('the render came out empty');
+  const poster = await ffmpeg({ 'in.png': look.stills[Math.min(1, look.stills.length - 1)].png }, (f, p) => ['-i', f['in.png'], '-q:v', '3', p], 'jpg');
+  job.files.push({ name: 'motion-ad.mp4', content: mp4 }, { name: 'poster.jpg', content: poster });
+  if (!o.file.endsWith('index.html') || o.scene.includes('Reel.define')) job.files.push({ name: 'scene.html', content: o.scene });
+  job.deliverable = [
+    `# Motion ad: ${spec.business}`,
+    `**${seconds} seconds · ${size[0]}×${size[1]} · ${fps} fps · original soundtrack.** Watch it above; \`poster.jpg\` is a cover frame.`,
+    `## What's in it`,
+    ...o.what.map((w) => `- ${w}`),
+    `- Your offer${spec.points.length ? `: ${spec.points.join('; ')}` : ''}${spec.prices.length ? `. Prices shown: ${spec.prices.join(', ')}` : ''}`,
+    `- It ends on your call to action${spec.cta ? `: "${spec.cta}"` : ''}`,
+    `- The music is composed for this ad from its own timeline (no licensing), mastered for social`,
+    `## Checks`,
+    `- The scene ran with ${r.errors.length ? `${r.errors.length} page warnings` : 'no page errors'} and lasts exactly ${(r.frames / r.fps).toFixed(1)} s`,
+    `- A vision model looked at every scene: ${look.problems.length ? `notes left: ${look.problems.join('; ')}` : 'no problems found'}`,
+    `- The audio was checked by loudness normalisation, not by ear. Have a listen.`,
+    `## Changes`,
+    `Ask for a revision with what to change: wording, colours, which product goes first, length, or vertical, square or landscape.`,
+  ].join('\n\n');
+  job.qa = { verdict: look.problems.length ? 'revise' : 'pass', notes: look.problems.join(' | ') || `${look.stills.length} scenes reviewed; rendered ${r.frames} frames`, model: `rules + ${MODELS.vision}` };
+  job.status = 'delivered';
+  job.save();
+  return job;
+}

@@ -40,7 +40,9 @@ For owners who boost posts and get likes instead of orders. The Scout pulls ads 
 
 ### Motion Ad
 
-Built with a motion engine for designer-grade product videos: one shape that never cuts, morphing through your offer while a cursor drives every change, with springs throughout and a soundtrack composed from the video's own timeline. The Producer (Claude Opus 5) writes the scene against the engine's own rules; every state is rendered as a still and reviewed before our server renders every frame. The editable scene file comes with it. On the form you say what to promote, the price, how customers should respond (WhatsApp, call, visit, website or DM), the format and length, and a brand colour; your logo and photos go into the scene.
+A full-frame promo for a shop, a kitchen or a service: a hook that stops the scroll, your products large on screen with their prices, the reasons to buy, and an end card with your logo and the one thing to do, cut on the beat of a soundtrack composed from the video's own timeline. The Producer writes the storyboard (which scenes, which words, which photo goes where, with the pictures in view) and designed templates lay it out, so text is always big enough to read on a phone and never runs off the frame. Your own photos go in first; if you give your website, the Reader also brings in the product pictures from it. Every scene is reviewed as a still before our server renders every frame. Apps and software get a UI-style reel instead: one shape morphing through the product while a cursor drives it. On the form you say what to promote, the price, how customers should respond (WhatsApp, call, visit, website or DM), the format and length, and a brand colour.
+
+Until you accept, you watch a watermarked preview; the full-quality video is emailed to you the moment you accept.
 
 ### Product Photo Studio
 
