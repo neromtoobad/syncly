@@ -224,8 +224,14 @@ export async function llm(
 }
 
 const PROVIDER_DOWN = /provider api issue|provider (error|unavailable)|upstream|overloaded|model (is )?unavailable/i;
-/** Another provider's model for the same step: Anthropic's go to OpenAI's and back. Opus has its own fallback. */
-const altModel = (model: string) => (/opus|fable/.test(model) ? null : model.startsWith('anthropic/') ? MODELS.auditor : MODELS.maker);
+/** Another provider's model of about the same strength, sold by BlockRun through Gateway. Models only sold on
+ *  BlockRun's Arc endpoint already fall back to a Gateway model when the agent's wallet is empty. */
+function altModel(model: string): string | null {
+  if (ARC_ONLY.test(model)) return null;
+  if (model.startsWith('anthropic/')) return /haiku/.test(model) ? 'openai/gpt-5.4-mini' : 'openai/gpt-5.4';
+  if (model.startsWith('openai/')) return /mini|nano/.test(model) ? 'anthropic/claude-haiku-4.5' : 'anthropic/claude-sonnet-4.6';
+  return MODELS.maker === model ? null : MODELS.maker;
+}
 
 export function parseJson<T>(s: string, fallback: T): T {
   const m = s.match(/\{[\s\S]*\}/);
