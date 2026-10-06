@@ -16,7 +16,8 @@ import { quote, type Quote } from './cfo/quote.ts';
 import type { BusinessDetails } from './details.ts';
 import { CATALOG, SERVICES, findService } from './services/index.ts';
 import * as chain from './escrow.ts';
-import { emailDelivery } from './mail.ts';
+import { emailDelivery, emailRelease } from './mail.ts';
+import { jobDir, makePreviews } from './release.ts';
 import { blacklisted } from './payees.ts';
 
 export type OrderStatus = 'quoted' | 'queued' | 'running' | 'delivered' | 'revision' | 'accepted' | 'rejected' | 'failed' | 'declined' | 'expired';
@@ -67,7 +68,11 @@ const file = (id: string) => join(dir(), `${id}.json`);
 
 export function saveOrder(o: Order) {
   mkdirSync(dir(), { recursive: true });
+  const was = existsSync(file(o.id)) ? (JSON.parse(readFileSync(file(o.id), 'utf8')) as Order).status : undefined;
   writeFileSync(file(o.id), JSON.stringify(o, null, 2));
+  // The moment a paid job is accepted its files are the customer's: the Messenger sends them.
+  if (was !== 'accepted' && o.status === 'accepted' && o.payment?.mode === 'escrow') { const d = jobDir(o); if (d) void emailRelease(o, d); }
+  if (was !== 'delivered' && o.status === 'delivered') makePreviews(o);
   publish({ type: 'order', orderId: o.id, data: orderEventData(o) });
 }
 

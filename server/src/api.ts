@@ -5,7 +5,7 @@ import { getAddress, isAddress, keccak256, toBytes } from 'viem';
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import { serve } from '@hono/node-server';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
@@ -16,7 +16,8 @@ import { bus, type SynclyEvent } from './bus.ts';
 import { CATALOG, findService } from './services/index.ts';
 import { cleanDetails, detailsBrief, type BusinessDetails } from './details.ts';
 import { MAX_BYTES, allowUpload, readUpload, saveUpload } from './uploads.ts';
-import { addPhoto, applyPatch, editorView, previewHtml, publishPatch, sourceByToken, undoLast, type SiteSource } from './site/edit.ts';
+import { addPhoto, applyPatch, editorView, previewHtml, publishPatch, sourceBySlug, sourceByToken, undoLast, type SiteSource } from './site/edit.ts';
+import { PREVIEW, SITE_GONE, SITE_RIBBON, jobDir, previewFile, released, withdrawn } from './release.ts';
 import { LINKS, chowdeckHours, readChowdeck, samePhone } from './site/links.ts';
 import { FORMATS, countScan, posterHtml, posterTargets, scanStats, type PosterOpts } from './site/poster.ts';
 import { renderPoster } from './browser.ts';
@@ -142,7 +143,7 @@ app.get('/api/uploads/:id', (c) => {
 function view(id: string) {
   const o = getOrder(id)!;
   const runs = o.runs.map((r) => readJob(r)).filter(Boolean);
-  return { ...o, email: o.email.replace(/^(.).*(@.*)$/, '$1•••$2'), runs, live: liveJobs.get(o.id) ?? null, team: [...(findService(o.service)?.team ?? [])] };
+  return { ...o, email: o.email.replace(/^(.).*(@.*)$/, '$1•••$2'), runs, live: liveJobs.get(o.id) ?? null, team: [...(findService(o.service)?.team ?? [])], released: released(o), withdrawn: withdrawn(o) };
 }
 
 app.post('/api/orders/:id/start', async (c) => {
@@ -258,20 +259,29 @@ app.get('/api/orders/:id', (c) => {
 });
 
 const MEDIA: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', mp4: 'video/mp4', webm: 'video/webm', mp3: 'audio/mpeg', svg: 'image/svg+xml', zip: 'application/zip', pdf: 'application/pdf', html: 'text/plain; charset=utf-8' };
-app.get('/api/orders/:id/files/:name', (c) => {
+app.get('/api/orders/:id/files/:name', async (c) => {
   const o = getOrder(c.req.param('id'));
   const name = c.req.param('name');
   if (!o || !/^[a-z0-9._-]+$/i.test(name)) return c.text('not found', 404);
   if (name === 'job.json' && !isOwner(c)) return c.text('not found', 404); // the job record holds our costs
-  const last = o.runs[o.runs.length - 1];
-  const f = last && join(DATA_DIR, 'jobs', last, name);
+  // Until the customer accepts, a paid job's media is served as watermarked previews and nothing else downloads.
+  let f: string | undefined;
+  if (name.startsWith(PREVIEW)) {
+    const base = name.slice(PREVIEW.length), dir = jobDir(o);
+    const orig = dir && readdirSync(dir).find((x) => x === base || x.replace(/\.(png|jpe?g|webp)$/i, '.jpg') === base);
+    try { f = orig ? await previewFile(o, orig) : undefined; } catch (e: any) { console.error(`preview ${o.id}/${base}: ${e?.message ?? e}`); return c.text('The preview is not ready. Try again in a minute.', 503); }
+  } else {
+    if (!released(o) && !isOwner(c) && name !== 'deliverable.md') return c.text(withdrawn(o) ? 'This work was not kept, so its files are gone.' : 'Preview only: the full-quality file unlocks when you accept the work.', 403);
+    const dir = jobDir(o);
+    f = dir && join(dir, name);
+  }
   if (!f || !existsSync(f)) return c.text('not found', 404);
-  const ext = name.split('.').pop()!.toLowerCase();
+  const ext = f.split('.').pop()!.toLowerCase();
   const media = MEDIA[ext];
   c.header('content-type', media ?? (ext === 'csv' ? 'text/csv' : 'text/markdown'));
   // Pictures and video open in the browser; data files download.
   c.header('content-disposition', `${media && ext !== 'pdf' && c.req.query('download') === undefined ? 'inline' : 'attachment'}; filename="${o.id}-${name}"`); // a PDF can't open inside the sandbox
-  if (media) c.header('cache-control', 'public, max-age=86400');
+  if (media) c.header('cache-control', name.startsWith(PREVIEW) ? 'private, max-age=600' : 'private, max-age=86400');
   // Generated files never run as our site: no scripts, no same-origin access.
   c.header('content-security-policy', "sandbox; default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'");
   c.header('x-content-type-options', 'nosniff');
@@ -288,13 +298,18 @@ const site = (c: any) => {
   const own = join(SITE_FINISHED, slug, file);
   const f = existsSync(own) ? own : join(DATA_DIR, 'sites', slug, file);
   if (!existsSync(f)) return c.text('not found', 404);
+  // A site built on a paid job wears a preview ribbon until it's accepted, and comes down if it's rejected or refunded.
+  const so = existsSync(own) ? undefined : sourceBySlug(slug)?.orderId, order = so ? getOrder(so) : undefined;
+  if (order && withdrawn(order)) return c.html(SITE_GONE, 410);
+  const ribbon = !!order && !released(order) && file === 'index.html';
   c.header('content-type', SITE_MIME[file.split('.').pop()!.toLowerCase()] ?? 'application/octet-stream');
   c.header('content-security-policy', "sandbox allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox; default-src * data: blob: 'unsafe-inline'");
   c.header('x-content-type-options', 'nosniff');
   c.header('cache-control', 'public, max-age=300');
   // Relative asset paths must resolve under the site whether or not the URL has a trailing slash.
   if (file === 'index.html' && c.req.query('src') === 'qr') countScan(slug); // a scan of the shop's QR poster
-  if (f.endsWith('.html')) return c.body(readFileSync(f, 'utf8').replace(/<head([^>]*)>/i, `<head$1><base href="/s/${slug}/">`));
+  if (ribbon) c.header('cache-control', 'no-store');
+  if (f.endsWith('.html')) return c.body(readFileSync(f, 'utf8').replace(/<head([^>]*)>/i, `<head$1><base href="/s/${slug}/">`).replace(/<\/body>/i, ribbon ? `${SITE_RIBBON}</body>` : '</body>'));
   return c.body(readFileSync(f));
 };
 app.get('/s/:slug', site);

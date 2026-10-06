@@ -96,8 +96,10 @@ const isImage = (f: string) => /\.(png|jpe?g|webp)$/i.test(f);
 const isMedia = (f: string) => isVideo(f) || isImage(f) || /\.zip$/i.test(f);
 
 /** What the growth team made: the live site in a phone frame, videos that play, images at full size. */
-function Media({ id, files, deliverable }: { id: string; files: string[]; deliverable: string }) {
-  const url = (f: string) => `/api/orders/${id}/files/${f}`;
+function Media({ id, files, deliverable, locked }: { id: string; files: string[]; deliverable: string; locked: boolean }) {
+  // Until the work is accepted, pictures and video are watermarked previews and nothing downloads.
+  const url = (f: string) => `/api/orders/${id}/files/${locked ? `preview-${f}` : f}`;
+  files = files.filter((f) => !f.startsWith('preview-'));
   const site = deliverable.match(/\]\((?:https?:\/\/[^)\s]+)?(\/s\/[a-z0-9-]+)\)/)?.[1];
   const videos = files.filter(isVideo);
   const poster = files.find((f) => /^poster\./.test(f));
@@ -108,8 +110,8 @@ function Media({ id, files, deliverable }: { id: string; files: string[]; delive
   const picturesFirst = images.length >= 4;
   const videoList = videos.map((f) => (
     <figure key={f} className={`media__video ${/1x1/.test(f) ? 'sq' : ''}`}>
-      <video src={url(f)} poster={poster ? url(poster) : undefined} controls playsInline loop preload="metadata" />
-      <figcaption><span className="mono">{f}</span><a href={`${url(f)}?download`}>Download ↓</a></figcaption>
+      <video src={url(f)} poster={poster ? url(poster) : undefined} controls playsInline loop preload="metadata" controlsList={locked ? 'nodownload noplaybackrate' : undefined} disablePictureInPicture={locked} onContextMenu={locked ? (e) => e.preventDefault() : undefined} />
+      <figcaption><span className="mono">{f}</span>{locked ? <span className="lockchip">Preview</span> : <a href={`${url(f)}?download`}>Download ↓</a>}</figcaption>
     </figure>
   ));
   return (
@@ -125,7 +127,7 @@ function Media({ id, files, deliverable }: { id: string; files: string[]; delive
       {images.length > 0 && (
         <div className="media__grid">
           {images.map((f) => (
-            <figure key={f}><a href={url(f)} target="_blank" rel="noreferrer"><img src={url(f)} alt={f} loading="lazy" /></a><figcaption><span className="mono">{f}</span><a href={`${url(f)}?download`}>↓</a></figcaption></figure>
+            <figure key={f}>{locked ? <img src={url(f)} alt={f} loading="lazy" onContextMenu={(e) => e.preventDefault()} /> : <a href={url(f)} target="_blank" rel="noreferrer"><img src={url(f)} alt={f} loading="lazy" /></a>}<figcaption><span className="mono">{f}</span>{locked ? <span className="lockchip">Preview</span> : <a href={`${url(f)}?download`}>↓</a>}</figcaption></figure>
           ))}
         </div>
       )}
@@ -237,6 +239,7 @@ export default function Job({ id }: { id: string }) {
   const [busy, setBusy] = useState(false);
   const [replay, setReplay] = useState(0);
   const { data: escCfg } = useApi<EscrowCfg | { enabled: false }>('/api/escrow');
+  const { data: services } = useApi<{ services: Service[] }>('/api/services');
   const cfg = escCfg?.enabled ? escCfg : null;
 
   const load = () => api<Order>(`/api/orders/${id}`).then(setO).catch((e) => setErr(e.message));
@@ -275,13 +278,52 @@ export default function Job({ id }: { id: string }) {
   if (!o) return <main className="wrap section"><div className="skel" style={{ height: 480 }} /></main>;
   const q = o.quote;
 
+  const locked = !(o as any).released;
+  const svc = services?.services.find((x) => x.id === o.service);
+  const title = `${SERVICE_NAME[o.service] ?? o.service}${o.details?.name ? ` for ${o.details.name}` : ''}`;
+  const now = steps.at(-1);
+  const startedAt = running ? Date.parse((running.steps[0]?.at ?? o.payment?.at ?? o.createdAt)) : 0;
+  const naira = (x: number) => `₦${Math.round(x).toLocaleString('en-NG')}`;
+  const files = last?.files.filter((f) => !f.startsWith('preview-')) ?? [];
+  const docFiles = files.filter((f) => !isImage(f) && !isVideo(f));
+  const hasMedia = files.some((f) => isImage(f) || isVideo(f)) || /\]\((?:https?:\/\/[^)\s]+)?\/s\/[a-z0-9-]+\)/.test(last?.deliverable ?? '');
+  const qaBox = last?.qa ? <div className={`qa ${last.qa.verdict === 'pass' ? 'pass' : 'revise'}`} style={{ margin: '4px 0 18px' }}><Avatar role="auditor" /><div><b>Auditor {last.qa.verdict === 'pass' ? 'passed it' : 'left notes'}</b> <span style={{ opacity: .75 }}>· {last.qa.model}</span>{last.qa.notes && <div style={{ fontSize: 13.5, marginTop: 2 }}>{last.qa.notes}</div>}</div></div> : null;
+
+  const decisionPanel = () => {
+    if (o.status === 'delivered' && o.escrow && !o.naira) return cfg ? <EscrowDecision o={o} cfg={cfg} onUpdate={setO} /> : <p className="muted">Loading the escrow…</p>;
+    if (o.status !== 'delivered') return null;
+    return (
+      <div className="form" style={{ gap: 14 }}>
+        <p style={{ fontSize: 14.5, color: 'var(--ink-2)', margin: 0 }}>
+          {q.promo ? 'This one was free. Tell us if it was good.' : o.naira ? <>Accept to release your {naira(o.naira.ngn)} payment and unlock the full-quality files. Reject and you get it all back in naira <b>plus a {naira(q.bondUsd * o.naira.rate)} bond</b>.</> : <>Accept to release <b>{usd(q.priceUsd)} USDC</b> and unlock the files. Reject and you get it all back <b>plus a {usd(q.bondUsd)} USDC bond</b>.</>} Silence for 48 h counts as acceptance.
+        </p>
+        <label className="field">Confirm with your email
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@business.com" />
+        </label>
+        {o.revisionNote === undefined && (
+          <label className="field">Want changes? <span className="hint">One free revision.</span>
+            <textarea style={{ minHeight: 76 }} value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. bigger text, show the fridges first, end on our WhatsApp number" />
+          </label>
+        )}
+        <div className="decide">
+          <button className="btn primary block" disabled={busy || !email} onClick={() => decide('accept')}>{locked ? 'Accept & unlock the files' : 'Accept the work'}</button>
+          <div className="row">
+            {o.revisionNote === undefined && <button className="btn secondary" disabled={busy || !email || !note.trim()} onClick={() => decide('revise')}>Revise</button>}
+            <button className="btn danger" disabled={busy || !email} onClick={() => decide('reject')} style={o.revisionNote !== undefined ? { gridColumn: 'span 2' } : undefined}>Reject{q.promo ? '' : ' & refund'}</button>
+          </div>
+        </div>
+        {err && <div className="error">{err}</div>}
+      </div>
+    );
+  };
+
   return (
-    <main className="wrap">
-      <div className="pagehead" style={{ paddingBottom: 0 }}>
+    <main className="wrap jobpage">
+      <div className="jobtop">
         <div className="crumbs"><Link href={`/hire/${o.service}`}>{SERVICE_NAME[o.service] ?? o.service}</Link><span>/</span><span className="mono" style={{ fontSize: 13 }}>{o.id}</span></div>
         <div className="jobhead">
           <div>
-            <h1 className="h1">{o.brief.length > 110 ? o.brief.slice(0, 110) + '…' : o.brief}</h1>
+            <h1 className="h2">{title}</h1>
             <div className="meta">Ordered {timeAgo(o.createdAt)} by {o.email}{o.demo && ' · demo mode: no real money moved'}</div>
           </div>
           <span className={`badge ${o.status}`}><span className="dot" />{o.status === 'queued' ? 'starting' : o.status}</span>
@@ -289,133 +331,134 @@ export default function Job({ id }: { id: string }) {
         <Stepper o={o} />
       </div>
 
-      <div className="jobgrid">
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 20, minWidth: 0 }}>
+      {/* The stage: one thing at a time, whatever the job needs from you now */}
+      {awaitingNaira ? (
+        <section className="card pad stage">
+          <h3 className="t">Waiting for your naira payment</h3>
+          <p className="muted" style={{ margin: 0 }}>A bank transfer through Bachs can take a few minutes. This page updates by itself once it lands, and the team starts straight away.</p>
+        </section>
+      ) : active ? (
+        <section className="stage">
           <div className="minioffice">
-            <Office orderId={o.id} team={(o as any).team} idleReplayMs={0} replayToken={replay} backlog={active ? missedEvents(o) : undefined} working={active ? (o as any).team : null} directorOnStart={!!active} />
-            <div className="overlay">
-              {active ? <span className="chip live"><span className="dot" />Live: the team on your job</span>
-                : o.runs.length > 0 && <button className="btn secondary sm" onClick={() => setReplay((x) => x + 1)}>▶ Replay this job</button>}
-            </div>
+            <Office orderId={o.id} team={(o as any).team} idleReplayMs={0} replayToken={replay} backlog={missedEvents(o)} working={(o as any).team} directorOnStart />
+            <div className="overlay"><span className="chip live"><span className="dot" />Live</span></div>
           </div>
-
-          {last?.qa && !active && (
-            <div className={`qa ${last.qa.verdict === 'pass' ? 'pass' : 'revise'}`}>
-              <Avatar role="auditor" />
-              <div><b>Auditor {last.qa.verdict === 'pass' ? 'passed it' : 'flagged issues'}</b> <span style={{ opacity: .75 }}>· checked by {last.qa.model}</span>{last.qa.notes && <div style={{ fontSize: 13.5, marginTop: 2 }}>{last.qa.notes}</div>}</div>
-            </div>
-          )}
-
-          {html && !active ? (
-            <section className="card pad">
-              <div className="dochead">
-                <h3>Your deliverable</h3>
-                <div className="btns">
-                  {last!.files.filter((f) => !isImage(f) && !isVideo(f)).map((f) => <a key={f} className="btn secondary sm" href={`/api/orders/${o.id}/files/${f}${isMedia(f) ? '?download' : ''}`}>↓ {f}</a>)}
-                  <a className="btn secondary sm" href={`/api/orders/${o.id}/files/deliverable.md`}>↓ .md</a>
-                </div>
-              </div>
-              <Media id={o.id} files={last!.files} deliverable={last!.deliverable} />
-              <div className="deliverable" dangerouslySetInnerHTML={{ __html: html }} />
-              <details style={{ marginTop: 22, borderTop: '1px solid var(--line)', paddingTop: 16 }}>
-                <summary style={{ cursor: 'pointer', fontWeight: 600, fontSize: 14.5 }}>How the team did it · {steps.length} steps</summary>
-                <div style={{ marginTop: 10 }}><Timeline steps={steps} /></div>
-              </details>
-              {o.details?.name && <MoreFor o={o} />}
-            </section>
-          ) : (
-            <section className="card pad">
-              <h3 className="t">{active ? 'The team is working' : 'Work log'} <small>{active ? 'updates live' : ''}</small></h3>
-              <Timeline steps={steps} />
-            </section>
-          )}
-        </div>
-
-        <aside>
-          <section className="card pad">
-            <h3 className="t">Your decision</h3>
-            {o.status === 'quoted' && o.naira?.status === 'open' ? (
-              <p className="note">Waiting for your naira payment through Bachs. A bank transfer can take a few minutes; this page updates by itself once it lands, and the team starts straight away.</p>
-            ) : o.status === 'delivered' && o.escrow && !o.naira ? (
-              cfg ? <EscrowDecision o={o} cfg={cfg} onUpdate={setO} /> : <p className="muted">Loading the escrow…</p>
-            ) : o.status === 'delivered' ? (
-              <div className="form" style={{ gap: 14 }}>
-                <p style={{ fontSize: 14.5, color: 'var(--ink-2)' }}>
-                  {q.promo ? 'This one was free. Tell us if it was good.' : o.naira ? <>Accept to release your {`₦${Math.round(o.naira.ngn).toLocaleString('en-NG')}`} payment. Reject and you get it all back in naira <b>plus a ₦{Math.round(q.bondUsd * o.naira.rate).toLocaleString('en-NG')} bond</b>.</> : <>Accept to release <b>{usd(q.priceUsd)} USDC</b>. Reject and you get it all back <b>plus a {usd(q.bondUsd)} USDC bond</b>.</>} Silence for 48 h counts as acceptance.
-                </p>
+          <div className="nowline">
+            {now ? <><Avatar role={now.agent} /><div><b>{ROLE_NAME[now.agent] ?? now.agent}</b> <span>{now.step}{now.note ? ` · ${now.note}` : ''}</span></div></> : <><Avatar role="cfo" /><div><b>The CFO</b> <span>is staffing the job…</span></div></>}
+          </div>
+          <Progress startedAt={startedAt} etaMin={svc?.etaMin} steps={steps.length} />
+          <p className="muted" style={{ fontSize: 13.5, margin: 0 }}>You can close this page. We'll email you when it's ready, and your decision waits here.</p>
+        </section>
+      ) : o.status === 'failed' ? (
+        <section className="card pad stage">
+          <div className="form" style={{ gap: 12 }}>
+            <div className="qa revise"><Avatar role="cfo" /><div>We couldn't deliver this one{o.refund ? `: ${usd(o.refund.priceUsd)} refunded + ${usd(o.refund.bondUsd)} bond paid` : ''}. {last?.error}{o.refund?.tx && <> <Tx cfg={cfg} hash={o.refund.tx}>Refund on Arc</Tx></>}</div></div>
+            {o.escrow && !o.refund && (o.naira
+              ? <p style={{ fontSize: 14, color: 'var(--ink-2)', margin: 0 }}>Your {naira(o.naira.ngn)} is safe: the {usd(q.priceUsd)} USDC it paid for is held in escrow on Arc. If the job isn't delivered by the deadline ({when(o.escrow.deliverBy)}), the contract refunds it and we send your {naira(o.naira.ngn)} back through Bachs, plus a {naira(q.bondUsd * o.naira.rate)} bond.</p>
+              : <p style={{ fontSize: 14, color: 'var(--ink-2)', margin: 0 }}>Your {usd(q.priceUsd)} USDC is safe in escrow. At the deadline ({when(o.escrow.deliverBy)}) the contract refunds it plus the {usd(q.bondUsd)} USDC bond. The CFO triggers the refund, and anyone can.</p>)}
+            {(o.payment?.mode === 'promo' || retryPaid) && (
+              <>
+                <p style={{ fontSize: 14, color: 'var(--ink-2)', margin: 0 }}>{retryPaid ? "The team can try again now, at no extra cost to you. If it still can't deliver, the refund above stands." : "It's still your free job. The team can try again; you only see what they spend on the receipt."}</p>
                 <label className="field">Confirm with your email
                   <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@business.com" />
                 </label>
-                {o.revisionNote === undefined && (
-                  <label className="field">Want changes? <span className="hint">One free revision.</span>
-                    <textarea style={{ minHeight: 76 }} value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. focus on Ikoyi too, and add opening hours" />
-                  </label>
-                )}
-                <div className="decide">
-                  <button className="btn primary block" disabled={busy || !email} onClick={() => decide('accept')}>Accept the work</button>
-                  <div className="row">
-                    {o.revisionNote === undefined && <button className="btn secondary" disabled={busy || !email || !note.trim()} onClick={() => decide('revise')}>Revise</button>}
-                    <button className="btn danger" disabled={busy || !email} onClick={() => decide('reject')} style={o.revisionNote !== undefined ? { gridColumn: 'span 2' } : undefined}>Reject{q.promo ? '' : ' & refund'}</button>
-                  </div>
-                </div>
+                <button className="btn primary block" disabled={busy || !email} onClick={() => decide('retry')}>Try again</button>
                 {err && <div className="error">{err}</div>}
-              </div>
-            ) : o.status === 'accepted' ? (
-              <div className="qa pass"><Avatar role="cfo" /><div>Accepted {o.decision?.by === 'auto' ? 'automatically after 48 h' : 'by you'} · {timeAgo(o.decision!.at)}. Thank you.{o.escrow?.closeTx && <> <Tx cfg={cfg} hash={o.escrow.closeTx}>Payment released on Arc</Tx></>}</div></div>
-            ) : o.status === 'rejected' ? (
-              <div className="qa revise"><Avatar role="cfo" /><div>Rejected{o.naira?.refund ? `: ₦${Math.round(o.naira.refund.ngn).toLocaleString('en-NG')} ${o.naira.refund.status === 'paid' ? 'refunded' : 'being refunded'} through Bachs${o.naira.refund.bondNgn ? `, and the ₦${o.naira.refund.bondNgn.toLocaleString('en-NG')} bond is owed to you (we'll send it to your bank account)` : ''}` : o.refund ? `: ${usd(o.refund.priceUsd)} refunded + ${usd(o.refund.bondUsd)} bond paid` : ''}. The CFO will learn from this.{o.refund?.tx && <> <Tx cfg={cfg} hash={o.refund.tx}>Refund on Arc</Tx></>}</div></div>
-            ) : o.status === 'failed' ? (
-              <div className="form" style={{ gap: 12 }}>
-                <div className="qa revise"><Avatar role="cfo" /><div>We couldn't deliver this one{o.refund ? `: ${usd(o.refund.priceUsd)} refunded + ${usd(o.refund.bondUsd)} bond paid` : ''}. {last?.error}{o.refund?.tx && <> <Tx cfg={cfg} hash={o.refund.tx}>Refund on Arc</Tx></>}</div></div>
-                {o.escrow && !o.refund && (o.naira
-                  ? <p style={{ fontSize: 14, color: 'var(--ink-2)' }}>Your ₦{Math.round(o.naira.ngn).toLocaleString('en-NG')} is safe: the {usd(q.priceUsd)} USDC it paid for is held in escrow on Arc. If the job isn't delivered by the deadline ({when(o.escrow.deliverBy)}), the contract refunds it and we send your ₦{Math.round(o.naira.ngn).toLocaleString('en-NG')} back through Bachs, plus a ₦{Math.round(q.bondUsd * o.naira.rate).toLocaleString('en-NG')} bond.</p>
-                  : <p style={{ fontSize: 14, color: 'var(--ink-2)' }}>Your {usd(q.priceUsd)} USDC is safe in escrow. At the deadline ({when(o.escrow.deliverBy)}) the contract refunds it plus the {usd(q.bondUsd)} USDC bond. The CFO triggers the refund, and anyone can.</p>)}
-                {(o.payment?.mode === 'promo' || retryPaid) && (
+              </>
+            )}
+          </div>
+        </section>
+      ) : html ? (
+        <>
+          <section className="card pad stage">
+            <div className="dochead">
+              <h3>{locked ? 'Your preview' : 'Your work'}</h3>
+              <div className="btns">
+                {locked ? <span className="lockchip big">Full quality unlocks when you accept</span> : (
                   <>
-                    <p style={{ fontSize: 14, color: 'var(--ink-2)' }}>{retryPaid ? "The team can try again now, at no extra cost to you. If it still can't deliver, the refund above stands." : "It's still your free job. The team can try again; you only see what they spend on the receipt."}</p>
-                    <label className="field">Confirm with your email
-                      <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@business.com" />
-                    </label>
-                    <button className="btn primary block" disabled={busy || !email} onClick={() => decide('retry')}>Try again</button>
-                    {err && <div className="error">{err}</div>}
+                    {docFiles.map((f) => <a key={f} className="btn secondary sm" href={`/api/orders/${o.id}/files/${f}${isMedia(f) ? '?download' : ''}`}>↓ {f}</a>)}
+                    <a className="btn secondary sm" href={`/api/orders/${o.id}/files/deliverable.md`}>↓ .md</a>
                   </>
                 )}
               </div>
-            ) : o.status === 'expired' ? (
-              <p className="muted" style={{ fontSize: 14.5 }}>This quote expired before it was paid. Nothing was taken. <Link href={`/hire/${o.service}`}>Get a new quote →</Link></p>
-            ) : (
-              <p className="muted" style={{ fontSize: 14.5 }}>You'll decide once the work is delivered, usually within a few minutes. Keep this link: it's where your work and your decision live.</p>
-            )}
+            </div>
+            {(o as any).withdrawn ? <p className="muted">This work wasn't kept, so its files are gone.</p> : <Media id={o.id} files={files} deliverable={last!.deliverable} locked={locked} />}
+            {/* With pictures or video to look at, the write-up folds away so the decision sits right under them */}
+            {hasMedia ? (
+              <details className="notes">
+                <summary>What the team wrote{last?.qa ? ` · auditor ${last.qa.verdict === 'pass' ? 'passed it' : 'left notes'}` : ''}</summary>
+                {qaBox}
+                <div className="deliverable" dangerouslySetInnerHTML={{ __html: html }} />
+              </details>
+            ) : <>{qaBox}<div className="deliverable" dangerouslySetInnerHTML={{ __html: html }} /></>}
           </section>
 
-          <section className="card pad">
-            <h3 className="t">The money on this job</h3>
-            <MoneyTrail o={o} receipt={receipt} cfg={cfg} />
-            <div className="srow"><span className="lbl">Price</span><span className="fill" /><span className="v">{q.promo ? 'Free' : `${usd(q.priceUsd)} USDC`}</span></div>
-            {!q.promo && <div className="srow"><span className="lbl">In naira</span><span className="fill" /><span className="v">{ngn(q.priceUsd)}</span></div>}
-            <div className="srow"><span className="lbl">Bond if rejected</span><span className="fill" /><span className="v">{q.promo ? '—' : `${usd(q.bondUsd)} USDC`}</span></div>
-            <div className="srow"><span className="lbl">Paid via</span><span className="fill" /><span className="v" style={{ fontFamily: 'var(--sans)' }}>{o.naira && o.payment ? `${`₦${Math.round(o.naira.ngn).toLocaleString('en-NG')}`} via Bachs → escrow on Arc` : o.payment ? (o.payment.mode === 'promo' ? 'Free first job' : o.payment.mode === 'simulated' ? 'Demo escrow' : 'Escrow on Arc') : '—'}</span></div>
-            {o.escrow && (
-              <>
-                <div className="srow"><span className="lbl">Paid by</span><span className="fill" /><span className="v">{short(o.escrow.customer)}</span></div>
-                <div className="srow"><span className="lbl">Escrow</span><span className="fill" /><span className="v" style={{ fontFamily: 'var(--sans)' }}>{o.escrow.state}</span></div>
+          {o.status === 'delivered' && !hasMedia && <a href="#decide" className="decidebar">Ready for your decision <b>Accept, revise or reject ↓</b></a>}
+          {o.status === 'delivered' && <section className="card pad decisioncard" id="decide"><h3 className="t">Your decision</h3>{decisionPanel()}</section>}
+          {o.status === 'accepted' && <div className="qa pass"><Avatar role="cfo" /><div>Accepted {o.decision?.by === 'auto' ? 'automatically after 48 h' : 'by you'} · {timeAgo(o.decision!.at)}. Thank you.{o.escrow?.closeTx && <> <Tx cfg={cfg} hash={o.escrow.closeTx}>Payment released on Arc</Tx></>}</div></div>}
+          {o.status === 'rejected' && <div className="qa revise"><Avatar role="cfo" /><div>Rejected{o.naira?.refund ? `: ${naira(o.naira.refund.ngn)} ${o.naira.refund.status === 'paid' ? 'refunded' : 'being refunded'} through Bachs${o.naira.refund.bondNgn ? `, and the ${naira(o.naira.refund.bondNgn)} bond is owed to you (we'll send it to your bank account)` : ''}` : o.refund ? `: ${usd(o.refund.priceUsd)} refunded + ${usd(o.refund.bondUsd)} bond paid` : ''}. The CFO will learn from this.{o.refund?.tx && <> <Tx cfg={cfg} hash={o.refund.tx}>Refund on Arc</Tx></>}</div></div>}
+          {o.status === 'accepted' && o.details?.name && <MoreFor o={o} />}
+        </>
+      ) : o.status === 'expired' ? (
+        <section className="card pad stage"><p className="muted" style={{ fontSize: 14.5, margin: 0 }}>This quote expired before it was paid. Nothing was taken. <Link href={`/hire/${o.service}`}>Get a new quote →</Link></p></section>
+      ) : (
+        <section className="card pad stage"><p className="muted" style={{ fontSize: 14.5, margin: 0 }}>You'll decide once the work is delivered, usually within a few minutes. Keep this link: it's where your work and your decision live.</p></section>
+      )}
+
+      {/* Everything else, folded away */}
+      <div className="jobmore">
+        <details>
+          <summary>How the team did it <small>{steps.length} steps{receipt.length ? ` · ${receipt.length} paid tools` : ''}</small></summary>
+          <div className="jobmore__in">
+            {!active && o.runs.length > 0 && (
+              <div className="minioffice" style={{ marginBottom: 14 }}>
+                <Office orderId={o.id} team={(o as any).team} idleReplayMs={0} replayToken={replay} />
+                <div className="overlay"><button className="btn secondary sm" onClick={() => setReplay((x) => x + 1)}>▶ Replay this job</button></div>
+              </div>
+            )}
+            <Timeline steps={steps} />
+          </div>
+        </details>
+        <details>
+          <summary>The money on this job <small>{q.promo ? 'free' : o.naira ? `${naira(o.naira.ngn)} via Bachs` : `${usd(q.priceUsd)} USDC`}{o.escrow ? ` · escrow ${o.escrow.state.toLowerCase()}` : ''}</small></summary>
+          <div className="jobmore__in moneygrid">
+            <div>
+              <MoneyTrail o={o} receipt={receipt} cfg={cfg} />
+              <div className="srow"><span className="lbl">Price</span><span className="fill" /><span className="v">{q.promo ? 'Free' : `${usd(q.priceUsd)} USDC`}</span></div>
+              {!q.promo && <div className="srow"><span className="lbl">In naira</span><span className="fill" /><span className="v">{o.naira ? naira(o.naira.ngn) : ngn(q.priceUsd)}</span></div>}
+              <div className="srow"><span className="lbl">Bond if rejected</span><span className="fill" /><span className="v">{q.promo ? '—' : `${usd(q.bondUsd)} USDC`}</span></div>
+              {o.escrow && <div className="srow"><span className="lbl">Paid by</span><span className="fill" /><span className="v">{o.naira ? 'NairaDesk (for you)' : short(o.escrow.customer)}</span></div>}
+              {o.escrow && (
                 <details style={{ marginTop: 8 }}>
                   <summary style={{ cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>The terms sealed on-chain</summary>
                   <p className="muted" style={{ fontSize: 12.5, margin: '8px 0 6px' }}>keccak256 of this text is the job's specHash on Arc: <span className="mono" style={{ wordBreak: 'break-all' }}>{o.escrow.specHash}</span></p>
                   <pre className="spec">{o.escrow.spec}</pre>
                 </details>
-              </>
-            )}
-            <details style={{ marginTop: 10 }}>
-              <summary style={{ cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>Why the CFO priced it this way</summary>
-              <ol className="why">{q.reasons.map((r) => <li key={r}>{r}</li>)}</ol>
-            </details>
-          </section>
-
-          <PaperReceipt o={o} receipt={receipt} />
-          <p className="muted" style={{ fontSize: 13.5 }}>Each agent paid for its own tools, per call, and every payment settles on Arc.</p>
-        </aside>
+              )}
+              <details style={{ marginTop: 10 }}>
+                <summary style={{ cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>Why the CFO priced it this way</summary>
+                <ol className="why">{q.reasons.map((r) => <li key={r}>{r}</li>)}</ol>
+              </details>
+            </div>
+            <PaperReceipt o={o} receipt={receipt} />
+          </div>
+        </details>
       </div>
     </main>
+  );
+}
+
+/** How far along a live job is: time against the service's usual time, so a long render doesn't look stuck. */
+function Progress({ startedAt, etaMin, steps }: { startedAt: number; etaMin?: number; steps: number }) {
+  const [t, setT] = useState(Date.now());
+  useEffect(() => { const i = setInterval(() => setT(Date.now()), 1000); return () => clearInterval(i); }, []);
+  const mins = Math.max(0, (t - startedAt) / 60000), eta = Math.max(1, etaMin ?? 5);
+  const pct = Math.min(94, 6 + (mins / eta) * 88);
+  const left = eta - mins;
+  return (
+    <div className="jobprogress">
+      <div className="bar"><span style={{ width: `${pct}%` }} /></div>
+      <div className="lbls"><span>{steps} step{steps === 1 ? '' : 's'} so far · {Math.floor(mins)}:{String(Math.floor((mins % 1) * 60)).padStart(2, '0')} elapsed</span><span>{left > 0.5 ? `usually about ${Math.ceil(left)} min more` : 'finishing up: big renders take a little longer'}</span></div>
+    </div>
   );
 }

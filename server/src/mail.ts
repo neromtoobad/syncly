@@ -6,7 +6,7 @@
 //   OUTLAY_MAIL=orthogonal:     AgentMail via Orthogonal, 2 USDC a month for the mailbox, 0.01 per email
 //                               (too big for a job's budget: open it once yourself and set OUTLAY_MAIL_INBOX)
 //   OUTLAY_MAIL=off:            no emails unless Resend is set up (the job page is still the delivery)
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { marked } from 'marked';
 import { DATA_DIR, DRY } from './config.ts';
@@ -83,8 +83,9 @@ export function compose(job: Pick<Job, 'deliverable' | 'files'>, o: Order) {
     : o.quote.promo
       ? 'This one was your free first job. Tell us on the job page if it was good.'
       : 'Accept, revise or reject it on the job page.';
+  const unlock = o.escrow && o.status !== 'accepted' ? ' What you see on the job page is a preview; the full-quality files are emailed to you the moment you accept.' : '';
   const subject = `${revised ? 'Revised: ' : ''}your ${name} is ready · ${brief}`;
-  const text = `The Syncly team finished your job.\n\n"${o.brief}"\n\n${job.deliverable}\n\n${edit ? `Edit your site yourself (prices, hours, menu, Chowdeck and payment links, bank details, photos, colours): ${edit}\nKeep this link to yourself: anyone with it can change your site.\n\n` : ''}${decide}\n${link}\n\nYour job page shows every step the team took. ${MAIL ? 'This email was sent and paid for by our Messenger agent, in USDC on Arc.' : 'This email was sent by our Messenger agent.'}\n`;
+  const text = `The Syncly team finished your job.\n\n"${o.brief}"\n\n${job.deliverable}\n\n${edit ? `Edit your site yourself (prices, hours, menu, Chowdeck and payment links, bank details, photos, colours): ${edit}\nKeep this link to yourself: anyone with it can change your site.\n\n` : ''}${decide}${unlock}\n${link}\n\nYour job page shows every step the team took. ${MAIL ? 'This email was sent and paid for by our Messenger agent, in USDC on Arc.' : 'This email was sent by our Messenger agent.'}\n`;
   const html = `<div style="background:#faf7f1;padding:28px 12px;font-family:Inter,Segoe UI,Helvetica,Arial,sans-serif;color:#1b1a17">
 <div style="max-width:640px;margin:0 auto;background:#fff;border:1px solid #ebe5d8;border-radius:18px;padding:28px">
 <div style="font-family:Georgia,serif;letter-spacing:.18em;font-size:14px;color:#17473b;margin-bottom:18px">SYNCLY</div>
@@ -93,13 +94,39 @@ export function compose(job: Pick<Job, 'deliverable' | 'files'>, o: Order) {
 <p style="margin:0 0 22px"><a href="${link}" style="display:inline-block;background:#17473b;color:#fff;text-decoration:none;padding:12px 20px;border-radius:999px;font-weight:600;font-size:14px">Review &amp; decide →</a></p>
 <div style="font-size:14px;line-height:1.55;border-top:1px solid #ebe5d8;padding-top:14px">${render(job.deliverable)}</div>
 ${edit ? `<div style="border:1px solid #cfe0d8;background:#f1f7f4;border-radius:14px;padding:14px 16px;margin:18px 0 0"><p style="font-size:14px;margin:0 0 8px;font-weight:600">Edit your site yourself</p><p style="font-size:13.5px;color:#4b4841;margin:0 0 12px">Prices, hours, your menu, your Chowdeck, Glovo, Paystack or booking link, bank details for transfers, photos and colours. Changes go live in seconds, and you can undo.</p><a href="${edit}" style="display:inline-block;background:#fff;color:#17473b;border:1px solid #17473b;text-decoration:none;padding:9px 16px;border-radius:999px;font-weight:600;font-size:13.5px">Open your site editor →</a><p style="font-size:12px;color:#847d70;margin:10px 0 0">Keep this link to yourself: anyone with it can change your site.</p></div>` : ''}
-<p style="font-size:13.5px;color:#4b4841;background:#f3eee4;border-radius:12px;padding:12px 14px;margin:18px 0 0">${esc(decide)}</p>
+<p style="font-size:13.5px;color:#4b4841;background:#f3eee4;border-radius:12px;padding:12px 14px;margin:18px 0 0">${esc(decide + unlock)}</p>
 <p style="font-size:12px;color:#847d70;margin:18px 0 0">Your <a href="${link}" style="color:#17473b">job page</a> shows every step the team took. ${MAIL ? 'This email was sent, and paid for, by our Messenger agent in USDC on Arc.' : 'This email was sent by our Messenger agent.'}</p>
 </div></div>`;
   // Text files ride along; images, video and sites are linked from the order page instead (mail size).
-  const attachments = job.files.filter((f) => typeof f.content === 'string' && f.content.length < 2_000_000)
-    .map((f) => ({ filename: f.name, content_type: f.name.endsWith('.csv') ? 'text/csv' : 'text/plain', content: Buffer.from(f.content).toString('base64') }));
+  // A paid job's files are the customer's once they accept, so its delivery email carries none.
+  const locked = o.payment?.mode === 'escrow' && o.status !== 'accepted';
+  const attachments = locked ? [] : textAttachments(job.files);
   return { subject, text, html, attachments };
+}
+
+const textAttachments = (files: { name: string; content: string | Buffer }[]) => files.filter((f) => typeof f.content === 'string' && f.content.length < 2_000_000)
+  .map((f) => ({ filename: f.name, content_type: f.name.endsWith('.csv') ? 'text/csv' : 'text/plain', content: Buffer.from(f.content).toString('base64') }));
+
+/** Once a paid job is accepted: its files are the customer's, so the Messenger sends them, with the download links. */
+export async function emailRelease(o: Order, dir: string) {
+  if (MAILER !== 'resend' || !existsSync(dir)) return;
+  const name = SERVICE[o.service] ?? o.service, link = `${PUBLIC_URL}/job/${o.id}`;
+  const all = readdirSync(dir).filter((f) => !f.startsWith('preview-') && f !== 'job.json' && f !== 'deliverable.md');
+  const texts = all.filter((f) => /\.(md|csv|html|txt|json)$/i.test(f)).map((f) => ({ name: f, content: readFileSync(join(dir, f), 'utf8') }));
+  const media = all.filter((f) => !/\.(md|csv|html|txt|json)$/i.test(f));
+  const url = (f: string) => `${PUBLIC_URL}/api/orders/${o.id}/files/${f}?download`;
+  const about = String((o as any).details?.name || o.brief).replace(/\s+/g, ' ').trim();
+  const subject = `Your ${name} is yours · ${about.length > 60 ? about.slice(0, 58) + '…' : about}`;
+  const text = `Thanks for accepting the work. Your files are unlocked in full quality:\n\n${media.map((f) => `${f}: ${url(f)}`).join('\n')}${texts.length ? `\n\nAttached: ${texts.map((t) => t.name).join(', ')}` : ''}\n\nThey stay on your job page too: ${link}\n`;
+  const html = `<div style="background:#faf7f1;padding:28px 12px;font-family:Inter,Segoe UI,Helvetica,Arial,sans-serif;color:#1b1a17"><div style="max-width:640px;margin:0 auto;background:#fff;border:1px solid #ebe5d8;border-radius:18px;padding:28px">
+<div style="font-family:Georgia,serif;letter-spacing:.18em;font-size:14px;color:#17473b;margin-bottom:18px">SYNCLY</div>
+<p style="font-size:16px;margin:0 0 14px">Thanks for accepting the work. Your ${esc(name)} is unlocked in full quality.</p>
+${media.map((f) => `<p style="margin:0 0 10px"><a href="${url(f)}" style="display:inline-block;background:#17473b;color:#fff;text-decoration:none;padding:10px 18px;border-radius:999px;font-weight:600;font-size:14px">Download ${esc(f)} ↓</a></p>`).join('')}
+${texts.length ? `<p style="font-size:13.5px;color:#4b4841">Attached: ${texts.map((t) => esc(t.name)).join(', ')}</p>` : ''}
+<p style="font-size:12px;color:#847d70;margin:18px 0 0">Everything stays on your <a href="${link}" style="color:#17473b">job page</a> too.</p></div></div>`;
+  const attachments = textAttachments(texts).map(({ filename, content }) => ({ filename, content }));
+  try { await resend({ to: o.email, subject, text, html, attachments }); }
+  catch (e: any) { console.error(`release email ${o.id}: ${e?.message ?? e}`); }
 }
 
 /** Send one email through Resend. Demo mode never sends. */
