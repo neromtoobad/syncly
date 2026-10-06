@@ -28,7 +28,8 @@
     "hire:investigator": "0xaa1d5dd01527dcac49f40fdc5279be42faee69864baac3d49a4c5233689f56f4",
     "setOwner→boss": "0x4020c9a206135485c11e3386d488b1e10790077af525a73dc58ff82afc4ec5ab",
     "deployInvoiceBook": "0xa2d1e20fe3d13ad2fea630ee06065ee2185e1d058f6cb31ad39188da7ce21c34",
-    "deployPayVault": "0xd0020fe5092b9bfaf1051a04a6fe158de02d93b85b11443253495ff0398f0ef5"
+    "deployPayVault": "0xd0020fe5092b9bfaf1051a04a6fe158de02d93b85b11443253495ff0398f0ef5",
+    "deployNairaDesk": "0xe51dacc2fede50c9c3d0e28ed2a53f8789ccbcc5e407ee7d8b4887d19c215fa8"
   },
   "vault": "0x589e8ec9134777acecb83a9abdf018942ddc9f2b",
   "escrow": "0xde2ca0c975a1f5789f9b79fe578d43ccf417edbd",
@@ -52,5 +53,7 @@
   "invoiceBook": "0x7b0530865040dc44a9cc90270396d7c5bcac8f93",
   "invoiceBookBlock": 24066886,
   "payVault": "0x2d9f8eb4bb30f89a92c5acbee68223ee572f3641",
-  "payVaultBlock": 24080028
+  "payVaultBlock": 24080028,
+  "nairaDesk": "0x2773c0e9801c267d7ffa230e9caae62b9858a577",
+  "nairaDeskBlock": 24522493
 }
