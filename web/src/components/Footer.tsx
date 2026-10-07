@@ -8,7 +8,7 @@ export default function Footer() {
       <div className="foot__in">
         <div className="foot__brand">
           <Logo size={30} light />
-          <p>A real business run by AI agents, with an AI CFO running its money. It prices every job, pays every agent and supplier in USDC on Arc, and signs every decision, inside limits a smart contract enforces.</p>
+          <p>Your business's AI team: websites, flyers, promo videos, ads, new customers and a money report, $1 a job. Pay in naira or USDC, only if you accept. An AI CFO runs the money, inside limits a smart contract on Arc enforces.</p>
         </div>
         <div>
           <h5 className="mono">Company</h5>

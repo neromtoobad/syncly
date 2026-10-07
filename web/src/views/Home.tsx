@@ -9,6 +9,7 @@ import Office from '@/office/Office.tsx';
 import { useApi, timeAgo, ROLE_NAME, ROLES, DEPT_TINT, Avatar, type Service, type AgentStats } from '@/lib.tsx';
 import { clamp, Rv, SplitLines, useFrame, useInView, useStickyProgress } from '@/components/scroll.tsx';
 import { DecideArt, EscrowArt, MarkBlock, QuoteArt, ReceiptArt, VaultArt } from './home/art.tsx';
+import { PayYourWay, Questions, RealWork, WhatWeDo } from './home/sections.tsx';
 
 type Stats = { mode: 'demo' | 'live'; toolCalls: number; settled: number; delivered: number; customers: number };
 type Cfo = { enabled: boolean; mode: string; metrics: { done: number; escalated: number }; verify: { ok: boolean; entries: number }; snapshot: null | { buckets: Record<string, number>; epoch?: number }; decisions: { summary: string; at: string; tx?: string; status: string; kind: string; hash?: string }[] };
@@ -76,7 +77,7 @@ function Team({ agents }: { agents: Record<string, AgentStats> }) {
     <section className="tm" id="team" ref={ref} style={{ ['--n' as any]: CREW.length }}>
       <div className="tm__stick">
         <div className="tm__copy">
-          <span className="label"><span className="n">03</span>The team</span>
+          <span className="label"><span className="n">07</span>The team</span>
           <div className="tm__steps">
             {CREW.map((c, i) => {
               const s = agents[c.role];
@@ -125,7 +126,7 @@ function Cfo({ cfo }: { cfo: Cfo | null }) {
     <section className="panel dark on-dark cf" id="cfo">
       <div className="cf__grid wrap">
         <div className="cf__copy">
-          <span className="label"><span className="n">01</span>The CFO</span>
+          <span className="label"><span className="n">05</span>Behind the scenes · the CFO</span>
           <SplitLines text="An AI runs the money. A contract keeps it honest." accent="honest." />
           <Rv as="p" className="lede">Syncly's money lives in a vault on Arc, and an AI CFO runs it. Every few minutes it reads the vault and every agent's balance, then decides by fixed rules: it plans the week, puts revenue to work and tops up agents who run low. No language model touches the money, and every decision is signed.</Rv>
           <div className="cf__notes">
@@ -157,10 +158,10 @@ function Cfo({ cfo }: { cfo: Cfo | null }) {
 // ---------------------------------------------------------------- 03 · how a job works, on stacking cards
 
 const HOW = [
-  { n: '01', h: 'You ask. The CFO prices it.', s: 'A fixed price before anything starts.', p: <>Describe the job in a sentence. The CFO prices it from what similar jobs really cost, and puts up <b>a bond you receive if you reject the work</b>. You only pay if you accept.</>, Art: QuoteArt },
-  { n: '02', h: 'You pay into escrow.', s: 'The money waits in a contract, not with us.', p: <>Pay in USDC from your own wallet into <b>JobEscrow on Arc</b>. Syncly is paid only when you accept, or after 48 hours of silence.</>, Art: EscrowArt },
-  { n: '03', h: 'You watch them work.', s: 'Every call they make is on your job page.', p: <>The agents buy searches, page reads and model calls with x402 nanopayments, <b>each one linked to its settlement on Arc</b>. You watch it happen, step by step.</>, Art: ReceiptArt },
-  { n: '04', h: 'You decide.', s: 'Accept, revise once, or reject.', p: <>Only the wallet that paid can decide. Accept to release the payment, ask for one free revision, or reject it and <b>get your money back plus the bond</b>.</>, Art: DecideArt },
+  { n: '01', h: 'Tell us what you need.', s: 'A short form. You see the price first.', p: <>Pick a job and answer a few questions about your business. The AI CFO prices it before anything starts, and <b>puts up a bond you receive if you reject the work</b>.</>, Art: QuoteArt },
+  { n: '02', h: 'Pay $1, in naira or USDC.', s: 'Your money waits in escrow, not with us.', p: <>Pay about ₦1,400 by bank transfer or card, or 1 USDC from your wallet. The money is held by <b>a contract on Arc</b> until you accept the work.</>, Art: EscrowArt },
+  { n: '03', h: 'Watch the team work.', s: 'Live, step by step, on your job page.', p: <>The agents search, read, write and design while you watch, and <b>every tool they pay for is listed</b>, linked to its payment on Arc. Most jobs take 2 to 5 minutes.</>, Art: ReceiptArt },
+  { n: '04', h: 'Accept, revise, or get your money back.', s: 'You decide. Silence for 48 hours counts as yes.', p: <>Preview the work, then accept to unlock the full files, ask for <b>one free revision</b>, or reject it and <b>get your money back plus the bond</b>.</>, Art: DecideArt },
 ];
 
 function HowCard({ c, i, total }: { c: (typeof HOW)[number]; i: number; total: number }) {
@@ -190,8 +191,8 @@ function How() {
   return (
     <section className="hw wrap" id="how">
       <div className="hw__head">
-        <span className="label"><span className="n">04</span>How a job works</span>
-        <SplitLines text="Pay only for work you accept." />
+        <span className="label"><span className="n">02</span>How it works</span>
+        <SplitLines text="Four steps. Pay only for work you accept." />
       </div>
       <ol className="hw__cards">{HOW.map((c, i) => <HowCard key={c.n} c={c} i={i} total={HOW.length} />)}</ol>
     </section>
@@ -242,7 +243,7 @@ function Money({ stats, cfo }: { stats: Stats | null; cfo: Cfo | null }) {
   return (
     <section className="mf wrap" id="money">
       <div className="mf__head">
-        <span className="label"><span className="n">02</span>Follow the money</span>
+        <span className="label"><span className="n">06</span>Follow the money</span>
         <SplitLines text="From the invoice to the audit trail." />
         <Rv as="p" className="lede">Real businesses pay real USDC. This is the path every dollar takes through Syncly, and the rule at each step.</Rv>
       </div>
@@ -258,7 +259,7 @@ function Money({ stats, cfo }: { stats: Stats | null; cfo: Cfo | null }) {
         ))}
       </ol>
       <Rv className="mf__bar" delay={0.2}>
-        <p><b>Autonomous, inside hard limits.</b> The CFO acts alone up to 2 USDC a move. Anything bigger is a proposal that only the owner's wallet can co-sign on Arc, and no language model ever touches the money.</p>
+        <p><b>Autonomous, inside hard limits.</b> The CFO acts alone only up to a limit the owner sets on the vault. Anything bigger is a proposal that only the owner's wallet can co-sign on Arc, and no language model ever touches the money.</p>
         <span className="mf__links">
           <a href="/api/cfo" className="pill green">The signed log <Arrow /></a>
           <Link href="/docs/the-cfo" className="pill ghost">The CFO's rules <Arrow /></Link>
@@ -281,7 +282,7 @@ function TheOffice() {
   return (
     <section className="of" id="office">
       <div className="of__head wrap">
-        <span className="label"><span className="n">05</span>The office</span>
+        <span className="label"><span className="n">08</span>The office</span>
         <SplitLines text="Watch them work. Every movement is a real event." />
       </div>
       <Rv className="of__frame">
@@ -292,59 +293,15 @@ function TheOffice() {
   );
 }
 
-// ---------------------------------------------------------------- 06 · services, on a pinned index
-
-function Services({ services }: { services: Service[] }) {
-  const ref = useRef<HTMLElement>(null);
-  const list = [...services].sort((a, b) => Number(b.live) - Number(a.live));
-  const [at, setAt] = useState(0);
-  useStickyProgress(ref, (p) => setAt(Math.min(list.length - 1, Math.floor(p * list.length))));
-  // This section appears once the services load, after the browser has already tried to jump to #services.
-  useEffect(() => { if (location.hash === '#services') ref.current?.scrollIntoView({ block: 'start' }); }, []);
-  const s = list[at];
-  return (
-    <section className="sv" id="services" ref={ref} style={{ ['--n' as any]: list.length }}>
-      <div className="sv__stick wrap">
-        <div className="sv__card" style={{ ['--t' as any]: s ? DEPT_TINT[s.dept] ?? '#EEF3F1' : undefined }}>
-          <span className="sv__count mono">{String(at + 1).padStart(2, '0')} / {String(list.length).padStart(2, '0')}</span>
-          <div className="sv__team">{s?.team.filter((r) => ROLES[r] && r !== 'messenger').slice(0, 4).map((r, i) => <img key={s.id + r} src={`/sprites/${r}/${r}-0.png`} alt={ROLE_NAME[r]} style={{ ['--i' as any]: i }} />)}</div>
-          <div className="sv__bar">
-            <div><span className="mono">{s?.dept}</span><b>{s?.tagline}</b></div>
-            {s?.live ? <Link className="pill dark" href={`/hire/${s.id}`}>Hire <Arrow /></Link> : <span className="chip">Coming soon</span>}
-          </div>
-        </div>
-        <div className="sv__list">
-          <span className="label"><span className="n">06</span>Services</span>
-          <ol>
-            {list.map((x, i) => (
-              <li key={x.id} className={`${i === at ? 'on' : ''}${x.live ? '' : ' soon'}`}>
-                <span className="mono sv__i">{String(i + 1).padStart(2, '0')}</span>
-                <div>
-                  <h3>{x.name}</h3>
-                  <div className="sv__more"><div>
-                    <p>{x.tagline}</p>
-                    <span className="mono">{x.live ? `${x.priceUsd} USDC · about ${x.etaMin} min` : 'coming soon'}</span>
-                  </div></div>
-                </div>
-                {x.live && <Link href={`/hire/${x.id}`} className="sv__go" aria-label={`Hire for ${x.name}`}>→</Link>}
-              </li>
-            ))}
-          </ol>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 // ---------------------------------------------------------------- close
 
 const ASK: [string, string, string][] = [
-  ['website', 'Website', 'A site for my small chops business, WhatsApp 0803 555 0142'],
-  ['ad-launch', 'Run ads', 'Ads that bring WhatsApp orders for my small chops, ₦5,000 a day'],
-  ['product-photos', 'Product photos', 'Studio photos of my shea butter jars for Instagram and Jumia'],
-  ['get-found', 'Get found', 'Why don’t I show up when people search “small chops Surulere”?'],
-  ['buy-smart', 'Buy smart', 'Two chest freezers delivered to Surulere, cheapest from a seller I can trust'],
-];
+  ['website', 'Website', 'A website for my small chops business, WhatsApp 0803 555 0142'],
+  ['flyers', 'Flyers', 'A price list for my party trays, from ₦25,000, order on WhatsApp'],
+  ['find-customers', 'Find customers', 'I’m a freelance graphic designer in Abuja. I do logos and flyers'],
+  ['money-report', 'Money report', 'Where does my money go every month?'],
+  ['ad-launch', 'Ads', 'Ads that bring WhatsApp orders for my small chops, ₦5,000 a day'],
+]
 
 function Close() {
   const router = useRouter();
@@ -356,16 +313,16 @@ function Close() {
     <section className="panel dark on-dark cl">
       <div className="cl__grid wrap">
         <div>
-          <span className="label"><span className="n">07</span>Start here</span>
-          <SplitLines text="Your website, live today." />
-          <Rv as="p" className="lede">Tell the team what you need in a sentence. You see the price and the bond before anything starts.</Rv>
+          <span className="label"><span className="n">10</span>Start here</span>
+          <SplitLines text="What should the team do for you?" />
+          <Rv as="p" className="lede">Pick a job and say what you need in a sentence. You see the price before anything starts, and every job is $1.</Rv>
           <Rv delay={0.15}>
             <form className="cl__ask" onSubmit={go}>
               <input type="text" value={brief} onChange={(e) => setBrief(e.target.value)} placeholder={ASK.find((a) => a[0] === svc)![2]} aria-label="What do you need done?" />
-              <button type="submit" className="pill green">Get a free quote <Arrow /></button>
+              <button type="submit" className="pill green">Get my price <Arrow /></button>
             </form>
             <div className="cl__chips">{ASK.map(([id, label]) => <button type="button" key={id} className={`chip click dark${svc === id ? ' on' : ''}`} onClick={() => setSvc(id)}>{label}</button>)}</div>
-            <p className="mono cl__fine">1 USDC a job · pay only if you accept · refund + bond if you reject</p>
+            <p className="mono cl__fine">$1 a job · pay in naira or USDC · only if you accept · refund + bond if you reject</p>
           </Rv>
         </div>
         <div className={`cl__art${seen ? ' in' : ''}`} ref={ref}><MarkBlock /></div>
@@ -382,12 +339,15 @@ export default function Home() {
   return (
     <main className="home">
       <Hero stats={stats} />
+      {svc && <WhatWeDo services={svc.services} />}
+      <How />
+      <RealWork stats={stats} />
+      <PayYourWay />
       <Cfo cfo={cfo?.enabled ? cfo : null} />
       <Money stats={stats} cfo={cfo?.enabled ? cfo : null} />
       <Team agents={team?.agents ?? {}} />
-      <How />
       <TheOffice />
-      {svc && <Services services={svc.services} />}
+      <Questions />
       <Close />
     </main>
   );
