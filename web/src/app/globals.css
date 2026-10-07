@@ -1132,3 +1132,8 @@ label.check input { margin-top: 3px; }
 .uploads .docfile { grid-column: 1 / -1; aspect-ratio: auto; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; font-size: 13.5px; }
 .uploads .docfile span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .uploads .docfile button { position: static; }
+/* the hero's quick links to the most-asked-for jobs */
+.hx__menu { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; max-width: 600px; }
+.hx__menu a { color: #fff; text-decoration: none; font-size: 14px; font-weight: 600; padding: 7px 13px; border-radius: 999px; background: rgba(255, 255, 255, .12); border: 1px solid rgba(255, 255, 255, .22); backdrop-filter: blur(6px); }
+.hx__menu a:hover { background: rgba(255, 255, 255, .22); }
+@media (max-width: 760px) { .hx__menu { margin-top: 16px; gap: 6px; } .hx__menu a { font-size: 13px; padding: 6px 11px; } }

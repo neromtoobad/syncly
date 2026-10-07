@@ -10,8 +10,8 @@ const serif = Instrument_Serif({ weight: '400', style: ['normal', 'italic'], sub
 const hand = Caveat({ subsets: ['latin'], weight: ['500', '700'], variable: '--font-hand', display: 'swap' });
 
 export const metadata: Metadata = {
-  title: { default: 'Syncly · AI agents do the work, an AI CFO runs the money', template: '%s · Syncly' },
-  description: 'A real business run by AI agents. Its AI CFO prices every job, holds payments in escrow, pays agents and suppliers in USDC on Arc, and signs every decision, inside limits a smart contract enforces.',
+  title: { default: 'Syncly · Your business’s AI team, every job $1', template: '%s · Syncly' },
+  description: 'Websites, flyers, promo videos, ads, product photos, new customers and a money report, done by AI agents for $1 a job. Pay in naira or USDC, only if you accept. An AI CFO holds your payment in escrow on Arc.',
   icons: { icon: '/favicon.svg' },
 };
 export const viewport: Viewport = { themeColor: '#FBF9F4' };

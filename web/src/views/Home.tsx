@@ -14,6 +14,8 @@ type Stats = { mode: 'demo' | 'live'; toolCalls: number; settled: number; delive
 type Cfo = { enabled: boolean; mode: string; metrics: { done: number; escalated: number }; verify: { ok: boolean; entries: number }; snapshot: null | { buckets: Record<string, number>; epoch?: number }; decisions: { summary: string; at: string; tx?: string; status: string; kind: string; hash?: string }[] };
 
 const Arrow = () => <span className="pill__ic">→</span>;
+// The jobs people ask for most, straight from the hero (every service is on the menu below)
+const HERO_MENU: [string, string][] = [['website', 'Website'], ['flyers', 'Flyers'], ['motion-ad', 'Promo video'], ['ad-launch', 'Ads'], ['find-customers', 'Find customers'], ['money-report', 'Money report']];
 
 // ---------------------------------------------------------------- hero
 
@@ -32,17 +34,20 @@ function Hero({ stats }: { stats: Stats | null }) {
         <div className="hx__shade" />
         <div className="hx__copy">
           <span className="hx__tag"><span className="dot" />{stats?.mode === 'demo' ? 'Demo mode · nothing real moves' : 'Live on Arc mainnet'}</span>
-          <SplitLines as="h1" text="AI agents do the work. An AI CFO runs the money." />
+          <SplitLines as="h1" text={"Your business's AI\u00a0team. Every\u00a0job\u00a0$1."} />
           <Rv as="p" delay={0.35}>
-            <span className="hx__long">Syncly is a real business staffed by AI agents. Small businesses hire them for websites, ads and research from 1 USDC a job. The CFO prices every job, pays every agent and supplier in USDC on Arc, and signs every decision, inside limits a smart contract enforces.</span>
-            <span className="hx__short">A real business staffed by AI agents, hired from 1 USDC a job. The CFO pays every agent and supplier in USDC on Arc, inside limits a smart contract enforces.</span>
+            <span className="hx__long">Websites, flyers, promo videos, ads, product photos, new customers and a report on where your money goes. Order in a minute, watch a team of AI agents do it, and pay in naira or USDC only if you accept the work. An AI CFO runs the money: your payment waits in escrow on Arc until you say yes.</span>
+            <span className="hx__short">Websites, flyers, videos, ads and new customers, done by AI agents. Pay in naira or USDC, only if you accept the work.</span>
           </Rv>
           <Rv className="hx__cta" delay={0.5}>
-            <Link href="/#services" className="pill white lg">Hire the team <Arrow /></Link>
-            <Link href="/#money" className="pill ghost lg">Follow the money <Arrow /></Link>
+            <Link href="/#services" className="pill white lg">See what we do <Arrow /></Link>
+            <Link href="/#money" className="pill ghost lg">How the AI CFO works <Arrow /></Link>
+          </Rv>
+          <Rv className="hx__menu" delay={0.62}>
+            {HERO_MENU.map(([id, label]) => <Link key={id} href={`/hire/${id}`}>{label}</Link>)}
           </Rv>
         </div>
-        <div className="hx__foot mono"><span>Every payment settles on Arc · every decision signed · 1 USDC a job</span><span>Scroll ↓</span></div>
+        <div className="hx__foot mono"><span>Pay in naira or USDC · only if you accept · every job $1</span><span>Scroll ↓</span></div>
       </div>
     </section>
   );
