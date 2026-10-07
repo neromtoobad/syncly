@@ -200,3 +200,22 @@ const privateHost = (u: string) => {
     return h === 'localhost' || h.endsWith('.local') || h.endsWith('.internal') || h.endsWith('.railway.internal') || /^(127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|0\.|\[?::1\]?$|\[?f[cd])/.test(h);
   } catch { return true; }
 };
+
+/** Several poster-style pages (each says POSTER_READY when laid out) rendered in one browser: PNG at `scale`× or PDF. */
+export async function renderPages(pages: { html: string; w: number; h: number; kind: 'png' | 'pdf'; scale?: number }[]): Promise<Buffer[]> {
+  const browser = await launch();
+  try {
+    const out: Buffer[] = [];
+    for (const p of pages) {
+      const page = await browser.newPage();
+      await page.setViewport({ width: p.w, height: p.h, deviceScaleFactor: p.kind === 'png' ? p.scale ?? 1 : 1 });
+      await page.setContent(p.html, { waitUntil: 'load', timeout: 30_000 }).catch(() => undefined);
+      await page.waitForFunction('window.POSTER_READY === true', { timeout: 15_000 }).catch(() => undefined);
+      out.push(Buffer.from(p.kind === 'pdf'
+        ? await page.pdf({ width: `${p.w}px`, height: `${p.h}px`, printBackground: true, pageRanges: '1' })
+        : await page.screenshot({ type: 'png', clip: { x: 0, y: 0, width: p.w, height: p.h } })));
+      await page.close();
+    }
+    return out;
+  } finally { await browser.close(); }
+}

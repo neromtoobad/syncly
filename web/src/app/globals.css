@@ -1129,3 +1129,6 @@ label.check input { margin-top: 3px; }
 .jobpage .notes > summary { cursor: pointer; font-weight: 600; font-size: 14.5px; color: var(--ink-2); padding: 4px 0 10px; }
 .decidebar { position: sticky; bottom: 14px; z-index: 5; display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 18px; padding: 12px 18px; border-radius: 999px; background: var(--ink, #1b1a17); color: #fff; text-decoration: none; font-size: 14px; box-shadow: var(--shadow); }
 .decidebar b { font-weight: 600; }
+.uploads .docfile { grid-column: 1 / -1; aspect-ratio: auto; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; font-size: 13.5px; }
+.uploads .docfile span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.uploads .docfile button { position: static; }

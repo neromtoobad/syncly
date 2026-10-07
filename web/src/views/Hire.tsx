@@ -10,7 +10,7 @@ import type { Address, Hex } from 'viem';
 import BusinessForm, { type Details } from './BusinessForm.tsx';
 
 // Services that take the structured business form instead of a one-line brief.
-const FORM_SERVICES = new Set(['website', 'content-pack', 'motion-ad', 'ad-launch', 'product-photos', 'get-found', 'buy-smart']);
+const FORM_SERVICES = new Set(['website', 'content-pack', 'motion-ad', 'ad-launch', 'product-photos', 'get-found', 'buy-smart', 'flyers', 'money-report']);
 
 // One-line examples for the services ordered in a sentence (the rest use the business form).
 const EXAMPLES: Record<string, string[]> = {
@@ -20,7 +20,13 @@ const EXAMPLES: Record<string, string[]> = {
   'research-brief': ['Competitors and pricing for a small bakery in Lekki that wants to add cake delivery', 'Is there demand for solar inverter rentals in Ibadan?', 'How do Lagos co-working spaces price day passes?'],
 };
 
-type QuotedOrder = { id: string; status: string; quote: Quote; demo: boolean; brief?: string };
+type QuotedOrder = { id: string; status: string; quote: Quote; demo: boolean; brief?: string; privateKey?: string };
+/** The job page; a private order (a Money Report) carries its key, which only the customer who placed it receives. */
+const jobUrl = (o: { id: string; privateKey?: string }) => {
+  // kept in this tab too, so the page still opens after a naira payment returns from Bachs (the key never goes to Bachs)
+  if (o.privateKey) try { sessionStorage.setItem(`syncly:key:${o.id}`, o.privateKey); } catch {}
+  return `/job/${o.id}${o.privateKey ? `?k=${encodeURIComponent(o.privateKey)}` : ''}`;
+};
 
 
 function QuoteDoc({ s, order }: { s: Service; order: QuotedOrder }) {
@@ -69,6 +75,7 @@ function NairaPay({ order }: { order: QuotedOrder }) {
   async function pay() {
     setBusy(true); setErr(null);
     try {
+      jobUrl(order as any); // remember a private order's key in this tab before leaving for Bachs
       const r = await api<{ url: string }>(`/api/orders/${order.id}/naira`, { method: 'POST' });
       window.location.href = r.url;
     } catch (e: any) { setErr(e.message); setBusy(false); }
@@ -185,7 +192,7 @@ export default function Hire({ service }: { service: string }) {
     setBusy(true); setErr(null);
     try {
       await api(`/api/orders/${order.id}/start`, { method: 'POST', body: JSON.stringify({ mode }) });
-      router.push(`/job/${order.id}`);
+      router.push(jobUrl(order));
     } catch (e: any) { setErr(e.message); setBusy(false); }
   }
   const examples = EXAMPLES[s.id] ?? (s.example ? [s.example] : []);
@@ -256,7 +263,7 @@ export default function Hire({ service }: { service: string }) {
               ) : esc?.enabled ? (
                 <>
                   <NairaPay order={order} />
-                  <EscrowPay order={order} cfg={esc} onPaid={() => router.push(`/job/${order.id}`)} />
+                  <EscrowPay order={order} cfg={esc} onPaid={() => router.push(jobUrl(order))} />
                 </>
               ) : data?.mode === 'demo' ? (
                 <>

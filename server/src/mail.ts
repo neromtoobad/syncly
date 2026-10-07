@@ -31,7 +31,7 @@ export const MAIL_BUDGET_USD = MAIL ? MAIL.sendUsd + Math.min(MAIL.inboxUsd, 0.1
 
 export const PUBLIC_URL = process.env.OUTLAY_PUBLIC_URL ?? 'https://hiresyncly.site';
 const SERVICE: Record<string, string> = {
-  'research-brief': 'Market Research', 'find-customers': 'Find Customers', 'local-business-finder': 'Local Business Finder', 'lead-list': 'Lead List',
+  'research-brief': 'Market Research', 'find-customers': 'Find Customers', 'money-report': 'Money Report', 'flyers': 'Flyers & Price Lists', 'local-business-finder': 'Local Business Finder', 'lead-list': 'Lead List',
   'content-pack': 'Social Media Posts', website: 'Business Website', 'motion-ad': 'Promo Video', 'video-ad': 'Video Ad',
   'ai-answer-audit': 'AI Answer Audit', 'best-price': 'Best Price Finder', 'vendor-check': 'Check Before You Pay',
   'ad-launch': 'Ad Campaign', 'product-photos': 'Product Photos', 'get-found': 'Google Visibility Check', 'buy-smart': 'Best Price & Seller Check',
@@ -69,7 +69,7 @@ const render = (md: string) => (marked.parse(md.replace(/</g, '&lt;'), { async: 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 export function compose(job: Pick<Job, 'deliverable' | 'files'>, o: Order) {
-  const link = `${PUBLIC_URL}/job/${o.id}`;
+  const link = `${PUBLIC_URL}/job/${o.id}${o.privateKey ? `?k=${o.privateKey}` : ''}`; // a private report opens only with its key
   const edit = o.service === 'website' ? editLinkFor(o.id, PUBLIC_URL) : undefined;
   const name = SERVICE[o.service] ?? o.service;
   const revised = o.revisionNote !== undefined;
@@ -110,11 +110,11 @@ const textAttachments = (files: { name: string; content: string | Buffer }[]) =>
 /** Once a paid job is accepted: its files are the customer's, so the Messenger sends them, with the download links. */
 export async function emailRelease(o: Order, dir: string) {
   if (MAILER !== 'resend' || !existsSync(dir)) return;
-  const name = SERVICE[o.service] ?? o.service, link = `${PUBLIC_URL}/job/${o.id}`;
+  const name = SERVICE[o.service] ?? o.service, link = `${PUBLIC_URL}/job/${o.id}${o.privateKey ? `?k=${o.privateKey}` : ''}`;
   const all = readdirSync(dir).filter((f) => !f.startsWith('preview-') && f !== 'job.json' && f !== 'deliverable.md');
   const texts = all.filter((f) => /\.(md|csv|html|txt|json)$/i.test(f)).map((f) => ({ name: f, content: readFileSync(join(dir, f), 'utf8') }));
   const media = all.filter((f) => !/\.(md|csv|html|txt|json)$/i.test(f));
-  const url = (f: string) => `${PUBLIC_URL}/api/orders/${o.id}/files/${f}?download`;
+  const url = (f: string) => `${PUBLIC_URL}/api/orders/${o.id}/files/${f}?download${o.privateKey ? `&k=${o.privateKey}` : ''}`;
   const about = String((o as any).details?.name || o.brief).replace(/\s+/g, ' ').trim();
   const subject = `Your ${name} is yours · ${about.length > 60 ? about.slice(0, 58) + '…' : about}`;
   const text = `Thanks for accepting the work. Your files are unlocked in full quality:\n\n${media.map((f) => `${f}: ${url(f)}`).join('\n')}${texts.length ? `\n\nAttached: ${texts.map((t) => t.name).join(', ')}` : ''}\n\nThey stay on your job page too: ${link}\n`;

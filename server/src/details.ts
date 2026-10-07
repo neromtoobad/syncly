@@ -3,6 +3,7 @@
 // and turned into a readable brief, so the quote, the escrow terms and the email all show what was asked.
 import { THEMES } from './site/themes.ts';
 import { uploadExists } from './uploads.ts';
+import { statementExists } from './statements.ts';
 import { classify, cleanUrl, sanitizeBank, LINKS, type Bank } from './site/links.ts';
 
 export const SECTION_CHOICES = ['offer', 'gallery', 'reviews', 'about', 'steps', 'location', 'faq'] as const;
@@ -63,6 +64,10 @@ export type BusinessDetails = {
   budget?: string;
   condition?: 'new' | 'used' | 'any';
   sellers?: string; // sellers they are already talking to, one per line
+  // for Flyers & Price Lists
+  flyerKind?: 'promo' | 'pricelist' | 'announcement';
+  // for Money Report: statement ids (src/statements.ts; private, deleted after the report)
+  statements?: string[];
 };
 export const AD_GOALS = ['messages', 'sales', 'calls', 'visits', 'followers'] as const;
 export const PHOTO_USES = ['instagram', 'whatsapp', 'marketplace', 'website'] as const;
@@ -87,6 +92,8 @@ const RELEVANT: Record<string, (keyof BusinessDetails)[]> = {
   'ad-launch': ['promote', 'price', 'cta', 'whatsapp', 'phone', 'instagram', 'website', 'address', 'colour', 'notes', 'logo', 'photos', 'competitors', 'adGoal', 'adBudget', 'adPlatforms', 'audience', 'adResults'],
   'product-photos': ['product', 'uses', 'look', 'colour', 'notes', 'logo', 'photos'],
   'buy-smart': ['items', 'deliverTo', 'budget', 'condition', 'sellers', 'notes'],
+  flyers: ['flyerKind', 'promote', 'price', 'menu', 'cta', 'whatsapp', 'phone', 'instagram', 'website', 'address', 'colour', 'notes', 'logo', 'photos'],
+  'money-report': ['statements', 'notes'],
 };
 const AD_SERVICES = ['motion-ad', 'video-ad', 'ad-launch'];
 
@@ -134,6 +141,8 @@ export function cleanDetails(raw: any, service = 'website'): BusinessDetails {
     items: multiline(raw?.items, 1200), deliverTo: s(raw?.deliverTo, 200), budget: s(raw?.budget, 60),
     condition: ['new', 'used', 'any'].includes(raw?.condition) ? raw.condition : undefined,
     sellers: multiline(raw?.sellers, 800),
+    flyerKind: ['promo', 'pricelist', 'announcement'].includes(raw?.flyerKind) ? raw.flyerKind : undefined,
+    statements: Array.isArray(raw?.statements) ? raw.statements.filter((x: unknown) => typeof x === 'string' && statementExists(x)).slice(0, 6) : undefined,
   };
   // The form keeps one draft across services; keep only what this service uses, so nothing stale leaks in.
   const keep = RELEVANT[service] ?? RELEVANT.website;
@@ -149,6 +158,14 @@ export function cleanDetails(raw: any, service = 'website'): BusinessDetails {
   if (service === 'product-photos' && !d.photos?.length) throw new Error('Upload at least one photo of the product.');
   if (service === 'buy-smart' && !d.items) throw new Error('List what you want to buy.');
   if (service === 'buy-smart' && !d.deliverTo && !d.city && !d.area) throw new Error('Add where it should be delivered.');
+  if (service === 'flyers') {
+    d.flyerKind ??= d.menu && !d.promote ? 'pricelist' : 'promo';
+    if (d.flyerKind === 'pricelist' && !d.menu) throw new Error('Add your items and prices, one per line.');
+    if (d.flyerKind !== 'pricelist' && !d.promote) throw new Error(d.flyerKind === 'announcement' ? 'Say what you are announcing.' : 'Say what the flyer is for.');
+    if (!d.whatsapp && !d.phone && !d.instagram && !d.website && !d.address) throw new Error('Add how customers should reach you: WhatsApp, phone, Instagram, website or address.');
+    d.cta ??= d.whatsapp ? 'whatsapp' : d.phone ? 'call' : d.instagram ? 'dm' : d.website ? 'website' : 'visit';
+  }
+  if (service === 'money-report' && !d.statements?.length) throw new Error('Upload your bank statement (PDF, CSV or screenshots).');
   if (service === 'ad-launch' && !d.adPlatforms?.length) d.adPlatforms = ['meta'];
   if (service === 'product-photos' && !d.uses?.length) d.uses = ['instagram', 'whatsapp'];
   if (service === 'content-pack' && !d.platforms?.length) d.platforms = ['instagram', 'tiktok'];
@@ -157,7 +174,8 @@ export function cleanDetails(raw: any, service = 'website'): BusinessDetails {
 
 /** The details as a readable brief: shown on the quote and the order, and hashed into the escrow terms. */
 export function detailsBrief(d: BusinessDetails, service: string): string {
-  const what = ({ website: 'A website for', 'content-pack': 'A content pack for', 'motion-ad': 'A motion ad for', 'video-ad': 'A video ad for', 'ai-answer-audit': 'An AI answer audit for', 'get-found': 'A Google and AI visibility check for', 'ad-launch': 'An ad campaign for', 'product-photos': 'Product photos for', 'buy-smart': 'Buying for' } as Record<string, string>)[service] ?? 'For';
+  if (service === 'money-report') return `A money report for ${d.name} (${d.offer}) from ${d.statements?.length ?? 0} statement file${d.statements?.length === 1 ? '' : 's'}.${d.notes ? `\nWhat they want to know: ${d.notes}` : ''}`;
+  const what = ({ flyers: d.flyerKind === 'pricelist' ? 'A price list for' : d.flyerKind === 'announcement' ? 'An announcement flyer for' : 'A promo flyer for', website: 'A website for', 'content-pack': 'A content pack for', 'motion-ad': 'A motion ad for', 'video-ad': 'A video ad for', 'ai-answer-audit': 'An AI answer audit for', 'get-found': 'A Google and AI visibility check for', 'ad-launch': 'An ad campaign for', 'product-photos': 'Product photos for', 'buy-smart': 'Buying for' } as Record<string, string>)[service] ?? 'For';
   const GOAL: Record<string, string> = { messages: 'more WhatsApp or DM messages', sales: 'more sales on the website', calls: 'more phone calls', visits: 'more people visiting the shop', followers: 'more followers' };
   const ctaText = d.cta ? ({ whatsapp: `Order on WhatsApp ${d.whatsapp ?? d.phone ?? ''}`, call: `Call ${d.phone ?? d.whatsapp ?? ''}`, visit: `Visit us${d.address ? ` at ${d.address}` : ''}`, website: `Order at ${d.website ?? ''}`, dm: `DM us on Instagram @${d.instagram ?? ''}` } as const)[d.cta].trim() : undefined;
   const lines = [

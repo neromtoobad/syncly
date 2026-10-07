@@ -13,6 +13,8 @@ import { productPhotos } from './product-photos.ts';
 import { getFound } from './get-found.ts';
 import { buySmart } from './buy-smart.ts';
 import { findCustomers } from './find-customers.ts';
+import { moneyReport } from './money-report.ts';
+import { flyers } from './flyers.ts';
 import type { Job } from '../job.ts';
 import type { BusinessDetails } from '../details.ts';
 
@@ -28,6 +30,8 @@ export const SERVICES: Record<string, Runnable> = {
   [getFound.id]: getFound,
   [buySmart.id]: buySmart,
   [findCustomers.id]: findCustomers,
+  [moneyReport.id]: moneyReport,
+  [flyers.id]: flyers,
   [videoAd.id]: videoAd,
   [aiAnswerAudit.id]: aiAnswerAudit,
   [bestPrice.id]: bestPrice,
@@ -39,6 +43,13 @@ export const SERVICES: Record<string, Runnable> = {
 
 /** The menu: what a business would otherwise pay an agency or a freelancer for, plus research it can order in a sentence. */
 export const CATALOG = [
+  {
+    id: 'money-report', name: 'Money Report', dept: 'Money', live: true, priceUsd: 2, listedCostUsd: 0.3, etaMin: 4,
+    tagline: 'Upload your bank statement; the CFO shows where your money goes, who pays you most, what to cut, and what to do this month.',
+    youGet: ['Money in and out by month, reconciled to your statement’s own balances', 'Where the money goes, by category, and how much is personal spending mixed in', 'Who pays you most, who you pay most, what you pay every month, and what bank charges cost you a year', 'Your tightest days, and 5 actions for this month, every figure traced to the statement', 'A chart and a spreadsheet of every transaction, labelled. Private: your statement is deleted after the report'],
+    team: ['analyst', 'auditor', 'writer', 'messenger'],
+    example: 'A money report for Tolu’s Small Chops from our GTBank statement for August and September',
+  },
   {
     // The free first website ran during launch week; it's off now, and FREE_FIRST_WEBSITE=1 turns it back on.
     id: 'website', name: 'Business Website', dept: 'Marketing', live: true, freeFirst: process.env.FREE_FIRST_WEBSITE === '1', priceUsd: 2, listedCostUsd: 0.7, etaMin: 2,
@@ -67,6 +78,13 @@ export const CATALOG = [
     youGet: ['A 12–24 s motion video, vertical for Reels, TikTok and Status (square or landscape on request)', 'Full-frame scenes of your products, your selling points and your call to action, cut on the beat', 'Your own photos, plus product pictures from your website', 'Licensed music for social media and online ads, with every scene change on the beat', 'Every scene reviewed for legibility before rendering'],
     team: ['researcher', 'reader', 'producer', 'auditor', 'messenger'],
     example: 'A 16 second vertical ad for Tolu’s Small Chops: party trays, ₦25,000 for 20 guests, order on WhatsApp 0803 555 0142',
+  },
+  {
+    id: 'flyers', name: 'Flyers & Price Lists', dept: 'Marketing', live: true, priceUsd: 1, listedCostUsd: 0.12, etaMin: 3,
+    tagline: 'A promo flyer, price list, menu or announcement in your colours, ready for WhatsApp Status, Instagram and print.',
+    youGet: ['Your flyer in two styles: bold on your brand colour, and clean on white', 'Sized for WhatsApp Status, an Instagram post, and A4 print (PDF)', 'Your logo, your photos, and your prices exactly as you wrote them', 'A button line with how to order: WhatsApp, call, DM or visit', 'Every design checked for cut-off text and typos before delivery'],
+    team: ['writer', 'illustrator', 'auditor', 'messenger'],
+    example: 'A price list for Tolu’s Small Chops: party trays from ₦25,000, order on WhatsApp 0803 555 0142',
   },
   {
     id: 'product-photos', name: 'Product Photos', dept: 'Marketing', live: true, priceUsd: 2, listedCostUsd: 1.1, etaMin: 3,

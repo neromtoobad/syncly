@@ -5,8 +5,9 @@
 import { listOrders, readJob } from './orders.ts';
 import { DEP } from './escrow.ts';
 import { decisions } from './cfo/log.ts';
+import { publicBrief } from './orders.ts';
 
-const NAME: Record<string, string> = { website: 'Business Website', 'content-pack': 'Social Media Posts', 'motion-ad': 'Promo Video', 'ad-launch': 'Ad Campaign', 'product-photos': 'Product Photos', 'get-found': 'Google Visibility Check', 'buy-smart': 'Best Price & Seller Check', 'video-ad': 'Video Ad', 'ai-answer-audit': 'AI Answer Audit', 'best-price': 'Best Price Finder', 'vendor-check': 'Check Before You Pay', 'research-brief': 'Market Research', 'find-customers': 'Find Customers', 'local-business-finder': 'Local Business Finder', 'lead-list': 'Lead List' };
+const NAME: Record<string, string> = { website: 'Business Website', 'content-pack': 'Social Media Posts', 'motion-ad': 'Promo Video', 'ad-launch': 'Ad Campaign', 'product-photos': 'Product Photos', 'get-found': 'Google Visibility Check', 'buy-smart': 'Best Price & Seller Check', 'video-ad': 'Video Ad', 'ai-answer-audit': 'AI Answer Audit', 'best-price': 'Best Price Finder', 'vendor-check': 'Check Before You Pay', 'research-brief': 'Market Research', 'find-customers': 'Find Customers', 'money-report': 'Money Report', 'flyers': 'Flyers & Price Lists', 'local-business-finder': 'Local Business Finder', 'lead-list': 'Lead List' };
 const tx = (h?: string) => (h ? `[${h.slice(0, 10)}…](https://explorer.arc.io/tx/${h})` : '');
 const addr = (a: string) => `[\`${a}\`](https://explorer.arc.io/address/${a})`;
 const cell = (s: string) => s.replace(/\|/g, '/').replace(/\n/g, ' ');
@@ -67,7 +68,7 @@ ${money ? `| Revenue (accepted, paid jobs) | ${revenue.toFixed(2)} USDC |
 
 | Created | Order | Service | Status | Payment | Brief |
 |---|---|---|---|---|---|
-${orders.map((o) => `| ${o.createdAt.slice(0, 16).replace('T', ' ')} | [${o.id}](https://hiresyncly.site/job/${o.id}) | ${NAME[o.service] ?? o.service} | ${o.status} | ${o.payment?.mode === 'promo' ? 'free first job' : o.escrow ? `${money ? `${o.quote.priceUsd} USDC ` : ''}escrow ${tx(o.escrow.fundTx)}` : o.payment?.mode ?? ''} | ${cell(o.brief.slice(0, 70))} |`).join('\n')}
+${orders.map((o) => `| ${o.createdAt.slice(0, 16).replace('T', ' ')} | [${o.id}](https://hiresyncly.site/job/${o.id}) | ${NAME[o.service] ?? o.service} | ${o.status} | ${o.payment?.mode === 'promo' ? 'free first job' : o.escrow ? `${money ? `${o.quote.priceUsd} USDC ` : ''}escrow ${tx(o.escrow.fundTx)}` : o.payment?.mode ?? ''} | ${cell(publicBrief(o, 70))} |`).join('\n')}
 
 ## The CFO's decisions
 

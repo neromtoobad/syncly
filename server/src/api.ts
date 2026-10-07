@@ -18,11 +18,12 @@ import { cleanDetails, detailsBrief, type BusinessDetails } from './details.ts';
 import { MAX_BYTES, allowUpload, readUpload, saveUpload } from './uploads.ts';
 import { addPhoto, applyPatch, editorView, previewHtml, publishPatch, sourceBySlug, sourceByToken, undoLast, type SiteSource } from './site/edit.ts';
 import { PREVIEW, SITE_GONE, SITE_RIBBON, jobDir, previewFile, released, withdrawn } from './release.ts';
+import { allowStatement, saveStatement, sweepStatements } from './statements.ts';
 import { LINKS, chowdeckHours, readChowdeck, samePhone } from './site/links.ts';
 import { FORMATS, countScan, posterHtml, posterTargets, scanStats, type PosterOpts } from './site/poster.ts';
 import { renderPoster } from './browser.ts';
 import { nairaDecide, nairaFollowUp, nairaQuote, nairaStatus, onBachsEvent, startNaira, verifyBachs } from './naira.ts';
-import { autoAcceptDue, createQuote, decide, redoOnTheHouse, escrowPending, getOrder, noteForRevision, openEscrow, readJob, replay, resumeInterrupted, retry, start, syncEscrow } from './orders.ts';
+import { autoAcceptDue, createQuote, decide, publicBrief, redoOnTheHouse, escrowPending, getOrder, noteForRevision, openEscrow, readJob, replay, resumeInterrupted, retry, start, syncEscrow } from './orders.ts';
 import { escrowConfig, refreshBondFree } from './escrow.ts';
 import { MODE as CFO_MODE, POLICY as CFO_POLICY, freshSnapshot, reclaimSurplus, startTreasury, teamShortfall, tick as cfoTick } from './cfo/treasury.ts';
 import { decisions as cfoDecisions, verifyLog } from './cfo/log.ts';
@@ -130,6 +131,22 @@ app.post('/api/uploads', async (c) => {
   }
   return c.json({ uploads: out });
 });
+// Bank statements for a Money Report: their own store, never served back (src/statements.ts). A password, if the
+// bank set one, is used to read the PDF and then dropped with this request.
+app.post('/api/statements', async (c) => {
+  const who = c.req.header('x-forwarded-for')?.split(',')[0].trim() || 'local';
+  const body = await c.req.parseBody({ all: true }).catch(() => ({} as Record<string, unknown>));
+  const files = ([] as unknown[]).concat(body.file ?? []).filter((f): f is File => typeof f === 'object' && f !== null && 'arrayBuffer' in (f as object)).slice(0, 6);
+  const password = typeof body.password === 'string' && body.password.trim() ? body.password.trim().slice(0, 80) : undefined;
+  if (!files.length) return c.json({ error: 'No file received.' }, 400);
+  if (!allowStatement(who, files.length)) return c.json({ error: 'Too many files from here in the last hour. Try again later.' }, 429);
+  const out = [];
+  for (const f of files) {
+    try { out.push({ ...(await saveStatement(Buffer.from(await f.arrayBuffer()), f.name, password)), name: f.name.slice(0, 80) }); } catch (e: any) { return c.json({ error: e.message }, 400); }
+  }
+  return c.json({ statements: out });
+});
+
 app.get('/api/uploads/:id', (c) => {
   const buf = readUpload(c.req.param('id'));
   if (!buf) return c.text('not found', 404);
@@ -139,11 +156,23 @@ app.get('/api/uploads/:id', (c) => {
   return c.body(buf);
 });
 
-/** The public shape of an order: runs expanded, email masked, live job progress attached. */
-function view(id: string) {
+/** A private order (a Money Report) opens only with its key (from the customer's email) or the owner's key. */
+const unlocked = (o: { privateKey?: string }, c?: any) => !o.privateKey || (!!c && (isOwner(c) || c.req.query('k') === o.privateKey || c.req.header('x-order-key') === o.privateKey));
+
+/** The public shape of an order: runs expanded, email masked, live job progress attached. A private order without
+ *  its key shows only its progress: no brief, details, step notes, findings or files. */
+function view(id: string, c?: any) {
   const o = getOrder(id)!;
   const runs = o.runs.map((r) => readJob(r)).filter(Boolean);
-  return { ...o, email: o.email.replace(/^(.).*(@.*)$/, '$1•••$2'), runs, live: liveJobs.get(o.id) ?? null, team: [...(findService(o.service)?.team ?? [])], released: released(o), withdrawn: withdrawn(o) };
+  const base = { ...o, privateKey: undefined, email: o.email.replace(/^(.).*(@.*)$/, '$1•••$2'), runs, live: liveJobs.get(o.id) ?? null, team: [...(findService(o.service)?.team ?? [])], released: released(o), withdrawn: withdrawn(o), private: !!o.privateKey, unlocked: unlocked(o, c) };
+  if (unlocked(o, c)) return base;
+  const quiet = (st: any[] = []) => st.map((x) => ({ ...x, note: '' }));
+  return {
+    ...base, brief: publicBrief(o), details: undefined,
+    runs: runs.map((r: any) => ({ ...r, brief: publicBrief(o), deliverable: '', files: [], steps: quiet(r.steps), qa: r.qa ? { verdict: r.qa.verdict, notes: '', model: r.qa.model } : r.qa, error: r.error ? 'The job could not be finished.' : r.error })),
+    live: base.live ? { ...base.live, steps: quiet(base.live.steps) } : null,
+    escrow: o.escrow ? { ...o.escrow, spec: '' } : o.escrow,
+  };
 }
 
 app.post('/api/orders/:id/start', async (c) => {
@@ -153,7 +182,7 @@ app.post('/api/orders/:id/start', async (c) => {
   const { mode } = await c.req.json().catch(() => ({ mode: 'promo' }));
   try {
     await start(o, mode === 'simulated' ? 'simulated' : 'promo');
-    return c.json(shown(c, view(o.id)));
+    return c.json(shown(c, view(o.id, c)));
   } catch (e: any) {
     return c.json({ error: e.message }, 400);
   }
@@ -167,7 +196,7 @@ app.post('/api/orders/:id/escrow', async (c) => {
   const { customer } = await c.req.json().catch(() => ({}));
   try {
     await openEscrow(o.id, String(customer ?? ''));
-    return c.json(shown(c, view(o.id)));
+    return c.json(shown(c, view(o.id, c)));
   } catch (e: any) {
     console.error(`escrow open ${o.id}: ${e.shortMessage ?? e.message}`);
     return c.json({ error: e.shortMessage ?? e.message }, 400);
@@ -194,7 +223,7 @@ app.post('/api/orders/:id/naira-decide', async (c) => {
   const b = await c.req.json().catch(() => ({} as any));
   const action = ['accept', 'revise', 'reject'].includes(b.action) ? b.action : null;
   if (!action) return c.json({ error: 'Choose accept, revise or reject.' }, 400);
-  try { await nairaDecide(c.req.param('id'), String(b.email ?? ''), action, b.note ? String(b.note) : undefined); return c.json(shown(c, view(c.req.param('id')))); } catch (e: any) {
+  try { await nairaDecide(c.req.param('id'), String(b.email ?? ''), action, b.note ? String(b.note) : undefined); return c.json(shown(c, view(c.req.param('id'), c))); } catch (e: any) {
     return c.json({ error: e.shortMessage ?? e.message }, 400);
   }
 });
@@ -219,7 +248,7 @@ app.post('/api/orders/:id/sync', async (c) => {
   try {
     if (note) noteForRevision(o, String(email ?? ''), String(note));
     await syncEscrow(o.id, tx ? String(tx) : undefined);
-    return c.json(shown(c, view(o.id)));
+    return c.json(shown(c, view(o.id, c)));
   } catch (e: any) {
     return c.json({ error: e.shortMessage ?? e.message }, 400);
   }
@@ -230,7 +259,7 @@ app.post('/api/orders/:id/redo', async (c) => {
   const o = getOrder(c.req.param('id'));
   if (!o) return c.json({ error: 'No order with that ID.' }, 404);
   if (!DRY && !hasSeed()) return c.json({ error: 'The team is still clocking in. Try again in a few minutes.' }, 503);
-  try { const n = redoOnTheHouse(o); return c.json(shown(c, view(n.id))); } catch (e: any) { return c.json({ error: e.message }, 400); }
+  try { const n = redoOnTheHouse(o); return c.json(shown(c, view(n.id, c))); } catch (e: any) { return c.json({ error: e.message }, 400); }
 });
 
 app.post('/api/orders/:id/retry', async (c) => {
@@ -240,7 +269,7 @@ app.post('/api/orders/:id/retry', async (c) => {
   if (String(email ?? '').trim().toLowerCase() !== o.email) return c.json({ error: 'Only the customer who placed this order can retry it.' }, 403);
   try {
     retry(o);
-    return c.json(shown(c, view(o.id)));
+    return c.json(shown(c, view(o.id, c)));
   } catch (e: any) {
     return c.json({ error: e.message }, 400);
   }
@@ -254,7 +283,7 @@ app.post('/api/orders/:id/:action{accept|reject|revise}', async (c) => {
   if (String(email ?? '').trim().toLowerCase() !== o.email) return c.json({ error: 'Only the customer who placed this order can decide on it.' }, 403);
   try {
     decide(o, c.req.param('action') as 'accept' | 'reject' | 'revise', note);
-    return c.json(shown(c, view(o.id)));
+    return c.json(shown(c, view(o.id, c)));
   } catch (e: any) {
     return c.json({ error: e.message }, 400);
   }
@@ -263,7 +292,7 @@ app.post('/api/orders/:id/:action{accept|reject|revise}', async (c) => {
 app.get('/api/orders/:id', (c) => {
   const o = getOrder(c.req.param('id'));
   if (!o) return c.json({ error: 'not found' }, 404);
-  return c.json(shown(c, view(o.id)));
+  return c.json(shown(c, view(o.id, c)));
 });
 
 const MEDIA: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', mp4: 'video/mp4', webm: 'video/webm', mp3: 'audio/mpeg', svg: 'image/svg+xml', zip: 'application/zip', pdf: 'application/pdf', html: 'text/plain; charset=utf-8' };
@@ -272,6 +301,7 @@ app.get('/api/orders/:id/files/:name', async (c) => {
   const name = c.req.param('name');
   if (!o || !/^[a-z0-9._-]+$/i.test(name)) return c.text('not found', 404);
   if (name === 'job.json' && !isOwner(c)) return c.text('not found', 404); // the job record holds our costs
+  if (!unlocked(o, c)) return c.text('not found', 404); // a private report's files open only with its key
   // Until the customer accepts, a paid job's media is served as watermarked previews and nothing else downloads.
   let f: string | undefined;
   if (name.startsWith(PREVIEW)) {
@@ -588,3 +618,4 @@ serve({ fetch: app.fetch, port }, () => console.log(`outlay api on :${port} (${D
 console.log(`mail: ${MAILER ?? 'off'}${MAILER === 'resend' ? ` from ${MAIL_FROM}` : ''}`);
 if (MAILER === 'resend' && !DRY) resend({ to: 'delivered@resend.dev', subject: 'Syncly mail check', text: 'Startup check.', html: '<p>Startup check.</p>' })
   .then((r) => console.log(`mail check: Resend accepted it (${r.id})`), (e) => console.log(`mail check FAILED: ${e.message}`));
+setInterval(() => { try { sweepStatements(); } catch { /* the folder may not exist yet */ } }, 3600_000); // statements left over from unpaid quotes go after a day

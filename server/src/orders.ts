@@ -18,6 +18,7 @@ import { CATALOG, SERVICES, findService } from './services/index.ts';
 import * as chain from './escrow.ts';
 import { emailDelivery, emailRelease } from './mail.ts';
 import { jobDir, makePreviews } from './release.ts';
+import { isPrivate } from './private.ts';
 import { blacklisted } from './payees.ts';
 
 export type OrderStatus = 'quoted' | 'queued' | 'running' | 'delivered' | 'revision' | 'accepted' | 'rejected' | 'failed' | 'declined' | 'expired';
@@ -25,6 +26,7 @@ export type Order = {
   id: string;
   service: string;
   brief: string;
+  privateKey?: string; // private services (a Money Report): the job page needs this key, sent in the customer's email
   details?: BusinessDetails; // from the order form, when the service has one
   email: string;
   createdAt: string;
@@ -66,6 +68,12 @@ export type Order = {
 const dir = () => join(DATA_DIR, 'orders');
 const file = (id: string) => join(dir(), `${id}.json`);
 
+/** The brief as anyone may see it: a private order shows only what kind of job it is. */
+export function publicBrief(o: Pick<Order, 'brief' | 'service' | 'privateKey'>, max = 6000): string {
+  const b = o.privateKey ? `A private ${findService(o.service)?.name ?? 'job'}: the details are only on the customer's own link` : o.brief;
+  return b.length > max ? b.slice(0, max - 2) + '…' : b;
+}
+
 export function saveOrder(o: Order) {
   mkdirSync(dir(), { recursive: true });
   const was = existsSync(file(o.id)) ? (JSON.parse(readFileSync(file(o.id), 'utf8')) as Order).status : undefined;
@@ -82,7 +90,7 @@ export function orderEventData(o: Order, status: string = o.status) {
   return {
     status, service: o.service, team: [...team], promo: o.quote.promo, price: o.quote.priceUsd, bond: o.quote.bondUsd,
     refund: o.refund ?? null, by: o.decision?.by ?? null,
-    brief: o.brief.length > 90 ? o.brief.slice(0, 88) + '…' : o.brief, // the office whiteboard; job pages already show it
+    brief: publicBrief(o, 90), // the office whiteboard; job pages already show it
   };
 }
 
@@ -163,6 +171,7 @@ export function createQuote(input: { service: string; brief: string; email: stri
     id: `ord_${Date.now().toString(36)}_${randomBytes(2).toString('hex')}`,
     service: item.id, brief: input.brief.trim().slice(0, 6000), ...(input.details ? { details: input.details } : {}), email, createdAt: new Date().toISOString(),
     quote: q, status: q.decision === 'decline' ? 'declined' : 'quoted', runs: [], demo: DRY,
+    ...(isPrivate(item.id) ? { privateKey: randomBytes(12).toString('base64url') } : {}),
   };
   saveOrder(o);
   return o;
@@ -293,7 +302,7 @@ export function autoAcceptDue(windowMs = 48 * 3600_000) {
 function specFor(o: Order, customer: Address) {
   const item = findService(o.service)!;
   return JSON.stringify({
-    order: o.id, service: item.name, brief: o.brief, customer, priceUsdc: o.quote.priceUsd, bondUsdc: o.quote.bondUsd,
+    order: o.id, service: item.name, brief: publicBrief(o), customer, priceUsdc: o.quote.priceUsd, bondUsdc: o.quote.bondUsd,
     deliverHours: o.quote.deliverHours, acceptWindowHours: 48, oneFreeRevision: true, youGet: item.youGet,
   });
 }

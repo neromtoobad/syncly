@@ -9,6 +9,7 @@ import { DATA_DIR, DRY } from './config.ts';
 import { publish } from './bus.ts';
 import type { ReceiptLine } from './x402.ts';
 import type { Role } from './wallets.ts';
+import { isPrivate } from './private.ts';
 
 export type Policy = { budgetUsd: number; allowHosts: string[] };
 export type StepLog = { at: string; agent: Role; step: string; note: string };
@@ -50,7 +51,7 @@ export class Job {
     const s = { at: new Date().toISOString(), agent, step, note };
     this.steps.push(s);
     if (!this.quiet) console.log(`  ▸ ${agent.padEnd(10)} ${step}${note ? ` · ${note}` : ''}`);
-    publish({ type: 'step', orderId: this.orderId, jobId: this.id, data: s });
+    publish({ type: 'step', orderId: this.orderId, jobId: this.id, data: isPrivate(this.service) ? { ...s, note: '' } : s });
     this.save();
   }
 

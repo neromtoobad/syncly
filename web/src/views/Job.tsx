@@ -13,6 +13,10 @@ import { useRouter } from 'next/navigation';
 import { saveBusiness } from './BusinessForm.tsx';
 import { AnimatePresence, motion } from 'motion/react';
 
+/** A private order (a Money Report) carries its key in the link from the customer's email: pass it on every call. */
+const orderKey = () => (typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('k'));
+const withK = (path: string) => { const k = orderKey(); return k ? `${path}${path.includes('?') ? '&' : '?'}k=${encodeURIComponent(k)}` : path; };
+
 function Stepper({ o }: { o: Order }) {
   const st = o.status;
   const working = ['queued', 'running', 'revision'].includes(st);
@@ -98,7 +102,7 @@ const isMedia = (f: string) => isVideo(f) || isImage(f) || /\.zip$/i.test(f);
 /** What the growth team made: the live site in a phone frame, videos that play, images at full size. */
 function Media({ id, files, deliverable, locked }: { id: string; files: string[]; deliverable: string; locked: boolean }) {
   // Until the work is accepted, pictures and video are watermarked previews and nothing downloads.
-  const url = (f: string) => `/api/orders/${id}/files/${locked ? `preview-${f}` : f}`;
+  const url = (f: string) => withK(`/api/orders/${id}/files/${locked ? `preview-${f}` : f}`);
   files = files.filter((f) => !f.startsWith('preview-'));
   const site = deliverable.match(/\]\((?:https?:\/\/[^)\s]+)?(\/s\/[a-z0-9-]+)\)/)?.[1];
   const videos = files.filter(isVideo);
@@ -111,7 +115,7 @@ function Media({ id, files, deliverable, locked }: { id: string; files: string[]
   const videoList = videos.map((f) => (
     <figure key={f} className={`media__video ${/1x1/.test(f) ? 'sq' : ''}`}>
       <video src={url(f)} poster={poster ? url(poster) : undefined} controls playsInline loop preload="metadata" controlsList={locked ? 'nodownload noplaybackrate' : undefined} disablePictureInPicture={locked} onContextMenu={locked ? (e) => e.preventDefault() : undefined} />
-      <figcaption><span className="mono">{f}</span>{locked ? <span className="lockchip">Preview</span> : <a href={`${url(f)}?download`}>Download ↓</a>}</figcaption>
+      <figcaption><span className="mono">{f}</span>{locked ? <span className="lockchip">Preview</span> : <a href={`${url(f)}${url(f).includes('?') ? '&' : '?'}download`}>Download ↓</a>}</figcaption>
     </figure>
   ));
   return (
@@ -127,7 +131,7 @@ function Media({ id, files, deliverable, locked }: { id: string; files: string[]
       {images.length > 0 && (
         <div className="media__grid">
           {images.map((f) => (
-            <figure key={f}>{locked ? <img src={url(f)} alt={f} loading="lazy" onContextMenu={(e) => e.preventDefault()} /> : <a href={url(f)} target="_blank" rel="noreferrer"><img src={url(f)} alt={f} loading="lazy" /></a>}<figcaption><span className="mono">{f}</span>{locked ? <span className="lockchip">Preview</span> : <a href={`${url(f)}?download`}>↓</a>}</figcaption></figure>
+            <figure key={f}>{locked ? <img src={url(f)} alt={f} loading="lazy" onContextMenu={(e) => e.preventDefault()} /> : <a href={url(f)} target="_blank" rel="noreferrer"><img src={url(f)} alt={f} loading="lazy" /></a>}<figcaption><span className="mono">{f}</span>{locked ? <span className="lockchip">Preview</span> : <a href={`${url(f)}${url(f).includes('?') ? '&' : '?'}download`}>↓</a>}</figcaption></figure>
           ))}
         </div>
       )}
@@ -183,10 +187,10 @@ function EscrowDecision({ o, cfg, onUpdate }: { o: Order; cfg: EscrowCfg; onUpda
       if (a.toLowerCase() !== e.customer.toLowerCase()) throw new Error(`This is ${short(a)}. Switch to the wallet that paid (${short(e.customer)}): only it can decide.`);
       if (action === 'requestRevision') {
         localStorage.setItem('outlay:email', email);
-        await api(`/api/orders/${o.id}/sync`, { method: 'POST', body: JSON.stringify({ note, email }) }); // the chain records the request, not the note
+        await api(withK(`/api/orders/${o.id}/sync`), { method: 'POST', body: JSON.stringify({ note, email }) }); // the chain records the request, not the note
       }
       const tx = await decideOnChain(cfg, a, e.id, action);
-      onUpdate(await api<Order>(`/api/orders/${o.id}/sync`, { method: 'POST', body: JSON.stringify({ tx }) }));
+      onUpdate(await api<Order>(withK(`/api/orders/${o.id}/sync`), { method: 'POST', body: JSON.stringify({ tx }) }));
     } catch (x: any) { setErr(walletError(x)); } finally { setBusy(null); }
   }
 
@@ -242,7 +246,9 @@ export default function Job({ id }: { id: string }) {
   const { data: services } = useApi<{ services: Service[] }>('/api/services');
   const cfg = escCfg?.enabled ? escCfg : null;
 
-  const load = () => api<Order>(`/api/orders/${id}`).then(setO).catch((e) => setErr(e.message));
+  // back from Bachs without ?k: a private order's key kept in this tab puts it back in the address
+  if (typeof window !== 'undefined' && !orderKey()) { try { const k = sessionStorage.getItem(`syncly:key:${id}`); if (k) { const u = new URL(window.location.href); u.searchParams.set('k', k); window.history.replaceState(null, '', u.toString()); } } catch {} }
+  const load = () => api<Order>(withK(`/api/orders/${id}`)).then(setO).catch((e) => setErr(e.message));
   useEffect(() => { load(); }, [id]);
   const active = o && ['queued', 'running', 'revision'].includes(o.status);
   // A delivered order can still change from elsewhere (another tab, the 48 h auto-accept), so keep listening.
@@ -270,7 +276,7 @@ export default function Job({ id }: { id: string }) {
     setBusy(true); setErr(null);
     try {
       localStorage.setItem('outlay:email', email);
-      setO(await api<Order>(o?.naira && action !== 'retry' ? `/api/orders/${id}/naira-decide` : `/api/orders/${id}/${action}`, { method: 'POST', body: JSON.stringify(o?.naira ? { email, note, action } : { email, note }) }));
+      setO(await api<Order>(withK(o?.naira && action !== 'retry' ? `/api/orders/${id}/naira-decide` : `/api/orders/${id}/${action}`), { method: 'POST', body: JSON.stringify(o?.naira ? { email, note, action } : { email, note }) }));
     } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   }
 
@@ -332,7 +338,13 @@ export default function Job({ id }: { id: string }) {
       </div>
 
       {/* The stage: one thing at a time, whatever the job needs from you now */}
-      {awaitingNaira ? (
+      {(o as any).private && !(o as any).unlocked ? (
+        <section className="card pad stage">
+          <h3 className="t">This report is private</h3>
+          <p className="muted" style={{ margin: 0 }}>It holds a business's bank statement figures, so it only opens from the private link we emailed to the customer. Open that email on this device, or ask for the link to be sent again.</p>
+          {active && <Progress startedAt={startedAt} etaMin={svc?.etaMin} steps={steps.length} />}
+        </section>
+      ) : awaitingNaira ? (
         <section className="card pad stage">
           <h3 className="t">Waiting for your naira payment</h3>
           <p className="muted" style={{ margin: 0 }}>A bank transfer through Bachs can take a few minutes. This page updates by itself once it lands, and the team starts straight away.</p>
@@ -376,8 +388,8 @@ export default function Job({ id }: { id: string }) {
               <div className="btns">
                 {locked ? <span className="lockchip big">Full quality unlocks when you accept</span> : (
                   <>
-                    {docFiles.map((f) => <a key={f} className="btn secondary sm" href={`/api/orders/${o.id}/files/${f}${isMedia(f) ? '?download' : ''}`}>↓ {f}</a>)}
-                    <a className="btn secondary sm" href={`/api/orders/${o.id}/files/deliverable.md`}>↓ .md</a>
+                    {docFiles.map((f) => <a key={f} className="btn secondary sm" href={withK(`/api/orders/${o.id}/files/${f}${isMedia(f) ? '?download' : ''}`)}>↓ {f}</a>)}
+                    <a className="btn secondary sm" href={withK(`/api/orders/${o.id}/files/deliverable.md`)}>↓ .md</a>
                   </>
                 )}
               </div>

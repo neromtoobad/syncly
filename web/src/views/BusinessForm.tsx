@@ -16,6 +16,7 @@ export type Details = {
   adGoal: string; adBudget: string; adPlatforms: string[]; audience: string; adResults: string[];
   product: string; uses: string[]; look: string;
   items: string; deliverTo: string; budget: string; condition: string; sellers: string;
+  flyerKind: string; statements: string[];
 };
 
 const KINDS: [string, string][] = [['food', 'Food & drinks'], ['beauty', 'Beauty & wellness'], ['creative', 'Photography & creative'], ['events', 'Events & weddings'], ['retail', 'Shop & products'], ['health', 'Health & clinics'], ['professional', 'Professional services'], ['other', 'Something else']];
@@ -31,7 +32,7 @@ const THEMES: { id: string; name: string; mood: string; font: string; bg: string
 ];
 const SECTIONS: [string, string][] = [['offer', 'Menu / prices'], ['gallery', 'Photo gallery'], ['reviews', 'Google reviews'], ['about', 'About us'], ['steps', 'How to order or book'], ['location', 'Map & opening hours'], ['faq', 'Questions & answers']];
 const SWATCHES = ['#C0392B', '#D4380D', '#E67E22', '#D4A017', '#2E7D32', '#0F766E', '#1D4ED8', '#6D28D9', '#BE185D', '#111827'];
-const EMPTY: Details = { name: '', kind: 'food', offer: '', area: '', city: 'Lagos', whatsapp: '', phone: '', email: '', address: '', maps: '', instagram: '', tiktok: '', facebook: '', website: '', links: '', bankName: '', bankNumber: '', bankAccountName: '', menu: '', story: '', style: 'auto', colour: '', sections: SECTIONS.map(([k]) => k), notes: '', photos: [], platforms: ['instagram', 'tiktok'], goal: '', competitors: '', tone: '', promote: '', price: '', cta: 'whatsapp', format: 'vertical', length: 16, questions: '', searches: '', adGoal: 'messages', adBudget: '', adPlatforms: ['meta'], audience: '', adResults: [], product: '', uses: ['instagram', 'whatsapp'], look: 'clean', items: '', deliverTo: '', budget: '', condition: 'new', sellers: '' };
+const EMPTY: Details = { name: '', kind: 'food', offer: '', area: '', city: 'Lagos', whatsapp: '', phone: '', email: '', address: '', maps: '', instagram: '', tiktok: '', facebook: '', website: '', links: '', bankName: '', bankNumber: '', bankAccountName: '', menu: '', story: '', style: 'auto', colour: '', sections: SECTIONS.map(([k]) => k), notes: '', photos: [], platforms: ['instagram', 'tiktok'], goal: '', competitors: '', tone: '', promote: '', price: '', cta: 'whatsapp', format: 'vertical', length: 16, questions: '', searches: '', adGoal: 'messages', adBudget: '', adPlatforms: ['meta'], audience: '', adResults: [], product: '', uses: ['instagram', 'whatsapp'], look: 'clean', items: '', deliverTo: '', budget: '', condition: 'new', sellers: '' , flyerKind: 'promo', statements: [] };
 const PLATFORMS: [string, string][] = [['instagram', 'Instagram'], ['tiktok', 'TikTok'], ['whatsapp-status', 'WhatsApp Status'], ['facebook', 'Facebook'], ['x', 'X'], ['linkedin', 'LinkedIn']];
 const GOALS = ['More orders this month', 'More bookings', 'More followers who buy', 'Launch a new product', 'Fill quiet weekdays'];
 const TONES = ['Warm and friendly', 'Playful, Lagos street', 'Premium and calm', 'Bold and loud', 'Expert and trustworthy'];
@@ -40,7 +41,7 @@ const AD_GOALS: [string, string][] = [['messages', 'WhatsApp or DM messages'], [
 const AD_PLATFORMS: [string, string][] = [['meta', 'Instagram & Facebook'], ['tiktok', 'TikTok']];
 const USES: [string, string][] = [['instagram', 'Instagram'], ['whatsapp', 'WhatsApp catalogue & Status'], ['marketplace', 'Jumia, Jiji, Konga'], ['website', 'Website']];
 const LOOKS: [string, string][] = [['clean', 'Clean studio'], ['lifestyle', 'Real-life scenes'], ['bold', 'Bold colour']];
-type StepId = 'business' | 'contact' | 'links' | 'offer' | 'look' | 'content' | 'ad' | 'plan' | 'audit' | 'shots' | 'buy';
+type StepId = 'business' | 'contact' | 'links' | 'offer' | 'look' | 'content' | 'ad' | 'plan' | 'audit' | 'shots' | 'buy' | 'flyer' | 'statement';
 const FLOWS: Record<string, { id: StepId; title: string }[]> = {
   website: [{ id: 'business', title: 'Your business' }, { id: 'contact', title: 'Contact & links' }, { id: 'offer', title: 'What you sell' }, { id: 'look', title: 'The look' }],
   'content-pack': [{ id: 'business', title: 'Your business' }, { id: 'links', title: 'Your accounts' }, { id: 'content', title: 'The content' }],
@@ -49,7 +50,22 @@ const FLOWS: Record<string, { id: StepId; title: string }[]> = {
   'product-photos': [{ id: 'business', title: 'Your business' }, { id: 'shots', title: 'Your photos' }],
   'get-found': [{ id: 'business', title: 'Your business' }, { id: 'audit', title: 'Where to look' }],
   'buy-smart': [{ id: 'business', title: 'Your business' }, { id: 'buy', title: 'What to buy' }],
+  flyers: [{ id: 'business', title: 'Your business' }, { id: 'flyer', title: 'The flyer' }],
+  'money-report': [{ id: 'business', title: 'Your business' }, { id: 'statement', title: 'Your statement' }],
 };
+const FLYER_KINDS: [string, string][] = [['promo', 'Promo flyer'], ['pricelist', 'Price list or menu'], ['announcement', 'Announcement']];
+
+/** Bank statements go to their own private store (never the public photo uploads). The password, if any, is used
+ *  once on the server to read the PDF and is not kept. */
+async function uploadStatements(files: File[], password: string): Promise<{ id: string; name: string; kind: string; pages?: number }[]> {
+  const fd = new FormData();
+  for (const f of files) fd.append('file', f.type.startsWith('image/') ? await shrink(f) : f, f.name);
+  if (password.trim()) fd.append('password', password.trim());
+  const r = await fetch('/api/statements', { method: 'POST', body: fd });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error ?? 'Upload failed');
+  return j.statements;
+}
 const KEY = 'syncly:business';
 
 /** Save a business (e.g. from an earlier order) as this device's draft, so the next order starts with it. */
@@ -91,11 +107,19 @@ export default function BusinessForm({ service, onSubmit, busy, email, setEmail,
   const [up, setUp] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [ready, setReady] = useState(false); // the draft is loaded; only then is it saved back
-  useEffect(() => { try { const s = localStorage.getItem(KEY); if (s) { const x = { ...EMPTY, ...JSON.parse(s) }; setD(x); setSaved(!!(x.name?.trim() && x.offer?.trim())); } } catch {} setReady(true); }, []);
+  const [stmts, setStmts] = useState<{ id: string; name: string; kind: string; pages?: number }[]>([]);
+  const [pw, setPw] = useState('');
+  async function addStatements(list: FileList | null) {
+    if (!list?.length) return;
+    setErr(null); setUp('statements');
+    try { const got = await uploadStatements([...list].slice(0, 6 - stmts.length), pw); const all = [...stmts, ...got].slice(0, 6); setStmts(all); set('statements', all.map((x) => x.id)); }
+    catch (e: any) { setErr(e.message); } finally { setUp(null); }
+  }
+  useEffect(() => { try { const s = localStorage.getItem(KEY); if (s) { const x = { ...EMPTY, ...JSON.parse(s), statements: [] }; setD(x); setSaved(!!(x.name?.trim() && x.offer?.trim())); } } catch {} setReady(true); }, []);
   useEffect(() => { if (ready) try { localStorage.setItem(KEY, JSON.stringify(d)); } catch {} }, [d, ready]);
   const set = <K extends keyof Details>(k: K, v: Details[K]) => setD((x) => ({ ...x, [k]: v }));
-  const text = (k: keyof Details, label: string, ph: string, hint?: string, type = 'text') => (
-    <label className="field">{label}{hint && <span className="hint">{hint}</span>}<input type={type} value={d[k] as string} onChange={(e) => set(k, e.target.value as never)} placeholder={ph} /></label>
+  const text = (k: keyof Details | '_pw', label: string, ph: string, hint?: string, type = 'text') => (
+    <label className="field">{label}{hint && <span className="hint">{hint}</span>}<input type={type} autoComplete={k === '_pw' ? 'off' : undefined} value={k === '_pw' ? pw : (d[k] as string)} onChange={(e) => (k === '_pw' ? setPw(e.target.value) : set(k, e.target.value as never))} placeholder={ph} /></label>
   );
   async function addPhotos(list: FileList | null, to: 'photos' | 'logo' | 'adResults' = 'photos') {
     if (!list?.length) return;
@@ -113,11 +137,15 @@ export default function BusinessForm({ service, onSubmit, busy, email, setEmail,
     business: !!(d.name.trim() && d.offer.trim() && (service !== 'get-found' || d.city.trim() || d.area.trim())),
     contact: reach, links: true, offer: true, look: true, content: d.platforms.length > 0, ad: !!(d.promote.trim() && ctaReady), audit: true,
     plan: d.adPlatforms.length > 0, shots: d.photos.length > 0, buy: !!(d.items.trim() && (d.deliverTo.trim() || d.city.trim() || d.area.trim())),
+    flyer: (d.flyerKind === 'pricelist' ? !!d.menu.trim() : !!d.promote.trim()) && !!(d.whatsapp.trim() || d.phone.trim() || d.instagram.trim() || d.website.trim() || d.address.trim()),
+    statement: d.statements.length > 0,
   };
   const why: Partial<Record<StepId, string>> = {
     business: service === 'get-found' ? 'Add the business name, what you sell, and the area or city.' : 'Add the business name and what you sell.',
     contact: 'Add at least one way customers can reach you.', content: 'Pick at least one platform.',
     ad: !d.promote.trim() ? 'Say what the ad is for.' : 'Add the contact detail for your call to action.',
+    flyer: d.flyerKind === 'pricelist' && !d.menu.trim() ? 'Add your items and prices.' : !d.promote.trim() && d.flyerKind !== 'pricelist' ? 'Say what the flyer is for.' : 'Add how customers reach you.',
+    statement: 'Upload your bank statement.',
     plan: 'Pick where the ads should run.', shots: 'Add at least one photo of the product.', buy: !d.items.trim() ? 'List what you want to buy.' : 'Add where it should be delivered.',
   };
   const skip = (id: StepId) => saved && ((id === 'business' && valid.business) || (id === 'contact' && valid.contact));
@@ -154,11 +182,11 @@ export default function BusinessForm({ service, onSubmit, busy, email, setEmail,
   const chips = (k: 'platforms' | 'adPlatforms' | 'uses', options: [string, string][]) => (
     <div className="checks">{options.map(([v, l]) => <label key={v} className={`chip click${d[k].includes(v) ? ' on' : ''}`}><input type="checkbox" hidden checked={d[k].includes(v)} onChange={(e) => set(k, e.target.checked ? [...d[k], v] : d[k].filter((x) => x !== v))} />{l}</label>)}</div>
   );
-  const pick = (k: 'goal' | 'tone' | 'cta' | 'format' | 'adGoal' | 'look' | 'condition', options: [string, string][]) => (
+  const pick = (k: 'goal' | 'tone' | 'cta' | 'format' | 'adGoal' | 'look' | 'condition' | 'flyerKind', options: [string, string][]) => (
     <div className="checks">{options.map(([v, l]) => <button type="button" key={v} className={`chip click${d[k] === v ? ' on' : ''}`} onClick={() => set(k, v)}>{l}</button>)}</div>
   );
   const notes = (hint: string) => <label className="field">Anything else <span className="hint">{hint}</span><textarea style={{ minHeight: 80 }} value={d.notes} onChange={(e) => set('notes', e.target.value)} /></label>;
-  const emailHint: Record<string, string> = { website: 'We send the finished site here.', 'content-pack': 'We send your content pack here.', 'motion-ad': 'We send your motion ad here.', 'ad-launch': 'We send your ads and the plan here.', 'product-photos': 'We send your photos here.', 'get-found': 'We send the report here.', 'buy-smart': 'We send the best offers and the seller checks here.' };
+  const emailHint: Record<string, string> = { flyers: 'We send your flyers here.', 'money-report': 'We send the private link to your report here, and only here.', website: 'We send the finished site here.', 'content-pack': 'We send your content pack here.', 'motion-ad': 'We send your motion ad here.', 'ad-launch': 'We send your ads and the plan here.', 'product-photos': 'We send your photos here.', 'get-found': 'We send the report here.', 'buy-smart': 'We send the best offers and the seller checks here.' };
 
   return (
     <div className="bform">
@@ -330,6 +358,43 @@ export default function BusinessForm({ service, onSubmit, busy, email, setEmail,
           <label className="field">A question your customers ask <span className="hint">Optional. We ask ChatGPT, Gemini, Claude and Perplexity too.</span>
             <textarea style={{ minHeight: 80 }} value={d.questions} onChange={(e) => set('questions', e.target.value)} placeholder="Do you deliver to Victoria Island?" />
           </label>
+        </div>
+      )}
+
+      {cur === 'flyer' && (
+        <div className="form">
+          <div className="field">What kind {pick('flyerKind', FLYER_KINDS)}</div>
+          {d.flyerKind === 'pricelist' ? (
+            <label className="field">Items and prices <span className="hint">One per line, like “Party tray (20 guests) – ₦25,000”. A line ending with “:” starts a group. Shown exactly as you write them.</span>
+              <textarea value={d.menu} onChange={(e) => set('menu', e.target.value)} placeholder={'Trays:\nParty tray (20 guests) – ₦25,000\nParty tray (50 guests) – ₦58,000\nBy the piece:\nPuff-puff (50 pieces) – ₦6,000'} />
+            </label>
+          ) : (
+            <>
+              {text('promote', d.flyerKind === 'announcement' ? 'What are you announcing?' : 'What is the flyer for?', d.flyerKind === 'announcement' ? 'We’ve moved to 14 Adelabu Street from 1 November' : 'Weekend party trays, delivered across Lagos', d.flyerKind === 'announcement' ? 'Include any date or time; it’s shown exactly.' : 'One product, offer or service.')}
+              {d.flyerKind === 'promo' && text('price', 'Price or deal to show', 'From ₦25,000', 'Optional. Shown exactly as you write it.')}
+            </>
+          )}
+          <div className="field">How should people respond? {pick('cta', CTAS)}</div>
+          <div className="two-up">{text('whatsapp', 'WhatsApp number', '0803 555 0142', undefined, 'tel')}{text('instagram', 'Instagram', '@yourbusiness')}</div>
+          <div className="two-up">{text('address', 'Address', '14 Adelabu Street, Surulere', 'Optional, shown at the bottom.')}{text('website', 'Website', 'yourbusiness.com', 'Optional.')}</div>
+          {photosField('Optional, up to 3: your product, food or shop. Product photos on a plain background look best.', 3)}
+          {logoField('Optional. It goes at the top.')}
+          {colourField('Choose for me')}
+          {notes('Optional: words to use, things to leave out, a date it ends.')}
+        </div>
+      )}
+
+      {cur === 'statement' && (
+        <div className="form">
+          <div className="note">Your statement is private. It's stored apart from everything else, read only to make your report, and deleted when the report is done. The report opens only from the private link we email you.</div>
+          <div className="field">Bank statement <span className="hint">The PDF from your bank or app (GTBank, Access, Opay, Moniepoint, Kuda…), a CSV export, or clear screenshots of every page. One to three months works best.</span>
+            <div className="uploads">
+              {stmts.map((x) => <figure key={x.id} className="docfile"><span>{x.kind === 'image' ? '🖼' : '📄'} {x.name}{x.pages ? ` · ${x.pages} page${x.pages === 1 ? '' : 's'}` : ''}</span><button type="button" aria-label="Remove" onClick={() => { const all = stmts.filter((y) => y.id !== x.id); setStmts(all); set('statements', all.map((y) => y.id)); }}>×</button></figure>)}
+              {stmts.length < 6 && <label className="addph">{up === 'statements' ? 'Reading it…' : '+ Add statement'}<input type="file" accept="application/pdf,.pdf,.csv,text/csv,text/plain,image/*" multiple onChange={(e) => addStatements(e.target.files)} hidden /></label>}
+            </div>
+          </div>
+          {text('_pw', 'Statement password', 'Only if your bank locked the PDF', 'Used once to open the file on our server, never stored. Add it before uploading.', 'password')}
+          {notes('Optional: what you want to know, e.g. “why am I always short at month end?”')}
         </div>
       )}
 

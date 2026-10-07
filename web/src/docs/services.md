@@ -9,10 +9,12 @@ Syncly does the jobs a small business would otherwise pay an agency or a freelan
 
 | Service | Price | Typical time | You get |
 |---|---|---|---|
+| **Money Report** | 2 USDC | ~4 min | Your bank statement read by the CFO: money in and out reconciled, where it goes, who pays you, what to cut, what to do this month. Private |
 | **Business Website** | 2 USDC | ~2 min | A professional site from your Google listing, Instagram and photos, live at a link today, plus the files |
 | **Social Media Posts** | 2 USDC | ~3 min | What's working in your niche this week, backed by real posts, then 7 posts in your voice and 3 images |
 | **Ad Campaign** | 2 USDC | ~4 min | 3 ads with feed and Story designs, an 8 s video ad, copy, and a 7-day plan for your budget |
 | **Promo Video** | 1 USDC | ~4 min | A 12–24 s video of your products and offer for Reels, TikTok and Status, with licensed music |
+| **Flyers & Price Lists** | 1 USDC | ~3 min | A promo flyer, price list, menu or announcement in your colours, for WhatsApp Status, Instagram and A4 print |
 | **Product Photos** | 2 USDC | ~3 min | Your phone photos turned into studio, lifestyle and white-background shots, sized for where you sell |
 | **Google Visibility Check** | 2 USDC | ~4 min | Where you rank on Google Maps street by street, what ChatGPT and Gemini say about you, and the fixes |
 | **Best Price & Seller Check** | 2 USDC | ~3 min | The cheapest trustworthy offers for what you need, and a risk check on the sellers before you pay |
@@ -20,6 +22,14 @@ Syncly does the jobs a small business would otherwise pay an agency or a freelan
 | **Market Research** | 1 USDC | ~2 min | Your competitors, your market and what to charge, with every fact sourced |
 
 Quick jobs cost 1 USDC (about ₦1,330) and bigger ones 2 USDC (about ₦2,660). You pay into an escrow on Arc. The money only leaves when you accept the work; reject it and you get it back, plus a bond. See [Escrow payments](/docs/escrow).
+
+## Money
+
+### Money Report
+
+Upload a bank statement: the PDF from your bank or app (GTBank, Access, Opay, Moniepoint, Kuda and others, including password-locked PDFs), a CSV export, or screenshots. The Analyst reads every transaction and labels each kind (sales, stock and suppliers, rent, staff, transport, power and fuel, airtime and data, bank charges, transfers between your own accounts, personal spending…). **Code computes every figure** and reconciles the totals against the statement's own opening and closing balances before anything is said about them. You get money in and out by month, where the money goes, who pays you most and who you pay most, what you pay every month, what bank charges cost you a year, your lowest balance, and the CFO's five findings and five actions for this month, each traced to a figure from your statement. Plus a chart and a spreadsheet of every transaction with its label.
+
+**Private by design.** The statement goes to its own store, is never served back, and is deleted when the report is done (or a day after upload if the order isn't paid). The report opens only from the private link in your email; the public job page, the live office and our traction pages show only that a Money Report was made. A statement password is used once to open the file and never stored.
 
 ## Marketing
 
@@ -42,6 +52,10 @@ For owners who boost posts and get likes instead of orders. The Scout pulls ads 
 A full-frame promo for a shop, a kitchen or a service: a hook that stops the scroll, your products large on screen with their prices, the reasons to buy, and an end card with your logo and the one thing to do, cut on the beat of a licensed music track. The music changes from ad to ad: 15 tracks from Mixkit (Afro, funk, house, hip-hop, pop, calm electronic), picked to suit the business and never one of the last few used. Every scene change is timed to the track's measured beat. The licence covers social media and online ads (no attribution needed); it doesn't cover TV or radio. The Producer writes the storyboard (which scenes, which words, which photo goes where, with the pictures in view) and designed templates lay it out, so text is always big enough to read on a phone and never runs off the frame. Your own photos go in first; if you give your website, the Reader also brings in the product pictures from it. Every scene is reviewed as a still before our server renders every frame. Apps and software get a UI-style reel instead: one shape morphing through the product while a cursor drives it. On the form you say what to promote, the price, how customers should respond (WhatsApp, call, visit, website or DM), the format and length, and a brand colour.
 
 Until you accept, you watch a watermarked preview; the full-quality video is emailed to you the moment you accept.
+
+### Flyers & Price Lists
+
+Choose a promo flyer, a price list or menu, or an announcement (a move, new hours, a holiday closure). The Writer drafts the words from your form only; prices, dates and contact details appear exactly as you wrote them. Designed templates lay it out in your colour with your logo and photos, and fit every line to its space. You get each design in two styles (bold on your colour, clean on white) for WhatsApp Status and an Instagram post, plus an A4 print PDF and PNG. A separate AI looks at every design for cut-off text, typos and contrast, and the words are revised once if it finds anything.
 
 ### Product Photos
 

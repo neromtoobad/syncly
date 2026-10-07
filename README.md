@@ -142,10 +142,12 @@ Real money has to flow for the CFO to manage it, so Syncly sells work small busi
 
 | Service | Price | What you get |
 |---|---|---|
+| Money Report | 2 USDC | The business's bank statement read by the CFO: every transaction labelled, totals reconciled in code to the statement's balances, where the money goes, top customers and suppliers, recurring payments, bank charges, and actions with every figure traced. Private: the statement is deleted after the report, which opens only from the customer's email link |
 | Business Website | 2 USDC | A professional site from the business's Google listing, Instagram and photos, live the same day, with an editor and integrations (Chowdeck, Paystack, bank transfer card, QR posters) |
 | Social Media Posts | 2 USDC | The content styles working in the niche this week (backed by real posts and their numbers), then 7 posts and 3 images |
 | Ad Campaign | 2 USDC | 3 ad angles from ads that have run 30+ days, feed and Story creatives, an 8 s video, copy, and a 7-day plan for the budget; diagnoses the ads they already ran |
 | Promo Video | 1 USDC | A 12–24 s full-frame promo of the products and offer, from the business's photos and website, cut on the beat of a licensed track, rendered on our own server |
+| Flyers & Price Lists | 1 USDC | A promo flyer, price list or announcement in the brand's colour, for WhatsApp Status, Instagram and A4 print, in two styles |
 | Product Photos | 2 USDC | Phone photos turned into about 8 studio, lifestyle and white-background shots, sized for where they sell |
 | Google Visibility Check | 2 USDC | Google Maps rank street by street against competitors, profile gaps, what ChatGPT, Gemini, Claude and Perplexity say, a fix list, a profile description and review replies |
 | Best Price & Seller Check | 2 USDC | The cheapest trustworthy offers, delivered, and a red/amber/green check on the sellers before paying |
