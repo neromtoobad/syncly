@@ -1271,3 +1271,9 @@ label.check input { margin-top: 3px; }
   .ww__go { margin: 0 12px 0 0; padding: 0; background: none; font-size: 0; }
   .ww__go .pill__ic { width: 32px; height: 32px; font-size: 15px; background: var(--paper-2); }
 }
+/* the hero grows with its words instead of centring them past its own edges (short laptop screens clipped the top line) */
+@media (min-width: 761px) {
+  .hx__panel { display: flex; align-items: center; height: auto; min-height: max(620px, calc(100svh - var(--nav-h) - var(--gutter))); max-height: none; }
+  .hx__copy { position: relative; left: auto; top: auto; transform: none; margin-left: clamp(22px, 4vw, 60px); padding: 56px 0 76px; }
+  .hx h1 { font-size: clamp(42px, min(6.3vw, 9.6vh), 92px); }
+}
