@@ -14,7 +14,7 @@ import { MODELS } from '../config.ts';
 import { HOSTS, llm, parseJson, webRead, type Msg } from '../tools.ts';
 import { download, ffmpeg } from '../media.ts';
 import { reelAudio, reelStills, renderReel, siteImages } from '../browser.ts';
-import { cleanStoryboard, pickMusic, preparePhoto, writePromo, FONTS, type Photo, type Storyboard } from '../promo.ts';
+import { cleanStoryboard, looksLikeCode, pickMusic, preparePhoto, writePromo, FONTS, type Photo, type Storyboard } from '../promo.ts';
 import { MUSIC_LICENSE, pickTrack, trackAudio, trackFile, trackGrid, type Track } from '../music.ts';
 import { MAIL_BUDGET_USD, MAIL_HOST } from '../mail.ts';
 import type { BusinessDetails } from '../details.ts';
@@ -195,11 +195,23 @@ async function promoScene(job: Job, o: { spec: Spec; brief: string; siteText: st
   for (const [i, id] of o.uploads.slice(0, 4).entries()) { const b = readUpload(id); if (b) { const r = await preparePhoto(b, `photo-${i + 1}`, `their own photo ${i + 1}`); photos.push(r.photo); files.push(r.file); } }
   if (spec.website && photos.length < 5) {
     job.log('reader', 'photos', `looking for product pictures on ${spec.website}`);
-    const found = await siteImages(spec.website.startsWith('http') ? spec.website : `https://${spec.website}`, 8).catch(() => []);
-    for (const [i, im] of found.slice(0, 6 - photos.length).entries()) {
-      try { const r = await preparePhoto(await download(im.src, 8), `site-${i + 1}`, im.alt ? `from their website: ${im.alt}` : 'a picture from their website'); photos.push(r.photo); files.push(r.file); } catch { /* a picture that won't download is skipped */ }
+    const found = await siteImages(spec.website.startsWith('http') ? spec.website : `https://${spec.website}`, 12).catch(() => []);
+    // product shots beat banners: try the squarer pictures first, keep the best few, cut-outs ahead
+    const order = [...found].sort((a, b) => Math.abs(Math.log(a.w / a.h)) - Math.abs(Math.log(b.w / b.h)));
+    const site: { photo: Photo; file: { name: string; buf: Buffer } }[] = [];
+    for (const im of order) {
+      if (site.length >= 8) break;
+      if (/\bqr\b|qr[-_ ]?code|app ?store|play ?store|google ?play|barcode|download the app/i.test(`${im.src} ${im.alt}`)) continue;
+      try {
+        const buf = await download(im.src, 8);
+        if (await looksLikeCode(buf).catch(() => false)) continue; // QR codes and flat black-and-white graphics
+        site.push(await preparePhoto(buf, `site-${site.length + 1}`, im.alt ? `from their website: ${im.alt}` : 'a picture from their website'));
+      } catch { /* a picture that won't download is skipped */ }
     }
-    job.log('reader', 'photos', `${photos.length} pictures to work with${found.length ? ` (${Math.min(found.length, 6)} from the site)` : ''}`);
+    site.sort((a, b) => Number(b.photo.cut) - Number(a.photo.cut));
+    const take = site.slice(0, Math.max(0, 7 - photos.length));
+    take.forEach((x, i) => { const name = x.photo.name.replace(/site-\d+/, `site-${i + 1}`); photos.push({ ...x.photo, name }); files.push({ ...x.file, name }); });
+    job.log('reader', 'photos', `${photos.length} pictures to work with: ${photos.length - take.length} you sent, ${take.length} from the site (${take.filter((x) => x.photo.cut).length} product cut-outs)`);
   }
   const thumbs = await Promise.all(files.filter((f) => photos.some((p) => p.name === f.name)).map(async (f) => ({ name: f.name, jpg: await ffmpeg({ in: f.buf }, (x, out) => ['-i', x.in, '-vf', "scale=320:-2,format=yuvj420p", '-q:v', '6', '-frames:v', '1', out], 'jpg') })));
 
@@ -218,6 +230,7 @@ Scene types (pick 5 to 7; the first is a hook, the last is the cta):
 A good storyboard, for an electronics and solar shop in Abuja that sent four photos (a TV, two inverters, a rooftop solar install) and whose site lists warranty, pay on delivery and free delivery on 3+ items:
 {"font":"bold","palette":{"accent":"#d4a017","dark":"#14120e","light":"#f6f1e6"},"scenes":[{"type":"hook","eyebrow":"EasyPower Hub · Abuja","lines":["Power up","your home"]},{"type":"product","photo":"photo-1.png","tag":"Smart TVs","title":"43\" QLED TVs, new 2025 models"},{"type":"showcase","photo":"photo-2.png","tag":"Solar & inverters","title":"Hybrid inverters","note":"Premium solar and smart home systems, installed for you."},{"type":"grid","photos":["photo-1.png","photo-2.png","photo-3.png","photo-4.jpg"],"title":"And so much more","items":["Fans","Fridges","Stabilizers","Gas burners","Irons"]},{"type":"points","title":"Why EasyPower","points":["Warranty on all products","Pay on delivery","Free delivery on 3+ items"],"photo":"photo-4.jpg"},{"type":"cta","headline":"Order today","sub":"Delivery across Abuja & Lagos"}]}
 Why it works: a short hook that names the benefit, the strongest product first and full frame, every title says what the photo shows, the range in one grid, three concrete reasons taken from the site, and a calm end card. Write yours for this business in the same spirit; don't copy its words.
+Photos: refer to them by the exact file name given (e.g. "site-2.png"). With 3 or more photos, at least 3 scenes must show one (product, showcase, grid or points with a photo): people buy what they can see.
 Rules: use ONLY facts in the brief and the site text; never invent prices, discounts, ratings, stats or testimonials. Put each photo with words that describe what is IN it (look at the pictures); never caption a photo with a product it doesn't show. Prefer product and showcase scenes for the best photos. Short, concrete, confident copy in plain English a Nigerian shopper would say. Palette: ${spec.palette || 'from the brand colours, if stated; else confident colours that suit the business'}; the accent must read well with dark text on it. Mood: ${spec.mood}.`;
   const user: Msg = { role: 'user', content: [
     { type: 'text', text: `Business: ${spec.business}\nOffer: ${spec.offer}\nSelling points: ${spec.points.join(' | ') || '(none given)'}\nPrices: ${spec.prices.join(' | ') || '(none given: show no prices)'}\nArea: ${spec.area ?? '(not stated)'}\nCall to action (the button): ${spec.cta || 'Visit us'}\nBrief: ${o.brief}${o.siteText ? `\n\nTheir site says:\n${o.siteText}` : ''}\n\nPhotos you can use (by file name):${photos.length ? photos.map((p) => `\n- ${p.name}: ${p.about}${p.cut ? ' (a cut-out product shot)' : ''}`).join('') : ' none: use hook, list, points, statement and cta scenes only'}` },
@@ -249,7 +262,8 @@ Rules: use ONLY facts in the brief and the site text; never invent prices, disco
   }
   if (look.problems.some((p) => /did not load|page error/.test(p))) throw new Error(`the scene doesn't run: ${look.problems[0]}`);
   const kinds = sb.scenes.map((x) => x.type);
-  return { file, look, track, seconds: total(), what: [`${sb.scenes.length} full-frame scenes: ${kinds.join(', ')}, cut on the beat`, track ? `Music: "${track.title}" by ${track.author}, licensed from Mixkit: free to use on social media and in online ads, not for TV or radio` : `Music: an original "${music!.label}" track in ${music!.key}, made for this ad`, `${photos.length ? `${photos.length} of your own pictures${photos.some((p) => p.name.startsWith('site-')) ? ', some from your website' : ''}` : 'type and colour only (send photos for product scenes)'}`] };
+  job.log('producer', 'scenes', sb.scenes.map((x: any) => `${x.type}${x.photo ? ` (${x.photo})` : x.photos ? ` (${x.photos.length} photos)` : ''}`).join(' → '));
+  return { file, look, track, seconds: total(), what: [`${sb.scenes.length} full-frame scenes: ${kinds.join(', ')}, cut on the beat`, track ? `Music: "${track.title}" by ${track.author}, licensed from Mixkit: free to use on social media and in online ads, not for TV or radio` : `Music: an original "${music!.label}" track in ${music!.key}, made for this ad`, (() => { const shown = new Set(sb.scenes.flatMap((x: any) => [x.photo, ...(x.photos ?? [])].filter(Boolean))); const site = [...shown].filter((n) => String(n).startsWith('site-')).length; return shown.size ? `${shown.size} pictures on screen${site ? ` (${site} from your website)` : ''}` : 'type and colour only (send photos for product scenes)'; })()] };
 }
 
 /** Score, render, package. */

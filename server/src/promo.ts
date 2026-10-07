@@ -48,6 +48,21 @@ async function isCutout(buf: Buffer): Promise<boolean> {
   return plain >= 6;
 }
 
+/** A QR code, barcode or flat black-and-white graphic rather than a picture of something: almost every pixel is
+ *  near black or near white and there's no colour. Kept out of ads. */
+export async function looksLikeCode(buf: Buffer): Promise<boolean> {
+  const raw = await ffmpeg({ in: buf }, (f, o) => ['-i', f.in, '-vf', 'scale=48:48,format=rgba', '-f', 'rawvideo', o], 'raw');
+  let bw = 0, black = 0, colour = 0, n = 0;
+  for (let i = 0; i < raw.length; i += 4) {
+    if (raw[i + 3] < 30) continue;
+    n++;
+    const r = raw[i], g = raw[i + 1], b = raw[i + 2], hi = Math.max(r, g, b), lo = Math.min(r, g, b);
+    if (hi - lo > 40) colour++;
+    if (hi < 60) { bw++; black++; } else if (lo > 200) bw++;
+  }
+  return n > 0 && bw / n > 0.8 && black / n > 0.15 && colour / n < 0.05;
+}
+
 /** Photos for the scene folder: cut-outs stay PNG (transparency), the rest become JPEGs; logos are kept small. */
 export async function preparePhoto(buf: Buffer, name: string, about: string, maxW = 1400): Promise<{ photo: Photo; file: { name: string; buf: Buffer } }> {
   const cut = await isCutout(buf).catch(() => false);
@@ -61,8 +76,14 @@ export async function preparePhoto(buf: Buffer, name: string, about: string, max
 /** Make a storyboard safe to render: known scene types, short copy, real photos, a hook first, the CTA last,
  *  every cut on a beat (0.5 s at 120 BPM) and the lengths adding up to exactly `seconds`. */
 export function cleanStoryboard(sb: Storyboard, o: { seconds: number; photos: Photo[]; cta: string; business: string; brandColour?: string; beat?: number }): Storyboard & { scenes: (Scene & { dur: number })[] } {
-  const have = new Set(o.photos.map((p) => p.name));
-  const pic = (p: unknown) => (typeof p === 'string' && have.has(p) ? p : undefined);
+  // a photo reference counts if it names a file we have, with or without the extension, in any case, or by its number
+  const stem = (x: string) => x.toLowerCase().replace(/\.(png|jpe?g|webp)$/, '').replace(/[\s_]+/g, '-');
+  const byStem = new Map(o.photos.map((p) => [stem(p.name), p.name]));
+  const pic = (p: unknown): string | undefined => {
+    if (typeof p !== 'string' || !p.trim()) return undefined;
+    const k = stem(p.trim());
+    return byStem.get(k) ?? byStem.get(k.replace(/^(photo|site|image|picture)-?(\d+)$/, (_, a, n) => `${a === 'site' ? 'site' : 'photo'}-${n}`)) ?? undefined;
+  };
   const out: Scene[] = [];
   for (const raw of (Array.isArray(sb?.scenes) ? sb.scenes : []).slice(0, 8) as any[]) {
     switch (raw?.type) {
@@ -83,6 +104,29 @@ export function cleanStoryboard(sb: Storyboard, o: { seconds: number; photos: Ph
     }
   }
   if (out[0]?.type !== 'hook') out.unshift({ type: 'hook', lines: [cap(o.business, 22)], eyebrow: undefined, tone: 'accent' });
+  // pictures sell: with photos to hand, at least three scenes (or one per photo) show them. Text-only scenes after the
+  // hook become product scenes with the best unused photos (product cut-outs first), keeping their words.
+  const used = () => new Set(out.flatMap((x: any) => [x.photo, ...(x.photos ?? [])].filter(Boolean)));
+  const wantPhotos = Math.min(3, o.photos.length);
+  const photoScenes = () => out.filter((x: any) => x.photo || x.photos?.length).length;
+  const ranked = [...o.photos].sort((a, b) => Number(b.cut) - Number(a.cut));
+  for (let i = 1; i < out.length && photoScenes() < wantPhotos; i++) {
+    const x = out[i] as any;
+    if (x.photo || x.photos || x.type === 'points' || x.type === 'price') continue;
+    const free = ranked.find((p) => !used().has(p.name));
+    if (!free) break;
+    const words = x.type === 'statement' ? x.text : x.type === 'list' ? x.title : '';
+    if (!words) continue;
+    out[i] = i % 2 ? { type: 'product', photo: free.name, title: cap(words, 34), tag: x.type === 'list' ? cap(x.items?.[0], 26) || undefined : undefined } : { type: 'showcase', photo: free.name, title: cap(words, 34), note: x.type === 'list' ? cap((x.items ?? []).join(' · '), 90) || undefined : undefined };
+  }
+  // still short (every scene was points or a price): add product scenes before the call to action
+  while (photoScenes() < wantPhotos) {
+    const free = ranked.find((p) => !used().has(p.name));
+    if (!free) break;
+    out.splice(Math.max(1, out.length), 0, { type: 'product', photo: free.name, title: cap(free.about.replace(/^(their own photo \d+|from their website: |a picture from their website)/i, '').trim() || o.business, 34) });
+  }
+  const pts = out.find((x) => x.type === 'points') as any;
+  if (pts && !pts.photo) { const free = ranked.find((p) => !p.cut && !used().has(p.name)) ?? ranked.find((p) => !used().has(p.name)); if (free) pts.photo = free.name; }
   const ctaIn = (sb?.scenes ?? []).find((x: any) => x?.type === 'cta') as any;
   out.push({ type: 'cta', headline: cap(ctaIn?.headline, 30) || undefined, action: cap(o.cta || ctaIn?.action || `Visit ${o.business}`, 46), sub: cap(ctaIn?.sub, 44) || undefined, brand: cap(o.business, 30) });
   // trim to fit: about 2.5 s a scene at least
