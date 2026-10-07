@@ -16,7 +16,7 @@ export type Details = {
   adGoal: string; adBudget: string; adPlatforms: string[]; audience: string; adResults: string[];
   product: string; uses: string[]; look: string;
   items: string; deliverTo: string; budget: string; condition: string; sellers: string;
-  flyerKind: string; statements: string[];
+  flyerKind: string; statements: string[]; research: string;
 };
 
 const KINDS: [string, string][] = [['food', 'Food & drinks'], ['beauty', 'Beauty & wellness'], ['creative', 'Photography & creative'], ['events', 'Events & weddings'], ['retail', 'Shop & products'], ['health', 'Health & clinics'], ['professional', 'Professional services'], ['other', 'Something else']];
@@ -32,7 +32,7 @@ const THEMES: { id: string; name: string; mood: string; font: string; bg: string
 ];
 const SECTIONS: [string, string][] = [['offer', 'Menu / prices'], ['gallery', 'Photo gallery'], ['reviews', 'Google reviews'], ['about', 'About us'], ['steps', 'How to order or book'], ['location', 'Map & opening hours'], ['faq', 'Questions & answers']];
 const SWATCHES = ['#C0392B', '#D4380D', '#E67E22', '#D4A017', '#2E7D32', '#0F766E', '#1D4ED8', '#6D28D9', '#BE185D', '#111827'];
-const EMPTY: Details = { name: '', kind: 'food', offer: '', area: '', city: 'Lagos', whatsapp: '', phone: '', email: '', address: '', maps: '', instagram: '', tiktok: '', facebook: '', website: '', links: '', bankName: '', bankNumber: '', bankAccountName: '', menu: '', story: '', style: 'auto', colour: '', sections: SECTIONS.map(([k]) => k), notes: '', photos: [], platforms: ['instagram', 'tiktok'], goal: '', competitors: '', tone: '', promote: '', price: '', cta: 'whatsapp', format: 'vertical', length: 16, questions: '', searches: '', adGoal: 'messages', adBudget: '', adPlatforms: ['meta'], audience: '', adResults: [], product: '', uses: ['instagram', 'whatsapp'], look: 'clean', items: '', deliverTo: '', budget: '', condition: 'new', sellers: '' , flyerKind: 'promo', statements: [] };
+const EMPTY: Details = { name: '', kind: 'food', offer: '', area: '', city: 'Lagos', whatsapp: '', phone: '', email: '', address: '', maps: '', instagram: '', tiktok: '', facebook: '', website: '', links: '', bankName: '', bankNumber: '', bankAccountName: '', menu: '', story: '', style: 'auto', colour: '', sections: SECTIONS.map(([k]) => k), notes: '', photos: [], platforms: ['instagram', 'tiktok'], goal: '', competitors: '', tone: '', promote: '', price: '', cta: 'whatsapp', format: 'vertical', length: 16, questions: '', searches: '', adGoal: 'messages', adBudget: '', adPlatforms: ['meta'], audience: '', adResults: [], product: '', uses: ['instagram', 'whatsapp'], look: 'clean', items: '', deliverTo: '', budget: '', condition: 'new', sellers: '' , flyerKind: 'promo', statements: [] , research: '' };
 const PLATFORMS: [string, string][] = [['instagram', 'Instagram'], ['tiktok', 'TikTok'], ['whatsapp-status', 'WhatsApp Status'], ['facebook', 'Facebook'], ['x', 'X'], ['linkedin', 'LinkedIn']];
 const GOALS = ['More orders this month', 'More bookings', 'More followers who buy', 'Launch a new product', 'Fill quiet weekdays'];
 const TONES = ['Warm and friendly', 'Playful, Lagos street', 'Premium and calm', 'Bold and loud', 'Expert and trustworthy'];
@@ -48,7 +48,7 @@ const FLOWS: Record<string, { id: StepId; title: string }[]> = {
   'motion-ad': [{ id: 'business', title: 'Your business' }, { id: 'ad', title: 'The ad' }],
   'ad-launch': [{ id: 'business', title: 'Your business' }, { id: 'ad', title: 'The offer' }, { id: 'plan', title: 'Budget & goal' }],
   'product-photos': [{ id: 'business', title: 'Your business' }, { id: 'shots', title: 'Your photos' }],
-  'get-found': [{ id: 'business', title: 'Your business' }, { id: 'audit', title: 'Where to look' }],
+  'get-found': [{ id: 'business', title: 'Your business' }, { id: 'audit', title: 'Your market' }],
   'buy-smart': [{ id: 'business', title: 'Your business' }, { id: 'buy', title: 'What to buy' }],
   flyers: [{ id: 'business', title: 'Your business' }, { id: 'flyer', title: 'The flyer' }],
   'money-report': [{ id: 'business', title: 'Your business' }, { id: 'statement', title: 'Your statement' }],
@@ -354,6 +354,9 @@ export default function BusinessForm({ service, onSubmit, busy, email, setEmail,
           {text('competitors', 'Businesses you compete with', 'Amala Shitta, The Place Yaba', 'Optional, up to 3, separated by commas. We compare you with them.')}
           <label className="field">Your prices <span className="hint">Optional, one per line. We check what Google and the AI assistants say about your prices against these.</span>
             <textarea style={{ minHeight: 100 }} value={d.menu} onChange={(e) => set('menu', e.target.value)} placeholder={'Jollof rice & chicken – ₦3,500\nPounded yam & egusi – ₦4,000'} />
+          </label>
+          <label className="field">What do you want to know about your market? <span className="hint">Optional. E.g. “what do other caterers in Surulere charge for a party tray?” or “is there demand for delivery in Ikeja?” The team researches it, with sources.</span>
+            <textarea style={{ minHeight: 70 }} value={d.research} onChange={(e) => set('research', e.target.value)} placeholder="What do the top salons in Wuse charge for braids?" />
           </label>
           <label className="field">A question your customers ask <span className="hint">Optional. We ask ChatGPT, Gemini, Claude and Perplexity too.</span>
             <textarea style={{ minHeight: 80 }} value={d.questions} onChange={(e) => set('questions', e.target.value)} placeholder="Do you deliver to Victoria Island?" />

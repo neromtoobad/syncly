@@ -149,10 +149,9 @@ Real money has to flow for the CFO to manage it, so Syncly sells work small busi
 | Promo Video | 1 USDC | A 12–24 s full-frame promo of the products and offer, from the business's photos and website, cut on the beat of a licensed track, rendered on our own server |
 | Flyers & Price Lists | 1 USDC | A promo flyer, price list or announcement in the brand's colour, for WhatsApp Status, Instagram and A4 print, in two styles |
 | Product Photos | 2 USDC | Phone photos turned into about 8 studio, lifestyle and white-background shots, sized for where they sell |
-| Google Visibility Check | 2 USDC | Google Maps rank street by street against competitors, profile gaps, what ChatGPT, Gemini, Claude and Perplexity say, a fix list, a profile description and review replies |
+| Market & Google Report | 2 USDC | Competitors, their prices and demand (cited research), Google Maps rank street by street against competitors, profile gaps, what ChatGPT, Gemini, Claude and Perplexity say, a fix list, a profile description and review replies |
 | Best Price & Seller Check | 2 USDC | The cheapest trustworthy offers, delivered, and a red/amber/green check on the sellers before paying |
 | Find Customers | 2 USDC | For freelancers and businesses: who buys what they sell, up to 40 of them from Google Maps with phone, WhatsApp and verified email, a first message for each, people publicly asking for it now, and a 7-day plan |
-| Market Research | 1 USDC | Competitors, market and pricing, with every claim cited |
 
 The menu comes from research into what small businesses already pay agencies and freelancers for, and what a search or a chatbot can't do: jobs that need fresh data from many paid sources at once, checking against the truth, or real production.
 

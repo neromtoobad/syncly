@@ -132,5 +132,5 @@ export const SERVICE_NAME: Record<string, string> = {
   "research-brief": "Market Research", "find-customers": "Find Customers", "money-report": "Money Report", "flyers": "Flyers & Price Lists", "local-business-finder": "Local Business Finder", "lead-list": "Lead List",
   "content-pack": "Social Media Posts", website: "Business Website", "motion-ad": "Promo Video", "video-ad": "Video Ad",
   "best-price": "Best Price Finder", "ai-answer-audit": "AI Answer Audit", "vendor-check": "Check Before You Pay",
-  "ad-launch": "Ad Campaign", "product-photos": "Product Photos", "get-found": "Google Visibility Check", "buy-smart": "Best Price & Seller Check",
+  "ad-launch": "Ad Campaign", "product-photos": "Product Photos", "get-found": "Market & Google Report", "buy-smart": "Best Price & Seller Check",
 };

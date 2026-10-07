@@ -14,7 +14,7 @@ export const SPEND: Record<string, Partial<Record<Role, number>>> = {
   website: { researcher: 0.01, scout: 0.01, reader: 0.1, analyst: 0.03, illustrator: 0.5, auditor: 0.35 },
   'motion-ad': { researcher: 0.01, reader: 0.003, producer: 0.6, auditor: 0.05 },
   'buy-smart': { researcher: 0.03, scout: 0.06, reader: 0.03, analyst: 0.4, investigator: 0.48, writer: 0.06, auditor: 0.04 },
-  'get-found': { researcher: 1.25, investigator: 1.25, scout: 0.33, analyst: 0.2, auditor: 0.08, writer: 0.06, reader: 0.03 },
+  'get-found': { researcher: 1.28, investigator: 1.25, scout: 0.35, analyst: 0.2, auditor: 0.09, writer: 0.08, reader: 0.04 },
   'product-photos': { analyst: 0.06, illustrator: 0.92, auditor: 0.15 },
   'ad-launch': { researcher: 0.01, scout: 0.2, analyst: 0.1, writer: 0.02, illustrator: 0.35, producer: 1.4, auditor: 0.1 },
   'video-ad': { researcher: 0.01, scout: 0.1, illustrator: 0.2, producer: 1.4, writer: 0.01, auditor: 0.03 },

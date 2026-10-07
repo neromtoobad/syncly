@@ -7,7 +7,7 @@ import { DEP } from './escrow.ts';
 import { decisions } from './cfo/log.ts';
 import { publicBrief } from './orders.ts';
 
-const NAME: Record<string, string> = { website: 'Business Website', 'content-pack': 'Social Media Posts', 'motion-ad': 'Promo Video', 'ad-launch': 'Ad Campaign', 'product-photos': 'Product Photos', 'get-found': 'Google Visibility Check', 'buy-smart': 'Best Price & Seller Check', 'video-ad': 'Video Ad', 'ai-answer-audit': 'AI Answer Audit', 'best-price': 'Best Price Finder', 'vendor-check': 'Check Before You Pay', 'research-brief': 'Market Research', 'find-customers': 'Find Customers', 'money-report': 'Money Report', 'flyers': 'Flyers & Price Lists', 'local-business-finder': 'Local Business Finder', 'lead-list': 'Lead List' };
+const NAME: Record<string, string> = { website: 'Business Website', 'content-pack': 'Social Media Posts', 'motion-ad': 'Promo Video', 'ad-launch': 'Ad Campaign', 'product-photos': 'Product Photos', 'get-found': 'Market & Google Report', 'buy-smart': 'Best Price & Seller Check', 'video-ad': 'Video Ad', 'ai-answer-audit': 'AI Answer Audit', 'best-price': 'Best Price Finder', 'vendor-check': 'Check Before You Pay', 'research-brief': 'Market Research', 'find-customers': 'Find Customers', 'money-report': 'Money Report', 'flyers': 'Flyers & Price Lists', 'local-business-finder': 'Local Business Finder', 'lead-list': 'Lead List' };
 const tx = (h?: string) => (h ? `[${h.slice(0, 10)}…](https://explorer.arc.io/tx/${h})` : '');
 const addr = (a: string) => `[\`${a}\`](https://explorer.arc.io/address/${a})`;
 const cell = (s: string) => s.replace(/\|/g, '/').replace(/\n/g, ' ');

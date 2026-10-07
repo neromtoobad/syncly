@@ -48,6 +48,7 @@ export type BusinessDetails = {
   // for Get Found
   questions?: string; // a question customers ask, put to the AI assistants
   searches?: string; // what customers type to find a business like this
+  research?: string; // what the owner wants to know about their market (Market & Google Report)
   // for Ad Launch
   adGoal?: (typeof AD_GOALS)[number];
   adBudget?: string; // e.g. "₦5,000 a day"
@@ -88,7 +89,7 @@ const RELEVANT: Record<string, (keyof BusinessDetails)[]> = {
   'motion-ad': ['promote', 'price', 'cta', 'whatsapp', 'phone', 'instagram', 'website', 'address', 'format', 'length', 'colour', 'notes', 'logo', 'photos'],
   'video-ad': ['promote', 'price', 'cta', 'whatsapp', 'phone', 'instagram', 'website', 'address', 'colour', 'notes', 'logo', 'photos'],
   'ai-answer-audit': ['website', 'instagram', 'maps', 'menu', 'questions'],
-  'get-found': ['website', 'instagram', 'maps', 'menu', 'questions', 'searches', 'whatsapp', 'phone', 'address', 'competitors'],
+  'get-found': ['website', 'instagram', 'maps', 'menu', 'questions', 'searches', 'whatsapp', 'phone', 'address', 'competitors', 'research'],
   'ad-launch': ['promote', 'price', 'cta', 'whatsapp', 'phone', 'instagram', 'website', 'address', 'colour', 'notes', 'logo', 'photos', 'competitors', 'adGoal', 'adBudget', 'adPlatforms', 'audience', 'adResults'],
   'product-photos': ['product', 'uses', 'look', 'colour', 'notes', 'logo', 'photos'],
   'buy-smart': ['items', 'deliverTo', 'budget', 'condition', 'sellers', 'notes'],
@@ -130,7 +131,7 @@ export function cleanDetails(raw: any, service = 'website'): BusinessDetails {
     cta: ['whatsapp', 'call', 'visit', 'website', 'dm'].includes(raw?.cta) ? raw.cta : undefined,
     format: ['vertical', 'square', 'landscape'].includes(raw?.format) ? raw.format : undefined,
     length: [12, 16, 20, 24].includes(Number(raw?.length)) ? Number(raw.length) : undefined,
-    questions: multiline(raw?.questions, 600), searches: s(raw?.searches, 200),
+    questions: multiline(raw?.questions, 600), searches: s(raw?.searches, 200), research: multiline(raw?.research, 500),
     adGoal: (AD_GOALS as readonly string[]).includes(raw?.adGoal) ? raw.adGoal : undefined,
     adBudget: s(raw?.adBudget, 60), audience: s(raw?.audience, 200),
     adPlatforms: Array.isArray(raw?.adPlatforms) ? raw.adPlatforms.filter((x: unknown) => x === 'meta' || x === 'tiktok') : undefined,
@@ -175,7 +176,7 @@ export function cleanDetails(raw: any, service = 'website'): BusinessDetails {
 /** The details as a readable brief: shown on the quote and the order, and hashed into the escrow terms. */
 export function detailsBrief(d: BusinessDetails, service: string): string {
   if (service === 'money-report') return `A money report for ${d.name} (${d.offer}) from ${d.statements?.length ?? 0} statement file${d.statements?.length === 1 ? '' : 's'}.${d.notes ? `\nWhat they want to know: ${d.notes}` : ''}`;
-  const what = ({ flyers: d.flyerKind === 'pricelist' ? 'A price list for' : d.flyerKind === 'announcement' ? 'An announcement flyer for' : 'A promo flyer for', website: 'A website for', 'content-pack': 'A content pack for', 'motion-ad': 'A motion ad for', 'video-ad': 'A video ad for', 'ai-answer-audit': 'An AI answer audit for', 'get-found': 'A Google and AI visibility check for', 'ad-launch': 'An ad campaign for', 'product-photos': 'Product photos for', 'buy-smart': 'Buying for' } as Record<string, string>)[service] ?? 'For';
+  const what = ({ flyers: d.flyerKind === 'pricelist' ? 'A price list for' : d.flyerKind === 'announcement' ? 'An announcement flyer for' : 'A promo flyer for', website: 'A website for', 'content-pack': 'A content pack for', 'motion-ad': 'A motion ad for', 'video-ad': 'A video ad for', 'ai-answer-audit': 'An AI answer audit for', 'get-found': 'A market and Google report for', 'ad-launch': 'An ad campaign for', 'product-photos': 'Product photos for', 'buy-smart': 'Buying for' } as Record<string, string>)[service] ?? 'For';
   const GOAL: Record<string, string> = { messages: 'more WhatsApp or DM messages', sales: 'more sales on the website', calls: 'more phone calls', visits: 'more people visiting the shop', followers: 'more followers' };
   const ctaText = d.cta ? ({ whatsapp: `Order on WhatsApp ${d.whatsapp ?? d.phone ?? ''}`, call: `Call ${d.phone ?? d.whatsapp ?? ''}`, visit: `Visit us${d.address ? ` at ${d.address}` : ''}`, website: `Order at ${d.website ?? ''}`, dm: `DM us on Instagram @${d.instagram ?? ''}` } as const)[d.cta].trim() : undefined;
   const lines = [
@@ -184,7 +185,7 @@ export function detailsBrief(d: BusinessDetails, service: string): string {
     d.format && `Format: ${d.format}${d.length ? `, ${d.length} seconds` : ''}`,
     d.platforms?.length && service === 'content-pack' && `Platforms: ${d.platforms.join(', ')}`, d.goal && `Goal: ${d.goal}`, d.tone && `Tone: ${d.tone}`,
     d.competitors?.length && `Competitors: ${d.competitors.map((c) => (service === 'get-found' ? c : `@${c}`)).join(', ')}`,
-    d.questions && `Questions customers ask:\n${d.questions}`, d.searches && `Customers search for: ${d.searches}`,
+    d.questions && `Questions customers ask:\n${d.questions}`, d.searches && `Customers search for: ${d.searches}`, d.research && `Wants to know about the market: ${d.research}`,
     d.adGoal && `Ad goal: ${GOAL[d.adGoal]}`, d.adBudget && `Ad budget: ${d.adBudget}`, d.adPlatforms?.length && service === 'ad-launch' && `Run on: ${d.adPlatforms.map((p) => (p === 'meta' ? 'Instagram and Facebook' : 'TikTok')).join(', ')}`,
     d.audience && `Who buys: ${d.audience}`, d.adResults?.length && `Current ad results: ${d.adResults.length} screenshot${d.adResults.length === 1 ? '' : 's'}`,
     d.product && `Product: ${d.product}`, d.uses?.length && service === 'product-photos' && `For: ${d.uses.map((u) => ({ whatsapp: 'WhatsApp catalogue and Status', marketplace: 'Jumia, Jiji and Konga listings' } as Record<string, string>)[u] ?? u).join(', ')}`, d.look && `Look: ${d.look}`,

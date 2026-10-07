@@ -16,10 +16,9 @@ Syncly does the jobs a small business would otherwise pay an agency or a freelan
 | **Promo Video** | 1 USDC | ~4 min | A 12–24 s video of your products and offer for Reels, TikTok and Status, with licensed music |
 | **Flyers & Price Lists** | 1 USDC | ~3 min | A promo flyer, price list, menu or announcement in your colours, for WhatsApp Status, Instagram and A4 print |
 | **Product Photos** | 2 USDC | ~3 min | Your phone photos turned into studio, lifestyle and white-background shots, sized for where you sell |
-| **Google Visibility Check** | 2 USDC | ~4 min | Where you rank on Google Maps street by street, what ChatGPT and Gemini say about you, and the fixes |
+| **Market & Google Report** | 2 USDC | ~5 min | Where you rank on Google Maps street by street, your competitors and what they charge, what ChatGPT says about you, and the fixes |
 | **Best Price & Seller Check** | 2 USDC | ~3 min | The cheapest trustworthy offers for what you need, and a risk check on the sellers before you pay |
 | **Find Customers** | 2 USDC | ~4 min | Who buys what you sell, up to 40 of them with contacts, a first message for each, and people asking for it right now |
-| **Market Research** | 1 USDC | ~2 min | Your competitors, your market and what to charge, with every fact sourced |
 
 Quick jobs cost 1 USDC (about ₦1,330) and bigger ones 2 USDC (about ₦2,660). You pay into an escrow on Arc. The money only leaves when you accept the work; reject it and you get it back, plus a bond. See [Escrow payments](/docs/escrow).
 
@@ -63,9 +62,11 @@ Upload one to three phone photos of a product. The Analyst first writes down exa
 
 ## Being found
 
-### Google Visibility Check
+### Market & Google Report
 
 Customers find a business in two places now: Google Maps and AI assistants. The Scout searches Google Maps for what your customers type, from a grid of points around you, so you see where you rank street by street and who beats you. The team compares you with the top three on rating, reviews and listing details, and checks your Google profile for gaps. Then it asks ChatGPT, Gemini, Claude and Perplexity the questions a customer would ask, with web search on, and checks every answer against your listing and your website. A fact only counts as wrong when two AI models from different companies agree, and every quote is copied word for word. You get one fix list, a rewritten Google profile description, and draft replies to your recent reviews. It replaces the AI Answer Audit, which is now part of it.
+
+It also researches **your market**: the main competitors in your area and what they charge, what customers there look for and pay, demand and trends, and how you can win, plus anything you ask about on the form. Every claim is cited to a source you can open, and an independent model on a different AI family checks each one. (This was Market Research; it's now part of this report.)
 
 ## Buying
 
@@ -81,13 +82,9 @@ Ordered in a sentence, no form needed.
 
 For freelancers and businesses that want more clients: *"I'm a freelance graphic designer in Abuja. I do logos, flyers and brand kits."* If you don't say who to target, the Analyst works out the 2–3 kinds of businesses most likely to pay for what you sell, and the sign that each one needs it now (no website, new with few reviews, or established with a budget). The Scout finds them on Google Maps (the open web if Maps is down), and fixed rules put the ones showing the sign first. The Reader looks for a published email on their own sites and the Investigator checks each address can receive mail; Nigerian numbers get a WhatsApp link. The Scout also searches for people publicly asking for what you offer right now. The Writer drafts a first message for every business from its real details, plus where to find more of them, a 7-day plan and a pitch. **You send the messages; Syncly never contacts anyone for you.** It replaces Local Business Finder and Lead List.
 
-### Market Research
-
-For *"is there demand for solar inverter rentals in Ibadan?"*. The Researcher plans the questions, the Scout and Reader gather sources, the Writer drafts, and the Auditor, running a different model family, checks every claim against its citation.
-
 ## Folded into other services
 
-Video Ad is now part of Ad Campaign, the AI Answer Audit is part of the Google Visibility Check, Best Price Finder and Check Before You Pay are now the Best Price & Seller Check, and Local Business Finder and Lead List are now Find Customers. Older names you may see on past jobs: Website (Business Website), Content Pack (Social Media Posts), Ad Launch (Ad Campaign), Motion Ad (Promo Video), Product Photo Studio (Product Photos), Get Found (Google Visibility Check), Buy Smart (Best Price & Seller Check), Research Brief (Market Research).
+Video Ad is now part of Ad Campaign, the AI Answer Audit and Market Research are part of the Market & Google Report, Best Price Finder and Check Before You Pay are now the Best Price & Seller Check, and Local Business Finder and Lead List are now Find Customers. Older names you may see on past jobs: Website (Business Website), Content Pack (Social Media Posts), Ad Launch (Ad Campaign), Motion Ad (Promo Video), Product Photo Studio (Product Photos), Get Found and Google Visibility Check (Market & Google Report), Buy Smart (Best Price & Seller Check), Research Brief and Market Research (Market & Google Report).
 
 ## Limits on every job
 

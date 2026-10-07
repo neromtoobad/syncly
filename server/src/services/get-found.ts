@@ -19,6 +19,7 @@ import { HOSTS, llm, parseJson } from '../tools.ts';
 import { AISA, ortho } from '../sellers.ts';
 import { SpendRefused } from '../x402.ts';
 import { htmlToPng } from '../browser.ts';
+import { researchInto } from './research-brief.ts';
 import { MAIL_BUDGET_USD, MAIL_HOST } from '../mail.ts';
 import type { BusinessDetails } from '../details.ts';
 import { e164 } from '../site/facts.ts';
@@ -496,11 +497,11 @@ function profileGaps(spec: Spec, truth: Truth, d: BusinessDetails | undefined, t
 
 export const getFound = {
   id: 'get-found',
-  name: 'Get Found',
+  name: 'Market & Google Report',
   priceUsd: 2,
   // 20-24 AI answers at 0.10 (cap 0.15) + Business Profile 0.10 + LLM Mentions 0.10 + 19 Maps searches at 0.006
   // + 2 review pages at 0.002 + site read + ~14 LLM calls ≈ 3.1; the cap stays under 4.50 of tools per job.
-  policy: { budgetUsd: 4.5 + MAIL_BUDGET_USD, allowHosts: [HOSTS.blockrun, HOSTS.blockrunArc, HOSTS.orthogonal, HOSTS.apex, HOSTS.exa, AISA, ...(MAIL_HOST ? [MAIL_HOST] : [])] },
+  policy: { budgetUsd: 5.1 + MAIL_BUDGET_USD, allowHosts: [HOSTS.blockrun, HOSTS.blockrunArc, HOSTS.orthogonal, HOSTS.apex, HOSTS.exa, AISA, ...(MAIL_HOST ? [MAIL_HOST] : [])] },
 
   async run(brief: string, opts: { orderId?: string; details?: BusinessDetails } = {}): Promise<Job> {
     const job = new Job(this.id, brief, this.policy, opts.orderId);
@@ -526,6 +527,10 @@ export const getFound = {
       // 2. Two lanes at once: the AI audit, and Maps → reviews → texts to paste. The audit starts first so its
       // one Scout call (LLM Mentions) is queued ahead of the grid's 18.
       const aiRun = auditAnswers(job, spec, truth, d, { kinds: KINDS });
+      // A third lane: the market itself (competitors, prices, demand), researched and cited (was Market Research).
+      // It never fails the report: if it can't finish, the report says so and the rest stands.
+      const marketBrief = `Market research for ${spec.name}, ${d?.offer ?? spec.category} in ${[spec.area, spec.city].filter(Boolean).join(', ')}. Cover: the main competitors in that area and what they charge, what customers there look for and pay, demand and trends, and how this business can win.${d?.competitors?.length ? ` Competitors the owner named: ${d.competitors.join(', ')}.` : ''}${d?.research ? ` The owner's own question: ${d.research}` : ''}`;
+      const marketRun = researchInto(job, marketBrief).catch((e) => { job.log('researcher', 'skip', `the market research didn't finish (${errMsg(e).slice(0, 60)})`); return null; });
       const mapsRun = (async () => {
         const center = truth.lat !== undefined && truth.lng !== undefined ? { lat: truth.lat, lng: truth.lng } : undefined;
         const grid = await runGrid(job, spec, searches, center, isUs);
@@ -621,7 +626,7 @@ export const getFound = {
 
       // 6. The report
       const top3All = grid.reduce((s, x) => s + stats(x).top3, 0);
-      const L: string[] = [`# Can customers find ${spec.name}?`, '', `${spec.name} · ${spec.category} · ${where} · checked ${today()}`, '',
+      const L: string[] = [`# ${spec.name}: market & Google report`, '', `${spec.name} · ${spec.category} · ${where} · checked ${today()}`, '',
         `**Google Maps: ${total ? `top 3 at ${top3All} of ${total} searches` : 'no searches came back'} · Google profile: ${nOf(gapCount, 'thing')} to fix · AI assistants: named in ${r.named.length} of ${r.disc.length} recommendation answers, ${nOf(r.wrong.length, 'wrong fact')}**`, '', summary, ''];
 
       L.push('## 1. Where you show on Google Maps', '');
@@ -691,6 +696,10 @@ export const getFound = {
       L.push('## 6. What to fix, most urgent first', '', ...(fixes.length ? fixes.slice(0, 10).map((f, i) => `${i + 1}. ${f.text}`) : ['Nothing urgent: you show up well and the assistants got your facts right. Re-check in a month; both change.']), '');
       if (fixes.length > 10) L.push(`${many(fixes.length - 10, 'smaller fix', 'smaller fixes')} not shown: ${fixes.slice(10).map((f) => f.text.match(/^\*\*(.+?)\*\*/)?.[1] ?? '').filter(Boolean).join(' ')}`, '');
 
+      const market = await marketRun;
+      L.push('## 7. Your market', '', ...(market
+        ? [market.markdown.replace(/^#\s+[^\n]*\n+/, '').replace(/^(#{1,4})\s/gm, (_, h: string) => `${h}#${h.length === 1 ? '#' : ''} `), '', `*Every claim is cited to a source you can open, and an independent model (${MODELS.auditor}) checked each one against its source${market.qa.verdict === 'revise' ? '; it found issues and the section was revised once' : ''}.*`]
+        : ['The market research could not be finished this time. The rest of the report stands; ask for a revision to get this section.']), '');
       L.push(...r.md.detail('##'), ...r.md.record('##'));
       L.push('## How this was done', '',
         `- **Google Maps:** ${searches.length} search${searches.length === 1 ? '' : 'es'} (${searches.map((q) => `“${q}”`).join(', ')}${d?.searches ? ', as you gave them' : ', from your category, area and what customers look for'}) ${pinned ? `from 9 spots ${STEP_KM} km apart around your listing's map pin` : 'once each for your area, because we had no map pin for your listing'}, through Serper's Google Maps results on ${today()}. Your listing was matched by its Google ID${truth.cid ? '' : ' (we had none, so by its name and website)'}; a similar name is never counted as you.${failedCells ? ` ${failedCells} search${failedCells === 1 ? '' : 'es'} failed and show as “?”.` : ''} Results also depend on time, device and the customer's own history: this is a snapshot.`,

@@ -94,9 +94,9 @@ export const CATALOG = [
     example: 'Product photos of Adunni Naturals’ 250 g whipped shea body butter jar for Instagram, WhatsApp and Jumia, clean look',
   },
   {
-    id: 'get-found', name: 'Google Visibility Check', dept: 'Marketing', live: true, priceUsd: 2, listedCostUsd: 3.0, etaMin: 4,
-    tagline: 'See where you rank on Google Maps and what ChatGPT says about you, who shows up instead, and what to fix first.',
-    youGet: ['Your Google Maps position from 9 spots around your shop, for 2 searches customers really type, as a coloured map', 'You next to the 3 businesses that show above you most: rating, reviews, category, website, hours', 'Your Google profile checked line by line, with a new description and replies to your recent reviews, ready to paste', 'What ChatGPT, Gemini, Claude and Perplexity tell customers about you, every wrong fact quoted word for word', 'One fix list, most urgent first, checked by an independent auditor on a different AI model'],
+    id: 'get-found', name: 'Market & Google Report', dept: 'Sales & Research', live: true, priceUsd: 2, listedCostUsd: 3.3, etaMin: 5,
+    tagline: 'Where you rank on Google Maps and in ChatGPT, who shows up instead, your competitors and what they charge, and what to fix first.',
+    youGet: ['Your Google Maps position from 9 spots around your shop, for the searches customers really type, as a coloured map', 'You next to the businesses that show above you: rating, reviews, website, hours', 'Your market: competitors, their prices, what customers want and how you can win, every claim cited to a source', 'What ChatGPT, Gemini, Claude and Perplexity tell customers about you, every wrong fact quoted, and your Google profile checked line by line', 'One fix list, most urgent first, a new profile description and review replies to paste, checked by an independent AI'],
     team: ['researcher', 'scout', 'reader', 'investigator', 'analyst', 'writer', 'auditor', 'messenger'],
     example: 'Mama Put Kitchen, a restaurant in Yaba, Lagos. Website mamaputkitchen.ng. Customers search "jollof rice yaba"',
   },
@@ -114,17 +114,17 @@ export const CATALOG = [
     team: ['researcher', 'analyst', 'scout', 'reader', 'investigator', 'writer', 'auditor', 'messenger'],
     example: 'I\'m a freelance graphic designer in Abuja. I do logos, flyers and brand kits',
   },
+] as const;
+
+/** Services we no longer offer. Their past jobs still show on the job pages and in the books. */
+export const RETIRED = [
   {
-    id: 'research-brief', name: 'Market Research', dept: 'Sales & Research', live: true, priceUsd: 1, listedCostUsd: 0.3, etaMin: 2,
+    id: 'research-brief', name: 'Market Research', dept: 'Sales & Research', live: false, priceUsd: 1, listedCostUsd: 0.3, etaMin: 2,
     tagline: 'Your competitors, your market and what to charge, in a short report with every fact sourced.',
     youGet: ['A 600–900 word brief with a 3-point summary', 'Every factual claim cited to a source you can open', 'Concrete recommendations', 'Checked by an independent auditor on a different AI model', 'Emailed to you when it is done'],
     team: ['researcher', 'scout', 'reader', 'auditor', 'writer', 'messenger'],
     example: 'Competitors and pricing for a small bakery in Lekki, Lagos that wants to add cake delivery',
   },
-] as const;
-
-/** Services we no longer offer. Their past jobs still show on the job pages and in the books. */
-export const RETIRED = [
   {
     id: 'local-business-finder', name: 'Local Business Finder', dept: 'Research', live: false, priceUsd: 1, listedCostUsd: 0.2, etaMin: 2,
     tagline: 'Every business of a type in an area, with phone, website and rating.',
