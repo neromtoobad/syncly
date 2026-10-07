@@ -18,13 +18,13 @@ import { CATALOG, findService } from './services/index.ts';
 import { cleanDetails, detailsBrief, type BusinessDetails } from './details.ts';
 import { MAX_BYTES, allowUpload, readUpload, saveUpload } from './uploads.ts';
 import { addPhoto, applyPatch, editorView, previewHtml, publishPatch, sourceBySlug, sourceByToken, undoLast, type SiteSource } from './site/edit.ts';
-import { PREVIEW, SITE_GONE, SITE_RIBBON, jobDir, previewFile, released, withdrawn } from './release.ts';
+import { PREVIEW, SITE_GONE, SITE_RIBBON, jobDir, previewFile, released, teaser, withdrawn } from './release.ts';
 import { allowStatement, saveStatement, sweepStatements } from './statements.ts';
 import { LINKS, chowdeckHours, readChowdeck, samePhone } from './site/links.ts';
 import { FORMATS, countScan, posterHtml, posterTargets, scanStats, type PosterOpts } from './site/poster.ts';
 import { renderPoster } from './browser.ts';
 import { nairaDecide, nairaFollowUp, nairaQuote, nairaStatus, onBachsEvent, startNaira, verifyBachs } from './naira.ts';
-import { autoAcceptDue, createQuote, decide, isCustomer, NOT_CUSTOMER, publicBrief, sameSecret, redoOnTheHouse, escrowPending, getOrder, noteForRevision, openEscrow, readJob, replay, resumeInterrupted, retry, start, syncEscrow } from './orders.ts';
+import { autoAcceptDue, createQuote, decide, isCustomer, NOT_CUSTOMER, publicBrief, sameSecret, redoOnTheHouse, escrowPending, getOrder, noteForRevision, openEscrow, readJob, replay, resumeInterrupted, retry, start, syncEscrow, type Order } from './orders.ts';
 import { escrowConfig, refreshBondFree } from './escrow.ts';
 import { MODE as CFO_MODE, POLICY as CFO_POLICY, freshSnapshot, reclaimSurplus, startTreasury, teamShortfall, tick as cfoTick } from './cfo/treasury.ts';
 import { decisions as cfoDecisions, verifyLog } from './cfo/log.ts';
@@ -186,14 +186,21 @@ app.get('/api/uploads/:id', (c) => {
 const keyOf = (c: any): string | undefined => c?.req.header('x-order-key') || c?.req.query('k') || undefined;
 const unlocked = (o: { privateKey?: string }, c?: any) => !o.privateKey || (!!c && (isOwner(c) || sameSecret(keyOf(c), o.privateKey)));
 
+/** Who gets the finished work in full (the text and the original files): the owner, or the customer once it's
+ *  theirs (accepted, or a free job), with their order key. Everyone else, and the customer before they accept, gets
+ *  the preview: a teaser of the text and watermarked media. Orders from before keys existed keep the old rule. */
+const full = (o: Order, c?: any) => (!!c && isOwner(c)) || (released(o) && (!o.customerKey || sameSecret(keyOf(c), o.customerKey)));
+const WHAT: Record<string, string> = { 'money-report': 'report', 'get-found': 'report', 'buy-smart': 'report', 'find-customers': 'list', 'ad-launch': 'campaign plan' };
+
 /** The public shape of an order: runs expanded, email masked, live job progress attached. A private order without
  *  its key shows only its progress: no brief, details, step notes, findings or files. */
 function view(id: string, c?: any) {
   const o = getOrder(id)!;
-  const runs = o.runs.map((r) => readJob(r)).filter(Boolean);
+  const open = full(o, c);
+  const runs = o.runs.map((r) => readJob(r)).filter(Boolean).map((r: any) => (open ? r : { ...r, deliverable: teaser(r.deliverable ?? '', WHAT[o.service] ?? 'work') }));
   const mask = (e: string) => e.replace(/^(.).*(@.*)$/, '$1•••$2');
   const details = o.details && (o.details as any).email && !(c && isOwner(c)) ? { ...o.details, email: mask(String((o.details as any).email)) } : o.details;
-  const base = { ...o, privateKey: undefined, customerKey: undefined, keyed: !!o.customerKey, details, email: mask(o.email), runs, live: liveJobs.get(o.id) ?? null, team: [...(findService(o.service)?.team ?? [])], released: released(o), withdrawn: withdrawn(o), private: !!o.privateKey, unlocked: unlocked(o, c) };
+  const base = { ...o, privateKey: undefined, customerKey: undefined, keyed: !!o.customerKey, details, email: mask(o.email), runs, live: liveJobs.get(o.id) ?? null, team: [...(findService(o.service)?.team ?? [])], released: open, withdrawn: withdrawn(o), private: !!o.privateKey, unlocked: unlocked(o, c) };
   if (unlocked(o, c)) return base;
   const quiet = (st: any[] = []) => st.map((x) => ({ ...x, note: '' }));
   return {
@@ -335,11 +342,15 @@ app.get('/api/orders/:id/files/:name', async (c) => {
   // Until the customer accepts, a paid job's media is served as watermarked previews and nothing else downloads.
   let f: string | undefined;
   if (name.startsWith(PREVIEW)) {
+    // A preview plays on the job page and nowhere else: browsers say where a request is for, and a preview only
+    // answers a video, picture or audio element (not a download, a new tab or the player's save menu).
+    const dest = c.req.header('sec-fetch-dest');
+    if (dest && !['video', 'audio', 'image'].includes(dest)) return c.text('Previews play on the job page. The file is yours to download once you accept the work.', 403);
     const base = name.slice(PREVIEW.length), dir = jobDir(o);
     const orig = dir && readdirSync(dir).find((x) => x === base || x.replace(/\.(png|jpe?g|webp)$/i, '.jpg') === base);
     try { f = orig ? await previewFile(o, orig) : undefined; } catch (e: any) { console.error(`preview ${o.id}/${base}: ${e?.message ?? e}`); return c.text('The preview is not ready. Try again in a minute.', 503); }
   } else {
-    if (!released(o) && !isOwner(c) && name !== 'deliverable.md') return c.text(withdrawn(o) ? 'This work was not kept, so its files are gone.' : 'Preview only: the full-quality file unlocks when you accept the work.', 403);
+    if (!full(o, c)) return c.text(withdrawn(o) ? 'This work was not kept, so its files are gone.' : released(o) ? "These files belong to the customer who ordered them: open the job from the link in your Syncly email." : 'Preview only: the full-quality file unlocks when you accept the work.', 403);
     const dir = jobDir(o);
     f = dir && join(dir, name);
   }
@@ -348,7 +359,7 @@ app.get('/api/orders/:id/files/:name', async (c) => {
   const media = MEDIA[ext];
   c.header('content-type', media ?? (ext === 'csv' ? 'text/csv' : 'text/markdown'));
   // Pictures and video open in the browser; data files download.
-  c.header('content-disposition', `${media && ext !== 'pdf' && c.req.query('download') === undefined ? 'inline' : 'attachment'}; filename="${o.id}-${name}"`); // a PDF can't open inside the sandbox
+  c.header('content-disposition', `${media && ext !== 'pdf' && (c.req.query('download') === undefined || name.startsWith(PREVIEW)) ? 'inline' : 'attachment'}; filename="${o.id}-${name}"`); // a PDF can't open inside the sandbox
   if (media) c.header('cache-control', name.startsWith(PREVIEW) ? 'private, max-age=600' : 'private, max-age=86400');
   // Generated files never run as our site: no scripts, no same-origin access.
   c.header('content-security-policy', "sandbox; default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'");

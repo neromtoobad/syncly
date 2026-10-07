@@ -390,9 +390,9 @@ export default function Job({ id }: { id: string }) {
         <>
           <section className="card pad stage">
             <div className="dochead">
-              <h3>{locked ? 'Your preview' : 'Your work'}</h3>
+              <h3>{locked ? (o.status === 'accepted' ? 'Preview' : 'Your preview') : 'Your work'}</h3>
               <div className="btns">
-                {locked ? <span className="lockchip big">Full quality unlocks when you accept</span> : (
+                {locked ? <span className="lockchip big">{o.status === 'accepted' ? 'The full work is the customer’s' : 'The full work unlocks when you accept'}</span> : (
                   <>
                     {docFiles.map((f) => <a key={f} className="btn secondary sm" href={withK(`/api/orders/${o.id}/files/${f}${isMedia(f) ? '?download' : ''}`)}>↓ {f}</a>)}
                     <a className="btn secondary sm" href={withK(`/api/orders/${o.id}/files/deliverable.md`)}>↓ .md</a>

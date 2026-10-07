@@ -16,6 +16,29 @@ export const released = (o: Order) => o.status === 'accepted' || o.payment?.mode
 /** Rejected, or refunded at the deadline: the work goes back with the money. */
 export const withdrawn = (o: Order) => o.status === 'rejected' || (o.status === 'failed' && !!o.refund);
 
+/** What a written deliverable shows before it's accepted: the title, an opening line, the list of sections and the
+ *  size of it, plus the link to a site the team built (which wears its own preview ribbon). Enough to judge that the
+ *  work is there and ask for changes; not enough to use it without paying. */
+export function teaser(md: string, what = 'work'): string {
+  if (!md.trim()) return md;
+  const lines = md.split('\n');
+  const title = lines.find((l) => /^#\s/.test(l));
+  const firstSection = lines.findIndex((l) => /^##\s/.test(l));
+  const intro = (firstSection < 0 ? lines : lines.slice(0, firstSection)).filter((l) => l.trim() && !/^#/.test(l) && !/^[|>\-*!]/.test(l.trim())).join(' ').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/\s+/g, ' ').trim();
+  const cut = intro.length > 220 ? `${intro.slice(0, 220).replace(/\s+\S*$/, '')}…` : intro;
+  const heads = lines.filter((l) => /^#{2,3}\s/.test(l)).map((l) => l.replace(/^#+\s+/, '').replace(/[*_`]/g, '').trim()).filter(Boolean).slice(0, 14);
+  const words = md.replace(/[#|*_>`-]/g, ' ').split(/\s+/).filter(Boolean).length;
+  const tables = (md.match(/^\|.*\|\s*$\n^\|[\s:|-]+\|\s*$/gm) ?? []).length;
+  const site = md.match(/\[[^\]]*\]\((?:https?:\/\/[^)\s]+)?\/s\/[a-z0-9-]+\)/)?.[0];
+  return [
+    title ?? '',
+    cut,
+    site ? `Your site, live as a preview: ${site}` : '',
+    heads.length ? `**What's inside** (about ${Math.round(words / 50) * 50 || words} words${tables ? `, ${tables} table${tables === 1 ? '' : 's'}` : ''}):\n\n${heads.map((h) => `- ${h}`).join('\n')}` : '',
+    `> This is a preview. The full ${what} opens the moment you accept it. Want changes first? Ask for your free revision: the team works from the full version.`,
+  ].filter(Boolean).join('\n\n');
+}
+
 export const PREVIEW = 'preview-';
 const VIDEO = /\.(mp4|webm)$/i, IMAGE = /\.(png|jpe?g|webp)$/i;
 export const previewable = (name: string) => VIDEO.test(name) || IMAGE.test(name);

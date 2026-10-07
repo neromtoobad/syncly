@@ -14,6 +14,7 @@ import { buy } from './x402.ts';
 import type { Job } from './job.ts';
 import type { Order } from './orders.ts';
 import { editLinkFor } from './site/edit.ts';
+import { teaser } from './release.ts';
 
 const PRESETS = {
   aisa: { vendor: 'AgentMail (AIsa)', base: 'https://api.aisa.one/apis/v2/agentmail', inboxUsd: 0.1, sendUsd: 0.1 },
@@ -73,33 +74,35 @@ export function compose(job: Pick<Job, 'deliverable' | 'files'>, o: Order) {
   const edit = o.service === 'website' ? editLinkFor(o.id, PUBLIC_URL) : undefined;
   const name = SERVICE[o.service] ?? o.service;
   const revised = o.revisionNote !== undefined;
+  // A paid job is the customer's once they accept: until then the email carries the same preview as the job page.
+  const locked = o.payment?.mode === 'escrow' && o.status !== 'accepted';
+  const body = locked ? teaser(job.deliverable, 'work') : job.deliverable;
   // A subject is one line (Resend refuses a newline, and form briefs have several): the business name, or the brief's start.
   const about = String((o as any).details?.name || o.brief).replace(/\s+/g, ' ').trim();
   const brief = about.length > 70 ? about.slice(0, 68) + '…' : about;
   const decide = o.naira && o.escrow
-    ? `You paid ₦${o.naira.ngn.toLocaleString('en-NG')}. On the job page, enter this email to accept the work, ask for your one free revision, or reject it and get your naira back in full, plus a ₦${Math.round(o.quote.bondUsd * o.naira.rate).toLocaleString('en-NG')} bond. Silence for 48 hours counts as acceptance.`
+    ? `You paid ₦${o.naira.ngn.toLocaleString('en-NG')}. On the job page (open it with the button in this email), accept the work, ask for your one free revision, or reject it and get your naira back in full, plus a ₦${Math.round(o.quote.bondUsd * o.naira.rate).toLocaleString('en-NG')} bond. Silence for 48 hours counts as acceptance.`
     : o.escrow
     ? `Your ${o.quote.priceUsd.toFixed(2)} USDC is waiting in escrow on Arc. On the job page, from the wallet that paid, accept to release it, ask for your one free revision, or reject it and get it back plus a ${o.quote.bondUsd.toFixed(2)} USDC bond. Silence for 48 hours counts as acceptance.`
     : o.quote.promo
       ? 'This one was your free first job. Tell us on the job page if it was good.'
       : 'Accept, revise or reject it on the job page.';
-  const unlock = o.escrow && o.status !== 'accepted' ? ' What you see on the job page is a preview; the full-quality files are emailed to you the moment you accept.' : '';
+  const unlock = locked ? ' What you see here and on the job page is a preview; the full work and the full-quality files are emailed to you the moment you accept.' : '';
   const subject = `${revised ? 'Revised: ' : ''}your ${name} is ready · ${brief}`;
-  const text = `The Syncly team finished your job.\n\n"${o.brief}"\n\n${job.deliverable}\n\n${edit ? `Edit your site yourself (prices, hours, menu, Chowdeck and payment links, bank details, photos, colours): ${edit}\nKeep this link to yourself: anyone with it can change your site.\n\n` : ''}${decide}${unlock}\n${link}\n\nYour job page shows every step the team took. ${MAIL ? 'This email was sent and paid for by our Messenger agent, in USDC on Arc.' : 'This email was sent by our Messenger agent.'}\n`;
+  const text = `The Syncly team finished your job.\n\n"${o.brief}"\n\n${body}\n\n${edit ? `Edit your site yourself (prices, hours, menu, Chowdeck and payment links, bank details, photos, colours): ${edit}\nKeep this link to yourself: anyone with it can change your site.\n\n` : ''}${decide}${unlock}\n${link}\n\nYour job page shows every step the team took. ${MAIL ? 'This email was sent and paid for by our Messenger agent, in USDC on Arc.' : 'This email was sent by our Messenger agent.'}\n`;
   const html = `<div style="background:#faf7f1;padding:28px 12px;font-family:Inter,Segoe UI,Helvetica,Arial,sans-serif;color:#1b1a17">
 <div style="max-width:640px;margin:0 auto;background:#fff;border:1px solid #ebe5d8;border-radius:18px;padding:28px">
 <div style="font-family:Georgia,serif;letter-spacing:.18em;font-size:14px;color:#17473b;margin-bottom:18px">SYNCLY</div>
 <p style="font-size:16px;margin:0 0 6px">The team finished your ${esc(name)}${revised ? ', revised with your note' : ''}.</p>
 <p style="font-size:14px;color:#4b4841;margin:0 0 18px">"${esc(o.brief)}"</p>
 <p style="margin:0 0 22px"><a href="${link}" style="display:inline-block;background:#17473b;color:#fff;text-decoration:none;padding:12px 20px;border-radius:999px;font-weight:600;font-size:14px">Review &amp; decide →</a></p>
-<div style="font-size:14px;line-height:1.55;border-top:1px solid #ebe5d8;padding-top:14px">${render(job.deliverable)}</div>
+<div style="font-size:14px;line-height:1.55;border-top:1px solid #ebe5d8;padding-top:14px">${render(body)}</div>
 ${edit ? `<div style="border:1px solid #cfe0d8;background:#f1f7f4;border-radius:14px;padding:14px 16px;margin:18px 0 0"><p style="font-size:14px;margin:0 0 8px;font-weight:600">Edit your site yourself</p><p style="font-size:13.5px;color:#4b4841;margin:0 0 12px">Prices, hours, your menu, your Chowdeck, Glovo, Paystack or booking link, bank details for transfers, photos and colours. Changes go live in seconds, and you can undo.</p><a href="${edit}" style="display:inline-block;background:#fff;color:#17473b;border:1px solid #17473b;text-decoration:none;padding:9px 16px;border-radius:999px;font-weight:600;font-size:13.5px">Open your site editor →</a><p style="font-size:12px;color:#847d70;margin:10px 0 0">Keep this link to yourself: anyone with it can change your site.</p></div>` : ''}
 <p style="font-size:13.5px;color:#4b4841;background:#f3eee4;border-radius:12px;padding:12px 14px;margin:18px 0 0">${esc(decide + unlock)}</p>
 <p style="font-size:12px;color:#847d70;margin:18px 0 0">Your <a href="${link}" style="color:#17473b">job page</a> shows every step the team took. ${MAIL ? 'This email was sent, and paid for, by our Messenger agent in USDC on Arc.' : 'This email was sent by our Messenger agent.'}</p>
 </div></div>`;
   // Text files ride along; images, video and sites are linked from the order page instead (mail size).
   // A paid job's files are the customer's once they accept, so its delivery email carries none.
-  const locked = o.payment?.mode === 'escrow' && o.status !== 'accepted';
   const attachments = locked ? [] : textAttachments(job.files);
   return { subject, text, html, attachments };
 }
@@ -112,17 +115,20 @@ export async function emailRelease(o: Order, dir: string) {
   if (MAILER !== 'resend' || !existsSync(dir)) return;
   const name = SERVICE[o.service] ?? o.service, link = `${PUBLIC_URL}/job/${o.id}${o.customerKey ?? o.privateKey ? `?k=${o.customerKey ?? o.privateKey}` : ''}`;
   const all = readdirSync(dir).filter((f) => !f.startsWith('preview-') && f !== 'job.json' && f !== 'deliverable.md');
+  const deliverable = existsSync(join(dir, 'deliverable.md')) ? readFileSync(join(dir, 'deliverable.md'), 'utf8') : '';
   const texts = all.filter((f) => /\.(md|csv|html|txt|json)$/i.test(f)).map((f) => ({ name: f, content: readFileSync(join(dir, f), 'utf8') }));
+  if (deliverable.trim()) texts.unshift({ name: `${o.service}-${o.id}.md`, content: deliverable });
   const media = all.filter((f) => !/\.(md|csv|html|txt|json)$/i.test(f));
   const url = (f: string) => `${PUBLIC_URL}/api/orders/${o.id}/files/${f}?download${o.privateKey ? `&k=${o.privateKey}` : ''}`;
   const about = String((o as any).details?.name || o.brief).replace(/\s+/g, ' ').trim();
   const subject = `Your ${name} is yours · ${about.length > 60 ? about.slice(0, 58) + '…' : about}`;
-  const text = `Thanks for accepting the work. Your files are unlocked in full quality:\n\n${media.map((f) => `${f}: ${url(f)}`).join('\n')}${texts.length ? `\n\nAttached: ${texts.map((t) => t.name).join(', ')}` : ''}\n\nThey stay on your job page too: ${link}\n`;
+  const text = `Thanks for accepting the work. Your files are unlocked in full quality:\n\n${media.map((f) => `${f}: ${url(f)}`).join('\n')}${texts.length ? `\n\nAttached: ${texts.map((t) => t.name).join(', ')}` : ''}\n\nThey stay on your job page too: ${link}\n${deliverable.trim() ? `\n---\n\n${deliverable}\n` : ''}`;
   const html = `<div style="background:#faf7f1;padding:28px 12px;font-family:Inter,Segoe UI,Helvetica,Arial,sans-serif;color:#1b1a17"><div style="max-width:640px;margin:0 auto;background:#fff;border:1px solid #ebe5d8;border-radius:18px;padding:28px">
 <div style="font-family:Georgia,serif;letter-spacing:.18em;font-size:14px;color:#17473b;margin-bottom:18px">SYNCLY</div>
 <p style="font-size:16px;margin:0 0 14px">Thanks for accepting the work. Your ${esc(name)} is unlocked in full quality.</p>
 ${media.map((f) => `<p style="margin:0 0 10px"><a href="${url(f)}" style="display:inline-block;background:#17473b;color:#fff;text-decoration:none;padding:10px 18px;border-radius:999px;font-weight:600;font-size:14px">Download ${esc(f)} ↓</a></p>`).join('')}
 ${texts.length ? `<p style="font-size:13.5px;color:#4b4841">Attached: ${texts.map((t) => esc(t.name)).join(', ')}</p>` : ''}
+${deliverable.trim() ? `<div style="font-size:14px;line-height:1.55;border-top:1px solid #ebe5d8;padding-top:14px;margin-top:18px">${render(deliverable)}</div>` : ''}
 <p style="font-size:12px;color:#847d70;margin:18px 0 0">Everything stays on your <a href="${link}" style="color:#17473b">job page</a> too.</p></div></div>`;
   const attachments = textAttachments(texts).map(({ filename, content }) => ({ filename, content }));
   try { await resend({ to: o.email, subject, text, html, attachments }); }
