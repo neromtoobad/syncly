@@ -168,6 +168,17 @@ export function createQuote(input: { service: string; brief: string; email: stri
   return o;
 }
 
+/** On the house: the owner gives a customer a free redo of one of their orders. Same service, brief, details,
+ *  uploads and email; run free, so the result is the customer's straight away. */
+export function redoOnTheHouse(from: Order): Order {
+  const o = createQuote({ service: from.service, brief: from.brief, email: from.email, details: from.details as BusinessDetails | undefined });
+  if (o.status !== 'quoted') throw new Error("The CFO can't take it right now: the team isn't funded for this service.");
+  o.quote = { ...o.quote, promo: true, reasons: [...o.quote.reasons, `On the house: a free redo of ${from.id}, given by the owner`] };
+  saveOrder(o);
+  void start(o, 'promo');
+  return o;
+}
+
 // ---------------------------------------------------------------- lifecycle
 
 export async function start(o: Order, mode: 'promo' | 'simulated' | 'escrow', tx?: string) {

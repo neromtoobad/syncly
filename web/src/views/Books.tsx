@@ -126,6 +126,26 @@ function TestEmail() {
   );
 }
 
+/** Owner tool: a free redo of an order, on the house (same brief, details, photos and email). Opens the new job. */
+function RedoOnTheHouse() {
+  const [id, setId] = useState('');
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  async function go(e: FormEvent) {
+    e.preventDefault(); setBusy(true); setMsg(null);
+    try { const o = await api<{ id: string }>(`/api/orders/${encodeURIComponent(id.trim())}/redo`, { method: 'POST' }); window.location.href = `/job/${o.id}`; }
+    catch (x: any) { setMsg(x.message); setBusy(false); }
+  }
+  return (
+    <form className="testmail" onSubmit={go}>
+      <span className="mono">Redo on the house</span>
+      <input value={id} onChange={(e) => setId(e.target.value)} placeholder="ord_…" aria-label="Order ID to redo for free" />
+      <button className="btn secondary sm" disabled={busy || !/^ord_[a-z0-9_]+$/i.test(id.trim())}>{busy ? 'Starting…' : 'Redo it free'}</button>
+      {msg && <span className="muted">{msg}</span>}
+    </form>
+  );
+}
+
 export default function Books() {
   const { data: b, error } = useApi<Books>('/api/books', 10000);
   if (error && /owner only|401/i.test(error)) return <OwnerGate />;
@@ -141,6 +161,7 @@ export default function Books() {
         <h1 className="h1">Every dollar Syncly <em>makes and spends.</em></h1>
         <p className="sub">Only you can see this page. An AI CFO runs Syncly's money, and these books come from the same records that move it: job receipts, escrow and the vault on Arc. Updated {timeAgo(b.asOf)}. <button type="button" className="linkbtn" onClick={() => { try { localStorage.removeItem(OWNER_KEY); } catch {} window.location.reload(); }}>Lock this device</button></p>
         <TestEmail />
+      <RedoOnTheHouse />
         {b.mode === 'demo' && <div className="banner"><span>●</span><div><b>Demo mode.</b> These numbers come from simulated jobs: no real money moved and every receipt is marked “demo”. Live figures from Arc mainnet replace them when the treasury is funded.</div></div>}
       </div>
 

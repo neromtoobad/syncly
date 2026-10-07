@@ -22,7 +22,7 @@ import { LINKS, chowdeckHours, readChowdeck, samePhone } from './site/links.ts';
 import { FORMATS, countScan, posterHtml, posterTargets, scanStats, type PosterOpts } from './site/poster.ts';
 import { renderPoster } from './browser.ts';
 import { nairaDecide, nairaFollowUp, nairaQuote, nairaStatus, onBachsEvent, startNaira, verifyBachs } from './naira.ts';
-import { autoAcceptDue, createQuote, decide, escrowPending, getOrder, noteForRevision, openEscrow, readJob, replay, resumeInterrupted, retry, start, syncEscrow } from './orders.ts';
+import { autoAcceptDue, createQuote, decide, redoOnTheHouse, escrowPending, getOrder, noteForRevision, openEscrow, readJob, replay, resumeInterrupted, retry, start, syncEscrow } from './orders.ts';
 import { escrowConfig, refreshBondFree } from './escrow.ts';
 import { MODE as CFO_MODE, POLICY as CFO_POLICY, freshSnapshot, reclaimSurplus, startTreasury, teamShortfall, tick as cfoTick } from './cfo/treasury.ts';
 import { decisions as cfoDecisions, verifyLog } from './cfo/log.ts';
@@ -223,6 +223,14 @@ app.post('/api/orders/:id/sync', async (c) => {
   } catch (e: any) {
     return c.json({ error: e.shortMessage ?? e.message }, 400);
   }
+});
+
+app.post('/api/orders/:id/redo', async (c) => {
+  if (!isOwner(c)) return c.json({ error: 'owner only' }, 401);
+  const o = getOrder(c.req.param('id'));
+  if (!o) return c.json({ error: 'No order with that ID.' }, 404);
+  if (!DRY && !hasSeed()) return c.json({ error: 'The team is still clocking in. Try again in a few minutes.' }, 503);
+  try { const n = redoOnTheHouse(o); return c.json(shown(c, view(n.id))); } catch (e: any) { return c.json({ error: e.message }, 400); }
 });
 
 app.post('/api/orders/:id/retry', async (c) => {
