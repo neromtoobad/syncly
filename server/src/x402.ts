@@ -217,6 +217,8 @@ async function payManual<T>(job: Job, opts: Parameters<typeof buy<T>>[1]): Promi
       const pollUrl = opts.poll?.(data);
       if (pollUrl) {
         const url = new URL(pollUrl, opts.url).toString();
+        // the signed payment goes back only to the seller we paid, never to a host its reply names
+        if (new URL(url).host !== new URL(opts.url).host) throw new Error(`${opts.vendor}: asked us to check a different host (not charged)`);
         const until = Date.now() + 10 * 60_000;
         job.log(opts.agent, 'wait', `${opts.vendor}: rendering; checking back every 6 s`);
         for (;;) {

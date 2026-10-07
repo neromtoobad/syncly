@@ -109,7 +109,7 @@ export type Receipt = { at: string; agent: string; vendor: string; usd?: number;
 export type Step = { at: string; agent: string; step: string; note: string };
 export type Run = { id: string; status: string; steps: Step[]; receipt: Receipt[]; deliverable: string; files: string[]; qa?: { verdict: string; notes: string; model: string }; spentUsd?: number; error?: string };
 export type Order = {
-  id: string; service: string; brief: string; email: string; createdAt: string; quote: Quote; status: string;
+  id: string; service: string; brief: string; email: string; createdAt: string; quote: Quote; status: string; keyed?: boolean;
   payment?: { mode: string; at: string; tx?: string }; runs: Run[]; revisionNote?: string; deliveredAt?: string;
   decision?: { kind: string; at: string; by: string; note?: string }; refund?: { priceUsd: number; bondUsd: number; tx?: string }; demo: boolean;
   live: { jobId: string; steps: Step[]; receipt: Receipt[] } | null;

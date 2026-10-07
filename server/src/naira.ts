@@ -170,6 +170,16 @@ async function confirmPaid(orderId: string, d: any): Promise<string> {
     n.chargeId = String(d.charge_id ?? c.payment_id ?? c.charge_id ?? '') || undefined;
     n.paidAt = new Date().toISOString(); n.paidNgn = paid; n.method = d.payment_method ?? c.payment_method;
     const esc = o.escrow ? await chain.readEscrow(o.escrow.id) : null;
+    const ref = keccak256(toBytes(n.checkoutId));
+    // Already funded by this very payment (an earlier attempt landed on-chain but didn't get saved): the job is paid
+    // for, so record it and let the job run. Refunding here would give the naira back while the work goes ahead.
+    if (esc && esc.state !== 'Open' && o.escrow && (await chain.deskRefFor(o.escrow.id as `0x${string}`).catch(() => null))?.toLowerCase() === ref.toLowerCase()) {
+      o = getOrder(orderId)!;
+      o.naira = { ...o.naira!, ...n, status: 'paid' };
+      saveOrder(o);
+      await syncEscrow(o.id);
+      return 'paid earlier: job follows the chain';
+    }
     if (!esc || esc.state !== 'Open') {
       // the quote lapsed before the money landed: give the naira back rather than start a job nobody funded
       n.status = 'late';
@@ -177,7 +187,7 @@ async function confirmPaid(orderId: string, d: any): Promise<string> {
       await refundNaira(o.id, `Your payment for order ${o.id} arrived after the quote expired, so we've refunded it.`);
       return 'late: refunded';
     }
-    const tx = (await chain.deskFund(o.escrow!.id, keccak256(toBytes(n.checkoutId)))).hash;
+    const tx = (await chain.deskFund(o.escrow!.id, ref)).hash;
     o = getOrder(orderId)!;
     o.naira = { ...o.naira!, ...n, status: 'paid', fundTx: tx };
     saveOrder(o);
@@ -240,10 +250,10 @@ async function refundNaira(orderId: string, reason: string, bondNgn = 0): Promis
  * CFO's key relays the decision through the desk. A rejection refunds the naira; the bond, owed in naira too, is
  * recorded for a bank payout.
  */
-export async function nairaDecide(orderId: string, email: string, action: 'accept' | 'revise' | 'reject', note?: string) {
+export async function nairaDecide(orderId: string, who: { key?: string | null; email?: string | null }, action: 'accept' | 'revise' | 'reject', note?: string) {
   const o = getOrder(orderId);
   if (!o?.naira || !o.escrow) throw new Error('This order was not paid in naira.');
-  if (email.trim().toLowerCase() !== o.email) throw new Error('Enter the email this order was placed with.');
+  if (!isCustomer(o, who)) throw new Error(NOT_CUSTOMER);
   if (o.status !== 'delivered' || o.escrow.state !== 'Submitted') throw new Error('There is nothing to decide on this order right now.');
   if (action === 'revise') {
     if (o.revisionNote !== undefined) throw new Error('This order already had its free revision.');

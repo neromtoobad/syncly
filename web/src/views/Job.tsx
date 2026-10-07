@@ -13,7 +13,8 @@ import { useRouter } from 'next/navigation';
 import { saveBusiness } from './BusinessForm.tsx';
 import { AnimatePresence, motion } from 'motion/react';
 
-/** A private order (a Money Report) carries its key in the link from the customer's email: pass it on every call. */
+/** The customer's order key, from their job link (the quote, or their email): it decides the job and opens a private
+ *  report, so it goes on every call. */
 const orderKey = () => (typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('k'));
 const withK = (path: string) => { const k = orderKey(); return k ? `${path}${path.includes('?') ? '&' : '?'}k=${encodeURIComponent(k)}` : path; };
 
@@ -207,7 +208,7 @@ function EscrowDecision({ o, cfg, onUpdate }: { o: Order; cfg: EscrowCfg; onUpda
           <label className="field">Want changes? <span className="hint">One free revision. The team re-runs the job with your note.</span>
             <textarea style={{ minHeight: 76 }} value={note} onChange={(ev) => setNote(ev.target.value)} placeholder="e.g. focus on Ikoyi too, and add opening hours" />
           </label>
-          {note.trim() && (
+          {note.trim() && !o.keyed && (
             <label className="field">Your email <span className="hint">the one on this order, so only you can add the note</span>
               <input type="email" value={email} onChange={(ev) => setEmail(ev.target.value)} placeholder="you@business.com" />
             </label>
@@ -217,7 +218,7 @@ function EscrowDecision({ o, cfg, onUpdate }: { o: Order; cfg: EscrowCfg; onUpda
       <div className="decide">
         <button className="btn primary block" disabled={!!busy || wallet === false} onClick={() => act('accept')}>{busy === 'accept' ? 'Confirm in your wallet…' : `Accept & release ${usd(q.priceUsd)} USDC`}</button>
         <div className="row">
-          {o.revisionNote === undefined && <button className="btn secondary" disabled={!!busy || wallet === false || !note.trim() || !email} onClick={() => act('requestRevision')}>{busy === 'requestRevision' ? 'Confirm…' : 'Revise'}</button>}
+          {o.revisionNote === undefined && <button className="btn secondary" disabled={!!busy || wallet === false || !note.trim() || !(o.keyed ? orderKey() : email)} onClick={() => act('requestRevision')}>{busy === 'requestRevision' ? 'Confirm…' : 'Revise'}</button>}
           <button className="btn danger" disabled={!!busy || wallet === false} onClick={() => act('reject')} style={o.revisionNote !== undefined ? { gridColumn: 'span 2' } : undefined}>{busy === 'reject' ? 'Confirm…' : 'Reject & refund'}</button>
         </div>
       </div>
@@ -246,8 +247,8 @@ export default function Job({ id }: { id: string }) {
   const { data: services } = useApi<{ services: Service[] }>('/api/services');
   const cfg = escCfg?.enabled ? escCfg : null;
 
-  // back from Bachs without ?k: a private order's key kept in this tab puts it back in the address
-  if (typeof window !== 'undefined' && !orderKey()) { try { const k = sessionStorage.getItem(`syncly:key:${id}`); if (k) { const u = new URL(window.location.href); u.searchParams.set('k', k); window.history.replaceState(null, '', u.toString()); } } catch {} }
+  // back from Bachs, or a later visit on this device, without ?k: the key kept here puts it back in the address
+  if (typeof window !== 'undefined') { try { const k = orderKey(); if (k) localStorage.setItem(`syncly:key:${id}`, k); else { const s = localStorage.getItem(`syncly:key:${id}`) ?? sessionStorage.getItem(`syncly:key:${id}`); if (s) { const u = new URL(window.location.href); u.searchParams.set('k', s); window.history.replaceState(null, '', u.toString()); } } } catch {} }
   const load = () => api<Order>(withK(`/api/orders/${id}`)).then(setO).catch((e) => setErr(e.message));
   useEffect(() => { load(); }, [id]);
   const active = o && ['queued', 'running', 'revision'].includes(o.status);
@@ -285,6 +286,7 @@ export default function Job({ id }: { id: string }) {
   const q = o.quote;
 
   const locked = !(o as any).released;
+  const canAct = o.keyed ? !!orderKey() : !!email; // orders since keys: the key in the link; older ones: the email
   const svc = services?.services.find((x) => x.id === o.service);
   const title = `${SERVICE_NAME[o.service] ?? o.service}${o.details?.name ? ` for ${o.details.name}` : ''}`;
   const now = steps.at(-1);
@@ -303,19 +305,21 @@ export default function Job({ id }: { id: string }) {
         <p style={{ fontSize: 14.5, color: 'var(--ink-2)', margin: 0 }}>
           {q.promo ? 'This one was free. Tell us if it was good.' : o.naira ? <>Accept to release your {naira(o.naira.ngn)} payment and unlock the full-quality files. Reject and you get it all back in naira <b>plus a {naira(q.bondUsd * o.naira.rate)} bond</b>.</> : <>Accept to release <b>{usd(q.priceUsd)} USDC</b> and unlock the files. Reject and you get it all back <b>plus a {usd(q.bondUsd)} USDC bond</b>.</>} Silence for 48 h counts as acceptance.
         </p>
-        <label className="field">Confirm with your email
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@business.com" />
-        </label>
+        {o.keyed ? (!orderKey() && <div className="note">Only the person who ordered this can decide. Open it from the link in your Syncly email.</div>) : (
+          <label className="field">Confirm with your email
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@business.com" />
+          </label>
+        )}
         {o.revisionNote === undefined && (
           <label className="field">Want changes? <span className="hint">One free revision.</span>
             <textarea style={{ minHeight: 76 }} value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. bigger text, show the fridges first, end on our WhatsApp number" />
           </label>
         )}
         <div className="decide">
-          <button className="btn primary block" disabled={busy || !email} onClick={() => decide('accept')}>{locked ? 'Accept & unlock the files' : 'Accept the work'}</button>
+          <button className="btn primary block" disabled={busy || !canAct} onClick={() => decide('accept')}>{locked ? 'Accept & unlock the files' : 'Accept the work'}</button>
           <div className="row">
-            {o.revisionNote === undefined && <button className="btn secondary" disabled={busy || !email || !note.trim()} onClick={() => decide('revise')}>Revise</button>}
-            <button className="btn danger" disabled={busy || !email} onClick={() => decide('reject')} style={o.revisionNote !== undefined ? { gridColumn: 'span 2' } : undefined}>Reject{q.promo ? '' : ' & refund'}</button>
+            {o.revisionNote === undefined && <button className="btn secondary" disabled={busy || !canAct || !note.trim()} onClick={() => decide('revise')}>Revise</button>}
+            <button className="btn danger" disabled={busy || !canAct} onClick={() => decide('reject')} style={o.revisionNote !== undefined ? { gridColumn: 'span 2' } : undefined}>Reject{q.promo ? '' : ' & refund'}</button>
           </div>
         </div>
         {err && <div className="error">{err}</div>}
@@ -371,10 +375,12 @@ export default function Job({ id }: { id: string }) {
             {(o.payment?.mode === 'promo' || retryPaid) && (
               <>
                 <p style={{ fontSize: 14, color: 'var(--ink-2)', margin: 0 }}>{retryPaid ? "The team can try again now, at no extra cost to you. If it still can't deliver, the refund above stands." : "It's still your free job. The team can try again; you only see what they spend on the receipt."}</p>
-                <label className="field">Confirm with your email
-                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@business.com" />
-                </label>
-                <button className="btn primary block" disabled={busy || !email} onClick={() => decide('retry')}>Try again</button>
+                {o.keyed ? (!orderKey() && <div className="note">Only the person who ordered this can retry it. Open it from the link in your Syncly email.</div>) : (
+                  <label className="field">Confirm with your email
+                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@business.com" />
+                  </label>
+                )}
+                <button className="btn primary block" disabled={busy || !canAct} onClick={() => decide('retry')}>Try again</button>
                 {err && <div className="error">{err}</div>}
               </>
             )}

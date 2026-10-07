@@ -20,12 +20,13 @@ const EXAMPLES: Record<string, string[]> = {
   'research-brief': ['Competitors and pricing for a small bakery in Lekki that wants to add cake delivery', 'Is there demand for solar inverter rentals in Ibadan?', 'How do Lagos co-working spaces price day passes?'],
 };
 
-type QuotedOrder = { id: string; status: string; quote: Quote; demo: boolean; brief?: string; privateKey?: string };
+type QuotedOrder = { id: string; status: string; quote: Quote; demo: boolean; brief?: string; privateKey?: string; customerKey?: string };
 /** The job page; a private order (a Money Report) carries its key, which only the customer who placed it receives. */
-const jobUrl = (o: { id: string; privateKey?: string }) => {
+const jobUrl = (o: { id: string; privateKey?: string; customerKey?: string }) => {
+  const key = o.customerKey ?? o.privateKey;
   // kept in this tab too, so the page still opens after a naira payment returns from Bachs (the key never goes to Bachs)
-  if (o.privateKey) try { sessionStorage.setItem(`syncly:key:${o.id}`, o.privateKey); } catch {}
-  return `/job/${o.id}${o.privateKey ? `?k=${encodeURIComponent(o.privateKey)}` : ''}`;
+  if (key) try { localStorage.setItem(`syncly:key:${o.id}`, key); } catch {}
+  return `/job/${o.id}${key ? `?k=${encodeURIComponent(key)}` : ''}`;
 };
 
 

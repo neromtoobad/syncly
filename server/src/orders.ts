@@ -8,7 +8,7 @@
 // state and mirrors it here. Only the customer's wallet can accept, revise or reject.
 import { mkdirSync, readFileSync, readdirSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { isAddress, type Address, type Hex } from 'viem';
 import { DATA_DIR, DRY } from './config.ts';
 import { publish } from './bus.ts';
@@ -27,6 +27,7 @@ export type Order = {
   service: string;
   brief: string;
   privateKey?: string; // private services (a Money Report): the job page needs this key, sent in the customer's email
+  customerKey?: string; // the customer's secret for deciding (accept, revise, reject, retry): in their job link and emails
   details?: BusinessDetails; // from the order form, when the service has one
   email: string;
   createdAt: string;
@@ -102,7 +103,8 @@ export function replay(limit = 6, only?: string) {
     if (o.payment) ev.push({ at: o.payment.at, type: 'order', orderId: o.id, data: orderEventData(o, 'queued') });
     for (const r of o.runs) {
       const j = readJob(r);
-      for (const s of j?.steps ?? []) ev.push({ at: s.at, type: 'step', orderId: o.id, data: s });
+      // a private order (a Money Report) replays its moves but none of its notes, which carry the customer's figures
+      for (const s of j?.steps ?? []) ev.push({ at: s.at, type: 'step', orderId: o.id, data: o.privateKey ? { ...s, note: '' } : s });
       for (const p of j?.receipt ?? []) ev.push({ at: p.at, type: 'purchase', orderId: o.id, data: p });
     }
     if (o.deliveredAt) ev.push({ at: o.deliveredAt, type: 'order', orderId: o.id, data: orderEventData(o, 'delivered') });
@@ -171,8 +173,11 @@ export function createQuote(input: { service: string; brief: string; email: stri
     id: `ord_${Date.now().toString(36)}_${randomBytes(2).toString('hex')}`,
     service: item.id, brief: input.brief.trim().slice(0, 6000), ...(input.details ? { details: input.details } : {}), email, createdAt: new Date().toISOString(),
     quote: q, status: q.decision === 'decline' ? 'declined' : 'quoted', runs: [], demo: DRY,
-    ...(isPrivate(item.id) ? { privateKey: randomBytes(12).toString('base64url') } : {}),
   };
+  // One key per order, given only to whoever placed it (the quote response) and in their emails. A private order
+  // opens with the same key, so one link does both.
+  o.customerKey = randomBytes(12).toString('base64url');
+  if (isPrivate(item.id)) o.privateKey = o.customerKey;
   saveOrder(o);
   return o;
 }
@@ -349,9 +354,22 @@ export function openEscrow(orderId: string, customer: string, fundMinutes = 30) 
 }
 
 /** Store a revision note ahead of the customer's on-chain request (the email on the order must match). */
-export function noteForRevision(o: Order, email: string, note: string) {
+/** Whether a request comes from the customer who placed the order: their order key, or for orders made before
+ *  keys existed, the email on the order. */
+export function isCustomer(o: Pick<Order, 'customerKey' | 'email'>, who: { key?: string | null; email?: string | null }): boolean {
+  if (o.customerKey) return sameSecret(who.key, o.customerKey);
+  return !!who.email && who.email.trim().toLowerCase() === o.email;
+}
+export const sameSecret = (a: string | null | undefined, b: string | undefined) => {
+  if (!a || !b) return false;
+  const x = Buffer.from(a), y = Buffer.from(b);
+  return x.length === y.length && timingSafeEqual(x, y);
+};
+export const NOT_CUSTOMER = 'Only the customer who placed this order can do that. Open it from the link in your email.';
+
+export function noteForRevision(o: Order, who: { key?: string | null; email?: string | null }, note: string) {
   if (!o.escrow || o.status !== 'delivered' || o.revisionNote !== undefined) return;
-  if (email.trim().toLowerCase() !== o.email) throw new Error('Only the customer who placed this order can add a revision note.');
+  if (!isCustomer(o, who)) throw new Error(NOT_CUSTOMER);
   o.pendingNote = note.slice(0, 800);
   saveOrder(o);
 }

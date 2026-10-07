@@ -176,4 +176,6 @@ export async function readDesk() {
 /** Fund a naira customer's escrow from the float, once per naira payment (`ref` = hash of the checkout id). */
 export const deskFund = (job: Hex, ref: Hex) => cfoWrite(DEP!.nairaDesk!, DESK_ABI, 'fund', [job, ref]);
 /** Relay a naira customer's decision (the desk is the escrow's customer). */
+/** The naira payment ref the desk funded a job with (zero if it never did). */
+export const deskRefFor = (job: Hex) => pub.readContract({ address: DEP!.nairaDesk!, abi: DESK_ABI, functionName: 'refFor', args: [job] }) as Promise<Hex>;
 export const deskDecide = (fn: 'accept' | 'requestRevision' | 'reject', job: Hex) => cfoWrite(DEP!.nairaDesk!, DESK_ABI, fn, [job]);

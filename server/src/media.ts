@@ -13,6 +13,7 @@ import { DRY } from './config.ts';
 import { HOSTS } from './tools.ts';
 import type { Job } from './job.ts';
 import type { Role } from './wallets.ts';
+import { fetchPublic } from './net.ts';
 
 const run = promisify(execFile);
 export const FFMPEG: string = (ffmpegPath as any).path;
@@ -23,11 +24,10 @@ export const VIDEO_USD_PER_S: Record<string, number> = { 'bytedance/seedance-1.5
 /** Fetch a finished file from a seller's URL (or a data URI), with a size limit. */
 export async function download(url: string, maxMb = 80): Promise<Buffer> {
   if (url.startsWith('data:')) return Buffer.from(url.slice(url.indexOf(',') + 1), 'base64');
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`download failed: ${res.status} ${url.slice(0, 80)}`);
-  const buf = Buffer.from(await res.arrayBuffer());
-  if (buf.length > maxMb * 1e6) throw new Error(`download too large (${(buf.length / 1e6).toFixed(1)} MB)`);
-  return buf;
+  // Only public addresses (never our own server or the private network), with a timeout and a size cap.
+  const res = await fetchPublic(url, { maxBytes: maxMb * 1e6, timeoutMs: 120_000 });
+  if (!res.ok) throw new Error(`download failed (${res.status})`);
+  return res.buf;
 }
 
 const firstUrl = (d: any): string | undefined =>

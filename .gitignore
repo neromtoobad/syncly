@@ -20,3 +20,6 @@ assets/scene-tests/
 # local job data (may contain customer briefs)
 server/data/
 deployments/local.json
+
+# hackathon submission drafts: local only
+submissions/

@@ -52,7 +52,7 @@ export const payConfig = () => ({ mode: payMode(), book: BOOK ?? null, vault: VA
 export type Flag = { level: 'ok' | 'warn' | 'stop'; text: string; override?: 'payee' | 'duplicate' };
 export type Line = { what: string; qty: number; unitUsd: number };
 type Supplier = { name: string; payee: Address; paid: number; totalUsd: number; lastPaidAt?: string };
-export type Business = { id: string; name: string; email: string; payee: Address; pendingPayee?: Address; token: string; verified: boolean; code?: string; createdAt: string; suppliers: Record<string, Supplier>; lastReportAt?: string; lastReportAsked?: string };
+export type Business = { id: string; name: string; email: string; payee: Address; pendingPayee?: Address; token: string; verified: boolean; code?: string; codeFor?: Address; createdAt: string; suppliers: Record<string, Supplier>; lastReportAt?: string; lastReportAsked?: string };
 export type PayDoc = {
   id: string; key: Hex; kind: 'invoice' | 'bill'; biz: string;
   seller: { name: string; email?: string }; // who gets paid
@@ -326,16 +326,21 @@ export async function registerBusiness(input: { name: string; email: string; pay
   const payee = getAddress(String(input.payee).trim());
   if (await blacklisted(payee)) throw new Error("That address is on Circle's USDC blacklist.");
   const b = upsertBusiness({ name, email, payee });
-  b.code ??= randomBytes(12).toString('base64url'); write('biz', b);
-  const url = `${PUBLIC_URL}/pay/confirm?b=${b.id}&c=${b.code}`;
+  const url = confirmLink(b, payee);
   await mail(b.email, `Your Syncly Pay desk for ${b.name}`, [`Confirm ${b.name} on Syncly Pay, paid at ${b.pendingPayee ?? b.payee}: ${url}`, 'Your desk is where you send invoices and pay bills; the agents check every payee before money moves.']);
   if (MAILER !== 'resend' || DRY) console.log(`pay: confirm ${b.name} at ${url}`);
   return { sent: true };
 }
 
+/** A confirm link is for one payout address: the address named in that email, and no other. Asking for a different
+ *  address makes a new code, so an older link can never confirm an address someone else typed in since. */
+function confirmLink(b: Business, payee: Address): string {
+  if (!b.code || b.codeFor?.toLowerCase() !== payee.toLowerCase()) { b.code = randomBytes(12).toString('base64url'); b.codeFor = payee; }
+  write('biz', b);
+  return `${PUBLIC_URL}/pay/confirm?b=${b.id}&c=${b.code}`;
+}
 async function askToConfirm(b: Business, pending: PayDoc) {
-  b.code ??= randomBytes(12).toString('base64url'); write('biz', b);
-  const url = `${PUBLIC_URL}/pay/confirm?b=${b.id}&c=${b.code}`;
+  const url = confirmLink(b, pending.payee);
   await mail(b.email, `Confirm your invoice to ${pending.buyer.name} on Syncly Pay`, [`Someone (hopefully you) asked Syncly Pay to send an invoice from ${b.name} for ${pending.amountUsd.toFixed(2)} USDC to ${pending.buyer.name}, to be paid to this address: ${pending.payee}`, `If that's you and that's your address, confirm here: ${url}`, `Nothing is booked or sent until you confirm. You'll also get a private link to your invoices and bills: use it next time and invoices go out straight away.`]);
   if (MAILER !== 'resend' || DRY) console.log(`pay: confirm ${b.name} at ${url}`);
   return url;
@@ -343,10 +348,13 @@ async function askToConfirm(b: Business, pending: PayDoc) {
 /** The owner clicked the link: the business is verified and everything waiting on it is booked. */
 export async function confirmBusiness(id: string, code: string) {
   const b = getBiz(id);
-  if (!b || !b.code || b.code !== code) throw new Error('This link has expired or was already used.');
-  if (b.pendingPayee) { b.payee = b.pendingPayee; delete b.pendingPayee; }
-  b.verified = true; delete b.code; write('biz', b);
-  for (const d of all<PayDoc>('docs').filter((x) => x.biz === b.id && x.status === 'confirm-email')) {
+  if (!b || !b.code || !b.codeFor || b.code !== code) throw new Error('This link has expired or was already used.');
+  // the address this link was sent for, not whatever was typed in since
+  const confirmed = b.codeFor;
+  b.payee = confirmed;
+  if (b.pendingPayee?.toLowerCase() === confirmed.toLowerCase()) delete b.pendingPayee;
+  b.verified = true; delete b.code; delete b.codeFor; write('biz', b);
+  for (const d of all<PayDoc>('docs').filter((x) => x.biz === b.id && x.status === 'confirm-email' && x.payee?.toLowerCase() === confirmed.toLowerCase())) {
     d.payee = b.payee; Object.assign(d, sealDoc(d)); await bookOnChain(d);
   }
   return { desk: `/pay/desk/${b.token}`, name: b.name };

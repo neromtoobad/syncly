@@ -87,7 +87,9 @@ Copy amounts exactly as numbers (no currency signs or commas). One row per trans
       const clean = tx.filter((r, i) => !(i > 0 && r.date === tx[i - 1].date && r.desc === tx[i - 1].desc && r.in === tx[i - 1].in && r.out === tx[i - 1].out && r.balance === tx[i - 1].balance));
       if (clean.length < 3) throw new Error('We could not find transactions in that statement. Send the PDF straight from your bank, a CSV export, or clear screenshots of every page.');
       clean.sort((a, b) => a.date.localeCompare(b.date));
-      const cur = (header.currency ?? 'NGN').toUpperCase() === 'NGN' ? '₦' : `${header.currency} `;
+      // the currency is read off the statement, so only a plain 3-letter code gets through (it goes into HTML below)
+      const code = String(header.currency ?? 'NGN').trim().toUpperCase();
+      const cur = code === 'NGN' || !/^[A-Z]{3}$/.test(code) ? '₦' : `${code} `;
       job.log('analyst', 'rows', `${clean.length} transactions, ${clean[0].date} to ${clean.at(-1)!.date}`);
 
       // 2. Reconcile in code: opening + money in − money out = closing, and the running balance row by row
@@ -219,11 +221,12 @@ Copy amounts exactly as numbers (no currency signs or commas). One row per trans
   },
 };
 
+const esc = (x: string) => x.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 function chartHtml(byMonth: { m: string; in: number; out: number }[], cats: [string, number][], cur: string) {
   const max = Math.max(1, ...byMonth.flatMap((x) => [x.in, x.out])), cmax = Math.max(1, ...cats.map((c) => c[1]));
   const k = (n: number) => (n >= 1e6 ? `${cur}${(n / 1e6).toFixed(1)}m` : `${cur}${Math.round(n / 1000)}k`);
-  const bars = byMonth.slice(-6).map((x) => `<div class="m"><div class="pair"><i class="in" style="height:${(x.in / max) * 100}%"><b>${k(x.in)}</b></i><i class="out" style="height:${(x.out / max) * 100}%"><b>${k(x.out)}</b></i></div><span>${/^\d{4}-\d{2}$/.test(x.m) ? new Date(`${x.m}-01T12:00:00Z`).toLocaleString('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' }) : x.m}</span></div>`).join('');
-  const rows = cats.map(([c, v]) => `<div class="c"><span>${c}</span><div class="t"><i style="width:${(v / cmax) * 100}%"></i></div><b>${k(v)}</b></div>`).join('');
+  const bars = byMonth.slice(-6).map((x) => `<div class="m"><div class="pair"><i class="in" style="height:${(x.in / max) * 100}%"><b>${k(x.in)}</b></i><i class="out" style="height:${(x.out / max) * 100}%"><b>${k(x.out)}</b></i></div><span>${/^\d{4}-\d{2}$/.test(x.m) ? new Date(`${x.m}-01T12:00:00Z`).toLocaleString('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' }) : esc(x.m)}</span></div>`).join('');
+  const rows = cats.map(([c, v]) => `<div class="c"><span>${esc(c)}</span><div class="t"><i style="width:${(v / cmax) * 100}%"></i></div><b>${k(v)}</b></div>`).join('');
   return `<!doctype html><html><head><meta charset="utf-8"><style>
 *{box-sizing:border-box;margin:0}body{width:1200px;height:640px;background:#fbf9f4;font-family:Arial,Helvetica,sans-serif;color:#13271c;padding:36px 40px;display:grid;grid-template-columns:1fr 1.1fr;gap:44px}
 h2{font-size:22px;margin-bottom:6px}p{font-size:14px;color:#5b6b60;margin-bottom:18px}.key{display:flex;gap:16px;font-size:13px;margin-bottom:12px}.key i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}

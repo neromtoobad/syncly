@@ -69,7 +69,7 @@ const render = (md: string) => (marked.parse(md.replace(/</g, '&lt;'), { async: 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 export function compose(job: Pick<Job, 'deliverable' | 'files'>, o: Order) {
-  const link = `${PUBLIC_URL}/job/${o.id}${o.privateKey ? `?k=${o.privateKey}` : ''}`; // a private report opens only with its key
+  const link = `${PUBLIC_URL}/job/${o.id}${o.customerKey ?? o.privateKey ? `?k=${o.customerKey ?? o.privateKey}` : ''}`; // a private report opens only with its key
   const edit = o.service === 'website' ? editLinkFor(o.id, PUBLIC_URL) : undefined;
   const name = SERVICE[o.service] ?? o.service;
   const revised = o.revisionNote !== undefined;
@@ -110,7 +110,7 @@ const textAttachments = (files: { name: string; content: string | Buffer }[]) =>
 /** Once a paid job is accepted: its files are the customer's, so the Messenger sends them, with the download links. */
 export async function emailRelease(o: Order, dir: string) {
   if (MAILER !== 'resend' || !existsSync(dir)) return;
-  const name = SERVICE[o.service] ?? o.service, link = `${PUBLIC_URL}/job/${o.id}${o.privateKey ? `?k=${o.privateKey}` : ''}`;
+  const name = SERVICE[o.service] ?? o.service, link = `${PUBLIC_URL}/job/${o.id}${o.customerKey ?? o.privateKey ? `?k=${o.customerKey ?? o.privateKey}` : ''}`;
   const all = readdirSync(dir).filter((f) => !f.startsWith('preview-') && f !== 'job.json' && f !== 'deliverable.md');
   const texts = all.filter((f) => /\.(md|csv|html|txt|json)$/i.test(f)).map((f) => ({ name: f, content: readFileSync(join(dir, f), 'utf8') }));
   const media = all.filter((f) => !/\.(md|csv|html|txt|json)$/i.test(f));

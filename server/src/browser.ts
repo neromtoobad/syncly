@@ -5,9 +5,10 @@
 import { spawn } from 'node:child_process';
 import { existsSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import puppeteer, { type Browser, type Page } from 'puppeteer-core';
 import { FFMPEG } from './media.ts';
+import { publicUrl } from './net.ts';
 
 function chromePath(): string {
   const cache = join(homedir(), '.cache/puppeteer/chrome-headless-shell');
@@ -20,18 +21,48 @@ function chromePath(): string {
   return p;
 }
 
+// Chrome renders pages that customers, their websites and our own LLM-written scenes shape, so it gets none of our
+// secrets (a clean environment, not the server's) and every page is fenced in by guard() below.
+const CHROME_ENV = Object.fromEntries(['PATH', 'HOME', 'LANG', 'TZ', 'TMPDIR', 'FONTCONFIG_PATH', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME'].filter((k) => process.env[k]).map((k) => [k, process.env[k]!]));
+
 export async function launch(): Promise<Browser> {
   return puppeteer.launch({
-    executablePath: chromePath(), headless: true,
-    args: ['--no-sandbox', '--disable-dev-shm-usage', '--hide-scrollbars', '--force-color-profile=srgb', '--font-render-hinting=none', '--allow-file-access-from-files', '--autoplay-policy=no-user-gesture-required'],
+    executablePath: chromePath(), headless: true, env: CHROME_ENV,
+    args: ['--no-sandbox', '--disable-dev-shm-usage', '--hide-scrollbars', '--force-color-profile=srgb', '--font-render-hinting=none', '--autoplay-policy=no-user-gesture-required'],
   });
 }
+
+/** What a page may load. Local files only from inside `roots` (the page's own folder), never the rest of the disk;
+ *  on the network, either public addresses only ('web') or just Google Fonts ('fonts', for LLM-written scenes,
+ *  which have no reason to call anywhere). Popups are closed. */
+type Fence = { roots?: string[]; net: 'web' | 'fonts' };
+const FONT_HOSTS = new Set(['fonts.googleapis.com', 'fonts.gstatic.com']);
+async function allowed(u: string, f: Fence): Promise<boolean> {
+  if (/^(data|blob|about):/i.test(u)) return true;
+  if (/^file:/i.test(u)) {
+    let p: string;
+    try { p = resolve(decodeURIComponent(new URL(u).pathname)); } catch { return false; }
+    return (f.roots ?? []).some((r) => p === r || p.startsWith(r.endsWith('/') ? r : `${r}/`));
+  }
+  if (f.net === 'fonts') { try { return FONT_HOSTS.has(new URL(u).hostname); } catch { return false; } }
+  return publicUrl(u);
+}
+async function guard(page: Page, f: Fence): Promise<Page> {
+  await page.setRequestInterception(true);
+  page.on('request', (req) => {
+    if (req.isInterceptResolutionHandled()) return;
+    allowed(req.url(), f).then((ok) => (ok ? req.continue() : req.abort('blockedbyclient')), () => req.abort('blockedbyclient')).catch(() => undefined);
+  });
+  page.on('popup', (p) => { p?.close().catch(() => undefined); });
+  return page;
+}
+const fileRoots = (target: string) => (/^https?:/i.test(target) ? [] : [dirname(resolve(target.replace(/^file:\/\//i, '')))]);
 
 /** Screenshots of a page (a URL or a local file) at the given viewports. */
 export async function screenshots(target: string, views: { name: string; width: number; height: number; full?: boolean }[]): Promise<{ name: string; png: Buffer }[]> {
   const browser = await launch();
   try {
-    const page = await browser.newPage();
+    const page = await guard(await browser.newPage(), { roots: fileRoots(target), net: 'web' });
     const out: { name: string; png: Buffer }[] = [];
     for (const v of views) {
       await page.setViewport({ width: v.width, height: v.height, deviceScaleFactor: 1 });
@@ -60,7 +91,7 @@ export async function screenshots(target: string, views: { name: string; width: 
 type Scene = { browser: Browser; page: Page; total: number; fps: number; errors: string[] };
 async function openScene(file: string, size: [number, number]): Promise<Scene> {
   const browser = await launch();
-  const page = await browser.newPage();
+  const page = await guard(await browser.newPage(), { roots: [dirname(resolve(file))], net: 'fonts' });
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(String((e as Error).message ?? e)));
   await page.setViewport({ width: size[0], height: size[1], deviceScaleFactor: 1 });
@@ -148,7 +179,7 @@ export async function renderReel(file: string, size: [number, number], out: stri
 export async function htmlToPng(html: string, width: number, height: number): Promise<Buffer> {
   const browser = await launch();
   try {
-    const page = await browser.newPage();
+    const page = await guard(await browser.newPage(), { net: 'web' });
     await page.setViewport({ width, height, deviceScaleFactor: 1 });
     await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30_000 }).catch(() => undefined);
     await page.evaluate(() => (document as any).fonts?.ready);
@@ -160,7 +191,7 @@ export async function htmlToPng(html: string, width: number, height: number): Pr
 export async function renderPoster(html: string, w: number, h: number, kind: 'pdf' | 'png', scale = 2): Promise<Buffer> {
   const browser = await launch();
   try {
-    const page = await browser.newPage();
+    const page = await guard(await browser.newPage(), { net: 'web' });
     await page.setViewport({ width: w, height: h, deviceScaleFactor: kind === 'png' ? scale : 1 });
     await page.setContent(html, { waitUntil: 'load', timeout: 30_000 }).catch(() => undefined);
     await page.waitForFunction('window.POSTER_READY === true', { timeout: 10_000 }).catch(() => undefined);
@@ -172,10 +203,11 @@ export async function renderPoster(html: string, w: number, h: number, kind: 'pd
 /** The big pictures on a business's own site (product shots, banners), largest first, for its ads. Only public
  *  http(s) pages and images; icons, logos of payment providers and tiny images are skipped. */
 export async function siteImages(url: string, max = 8): Promise<{ src: string; alt: string; w: number; h: number }[]> {
-  if (!/^https?:\/\//i.test(url) || privateHost(url)) return [];
+  if (!/^https?:\/\//i.test(url) || !(await publicUrl(url))) return [];
   const browser = await launch();
   try {
-    const page = await browser.newPage();
+    // every request the page makes (redirects, its own scripts) is checked too, not just the first URL
+    const page = await guard(await browser.newPage(), { net: 'web' });
     await page.setViewport({ width: 1366, height: 900 });
     await page.goto(url, { waitUntil: 'load', timeout: 30_000 }).catch(() => undefined);
     await page.waitForNetworkIdle({ idleTime: 600, timeout: 8000 }).catch(() => undefined);
@@ -187,19 +219,13 @@ export async function siteImages(url: string, max = 8): Promise<{ src: string; a
     }).catch(() => []);
     const seen = new Set<string>();
     return found
-      .filter((x) => /^https?:\/\//.test(x.src) && !privateHost(x.src) && !/logo|icon|sprite|avatar|badge|visa|mastercard|paystack|flutterwave/i.test(x.src + x.alt))
+      .filter((x) => /^https?:\/\//.test(x.src) && !/logo|icon|sprite|avatar|badge|visa|mastercard|paystack|flutterwave/i.test(x.src + x.alt))
       .filter((x) => (seen.has(x.src) ? false : (seen.add(x.src), true)))
       .sort((a, b) => b.w * b.h - a.w * a.h)
       .slice(0, max);
   } finally { await browser.close(); }
 }
 
-const privateHost = (u: string) => {
-  try {
-    const h = new URL(u).hostname.toLowerCase();
-    return h === 'localhost' || h.endsWith('.local') || h.endsWith('.internal') || h.endsWith('.railway.internal') || /^(127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|0\.|\[?::1\]?$|\[?f[cd])/.test(h);
-  } catch { return true; }
-};
 
 /** Several poster-style pages (each says POSTER_READY when laid out) rendered in one browser: PNG at `scale`× or PDF. */
 export async function renderPages(pages: { html: string; w: number; h: number; kind: 'png' | 'pdf'; scale?: number }[]): Promise<Buffer[]> {
@@ -207,7 +233,7 @@ export async function renderPages(pages: { html: string; w: number; h: number; k
   try {
     const out: Buffer[] = [];
     for (const p of pages) {
-      const page = await browser.newPage();
+      const page = await guard(await browser.newPage(), { net: 'web' });
       await page.setViewport({ width: p.w, height: p.h, deviceScaleFactor: p.kind === 'png' ? p.scale ?? 1 : 1 });
       await page.setContent(p.html, { waitUntil: 'load', timeout: 30_000 }).catch(() => undefined);
       await page.waitForFunction('window.POSTER_READY === true', { timeout: 15_000 }).catch(() => undefined);

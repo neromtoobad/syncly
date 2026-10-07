@@ -4,12 +4,13 @@ import { createOnrampServerKit, KitError as OnrampKitError } from '@circle-fin/o
 import { getAddress, isAddress, keccak256, toBytes } from 'viem';
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
+import { bodyLimit } from 'hono/body-limit';
 import { serve } from '@hono/node-server';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
-import { timingSafeEqual } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { DATA_DIR, DRY } from './config.ts';
 import { account, hasSeed } from './wallets.ts';
 import { bus, type SynclyEvent } from './bus.ts';
@@ -23,7 +24,7 @@ import { LINKS, chowdeckHours, readChowdeck, samePhone } from './site/links.ts';
 import { FORMATS, countScan, posterHtml, posterTargets, scanStats, type PosterOpts } from './site/poster.ts';
 import { renderPoster } from './browser.ts';
 import { nairaDecide, nairaFollowUp, nairaQuote, nairaStatus, onBachsEvent, startNaira, verifyBachs } from './naira.ts';
-import { autoAcceptDue, createQuote, decide, publicBrief, redoOnTheHouse, escrowPending, getOrder, noteForRevision, openEscrow, readJob, replay, resumeInterrupted, retry, start, syncEscrow } from './orders.ts';
+import { autoAcceptDue, createQuote, decide, isCustomer, NOT_CUSTOMER, publicBrief, sameSecret, redoOnTheHouse, escrowPending, getOrder, noteForRevision, openEscrow, readJob, replay, resumeInterrupted, retry, start, syncEscrow } from './orders.ts';
 import { escrowConfig, refreshBondFree } from './escrow.ts';
 import { MODE as CFO_MODE, POLICY as CFO_POLICY, freshSnapshot, reclaimSurplus, startTreasury, teamShortfall, tick as cfoTick } from './cfo/treasury.ts';
 import { decisions as cfoDecisions, verifyLog } from './cfo/log.ts';
@@ -56,12 +57,31 @@ bootstrap();
 
 const app = new Hono();
 
+// Nothing reads an unbounded body: uploads take up to 8 photos (12 MB each) or 6 statements (15 MB each); the
+// webhook and every JSON call are small.
+const MB = 1024 * 1024;
+app.use('/api/*', (c, next) => bodyLimit({
+  maxSize: c.req.path === '/api/uploads' ? 100 * MB : c.req.path === '/api/statements' ? 92 * MB : c.req.path.startsWith('/api/pay') ? 12 * MB : MB,
+  onError: (c) => c.json({ error: 'That upload is too large.' }, 413),
+})(c, next));
+
+/** The visitor's address for rate limits. Railway's edge sets x-real-ip from the connection itself; the first
+ *  x-forwarded-for entry is whatever the client sent, so it's only the fallback. */
+const clientIp = (c: any): string => c.req.header('x-real-ip')?.trim() || c.req.header('x-forwarded-for')?.split(',')[0].trim() || 'local';
+
 // The books are private. The owner's key (OUTLAY_OWNER_KEY, set in Railway) opens them, sent as x-owner-key.
 const OWNER_KEY = process.env.OUTLAY_OWNER_KEY?.trim() ?? '';
 function isOwner(c: any): boolean {
   const got = String(c.req.header('x-owner-key') ?? '');
-  return OWNER_KEY.length >= 8 && got.length === OWNER_KEY.length && timingSafeEqual(Buffer.from(got), Buffer.from(OWNER_KEY));
+  if (!got || OWNER_KEY.length < 8) return false;
+  // compare digests, so neither the length nor the content of the key leaks through timing
+  const h = (x: string) => createHash('sha256').update(x).digest();
+  return timingSafeEqual(h(got), h(OWNER_KEY));
 }
+// Wrong owner keys are counted per address: after 10 in an hour, that address gets no answers for the hour.
+const ownerMisses = new Map<string, number[]>();
+const ownerLocked = (c: any) => (ownerMisses.get(clientIp(c)) ?? []).filter((t) => Date.now() - t < 3600_000).length >= 10;
+const ownerMiss = (c: any) => { const k = clientIp(c); ownerMisses.set(k, [...(ownerMisses.get(k) ?? []).filter((t) => Date.now() - t < 3600_000), Date.now()]); };
 // Everyone else sees the work, the sellers and the Arc transactions, never what a tool cost us.
 const COST_KEYS = new Set(['usd', 'spentUsd', 'expectUsd', 'maxUsd', 'estCostUsd', 'expectedProfitUsd', 'budgetUsd', 'listedCostUsd']);
 const COST_REASON = /tool cost|E\[profit\]|promo covers|promo left|promo budget/;
@@ -94,7 +114,12 @@ app.post('/api/owner/test-email', async (c) => {
     return c.json({ ok: true, id: r.id });
   } catch (e: any) { return c.json({ error: e.message }, 502); }
 });
-app.get('/api/owner', (c) => (isOwner(c) ? c.json({ ok: true }) : c.json({ error: 'That key doesn\'t open the books.' }, 401)));
+app.get('/api/owner', (c) => {
+  if (ownerLocked(c)) return c.json({ error: 'Too many wrong keys from here. Try again in an hour.' }, 429);
+  if (isOwner(c)) return c.json({ ok: true });
+  ownerMiss(c);
+  return c.json({ error: 'That key doesn\'t open the books.' }, 401);
+});
 app.get('/api/escrow', (c) => c.json(escrowConfig()));
 
 app.post('/api/quote', async (c) => {
@@ -119,7 +144,7 @@ app.post('/api/quote', async (c) => {
 
 // Photos and logos for an order: re-encoded on our server (which strips camera metadata) before storing.
 app.post('/api/uploads', async (c) => {
-  const who = c.req.header('x-forwarded-for')?.split(',')[0].trim() || 'local';
+  const who = clientIp(c);
   const body = await c.req.parseBody({ all: true }).catch(() => ({} as Record<string, unknown>));
   const files = ([] as unknown[]).concat(body.file ?? []).filter((f): f is File => typeof f === 'object' && f !== null && 'arrayBuffer' in (f as object)).slice(0, 8);
   if (!files.length) return c.json({ error: 'No image received.' }, 400);
@@ -134,7 +159,7 @@ app.post('/api/uploads', async (c) => {
 // Bank statements for a Money Report: their own store, never served back (src/statements.ts). A password, if the
 // bank set one, is used to read the PDF and then dropped with this request.
 app.post('/api/statements', async (c) => {
-  const who = c.req.header('x-forwarded-for')?.split(',')[0].trim() || 'local';
+  const who = clientIp(c);
   const body = await c.req.parseBody({ all: true }).catch(() => ({} as Record<string, unknown>));
   const files = ([] as unknown[]).concat(body.file ?? []).filter((f): f is File => typeof f === 'object' && f !== null && 'arrayBuffer' in (f as object)).slice(0, 6);
   const password = typeof body.password === 'string' && body.password.trim() ? body.password.trim().slice(0, 80) : undefined;
@@ -157,18 +182,23 @@ app.get('/api/uploads/:id', (c) => {
 });
 
 /** A private order (a Money Report) opens only with its key (from the customer's email) or the owner's key. */
-const unlocked = (o: { privateKey?: string }, c?: any) => !o.privateKey || (!!c && (isOwner(c) || c.req.query('k') === o.privateKey || c.req.header('x-order-key') === o.privateKey));
+/** The order key a request carries: in a header, or in the link from the customer's email (?k=). */
+const keyOf = (c: any): string | undefined => c?.req.header('x-order-key') || c?.req.query('k') || undefined;
+const unlocked = (o: { privateKey?: string }, c?: any) => !o.privateKey || (!!c && (isOwner(c) || sameSecret(keyOf(c), o.privateKey)));
 
 /** The public shape of an order: runs expanded, email masked, live job progress attached. A private order without
  *  its key shows only its progress: no brief, details, step notes, findings or files. */
 function view(id: string, c?: any) {
   const o = getOrder(id)!;
   const runs = o.runs.map((r) => readJob(r)).filter(Boolean);
-  const base = { ...o, privateKey: undefined, email: o.email.replace(/^(.).*(@.*)$/, '$1•••$2'), runs, live: liveJobs.get(o.id) ?? null, team: [...(findService(o.service)?.team ?? [])], released: released(o), withdrawn: withdrawn(o), private: !!o.privateKey, unlocked: unlocked(o, c) };
+  const mask = (e: string) => e.replace(/^(.).*(@.*)$/, '$1•••$2');
+  const details = o.details && (o.details as any).email && !(c && isOwner(c)) ? { ...o.details, email: mask(String((o.details as any).email)) } : o.details;
+  const base = { ...o, privateKey: undefined, customerKey: undefined, keyed: !!o.customerKey, details, email: mask(o.email), runs, live: liveJobs.get(o.id) ?? null, team: [...(findService(o.service)?.team ?? [])], released: released(o), withdrawn: withdrawn(o), private: !!o.privateKey, unlocked: unlocked(o, c) };
   if (unlocked(o, c)) return base;
   const quiet = (st: any[] = []) => st.map((x) => ({ ...x, note: '' }));
   return {
-    ...base, brief: publicBrief(o), details: undefined,
+    ...base, brief: publicBrief(o), details: undefined, revisionNote: o.revisionNote === undefined ? undefined : '', pendingNote: undefined,
+    decision: o.decision ? { ...o.decision, note: undefined } : o.decision,
     runs: runs.map((r: any) => ({ ...r, brief: publicBrief(o), deliverable: '', files: [], steps: quiet(r.steps), qa: r.qa ? { verdict: r.qa.verdict, notes: '', model: r.qa.model } : r.qa, error: r.error ? 'The job could not be finished.' : r.error })),
     live: base.live ? { ...base.live, steps: quiet(base.live.steps) } : null,
     escrow: o.escrow ? { ...o.escrow, spec: '' } : o.escrow,
@@ -223,7 +253,7 @@ app.post('/api/orders/:id/naira-decide', async (c) => {
   const b = await c.req.json().catch(() => ({} as any));
   const action = ['accept', 'revise', 'reject'].includes(b.action) ? b.action : null;
   if (!action) return c.json({ error: 'Choose accept, revise or reject.' }, 400);
-  try { await nairaDecide(c.req.param('id'), String(b.email ?? ''), action, b.note ? String(b.note) : undefined); return c.json(shown(c, view(c.req.param('id'), c))); } catch (e: any) {
+  try { await nairaDecide(c.req.param('id'), { key: keyOf(c), email: b.email ? String(b.email) : undefined }, action, b.note ? String(b.note) : undefined); return c.json(shown(c, view(c.req.param('id'), c))); } catch (e: any) {
     return c.json({ error: e.shortMessage ?? e.message }, 400);
   }
 });
@@ -246,7 +276,7 @@ app.post('/api/orders/:id/sync', async (c) => {
   if (!o?.escrow) return c.json({ error: 'not found' }, 404);
   const { tx, note, email } = await c.req.json().catch(() => ({}));
   try {
-    if (note) noteForRevision(o, String(email ?? ''), String(note));
+    if (note) noteForRevision(o, { key: keyOf(c), email: email ? String(email) : undefined }, String(note));
     await syncEscrow(o.id, tx ? String(tx) : undefined);
     return c.json(shown(c, view(o.id, c)));
   } catch (e: any) {
@@ -266,7 +296,7 @@ app.post('/api/orders/:id/retry', async (c) => {
   const o = getOrder(c.req.param('id'));
   if (!o) return c.json({ error: 'not found' }, 404);
   const { email } = await c.req.json().catch(() => ({}));
-  if (String(email ?? '').trim().toLowerCase() !== o.email) return c.json({ error: 'Only the customer who placed this order can retry it.' }, 403);
+  if (!isCustomer(o, { key: keyOf(c), email: email ? String(email) : undefined })) return c.json({ error: NOT_CUSTOMER }, 403);
   try {
     retry(o);
     return c.json(shown(c, view(o.id, c)));
@@ -279,8 +309,8 @@ app.post('/api/orders/:id/:action{accept|reject|revise}', async (c) => {
   const o = getOrder(c.req.param('id'));
   if (!o) return c.json({ error: 'not found' }, 404);
   const { note, email } = await c.req.json().catch(() => ({}));
-  // Only the customer decides. Until wallet signatures land, the email on the order is the key.
-  if (String(email ?? '').trim().toLowerCase() !== o.email) return c.json({ error: 'Only the customer who placed this order can decide on it.' }, 403);
+  // Only the customer decides: their order key (in their job link and emails); older orders, the email on them.
+  if (!isCustomer(o, { key: keyOf(c), email: email ? String(email) : undefined })) return c.json({ error: NOT_CUSTOMER }, 403);
   try {
     decide(o, c.req.param('action') as 'accept' | 'reject' | 'revise', note);
     return c.json(shown(c, view(o.id, c)));
@@ -358,7 +388,7 @@ app.get('/s/:slug/:file', site);
 // ordering and payment links, bank details) and the look, preview, publish, undo. Pages are re-rendered by the engine.
 const editHits = new Map<string, number[]>();
 const editAllowed = (c: any, kind: string, max: number) => {
-  const who = `${kind}:${c.req.header('x-forwarded-for')?.split(',')[0].trim() || 'local'}`, now = Date.now();
+  const who = `${kind}:${clientIp(c)}`, now = Date.now();
   const hits = (editHits.get(who) ?? []).filter((t) => now - t < 3600_000);
   if (hits.length >= max) return false;
   editHits.set(who, [...hits, now]);
@@ -445,7 +475,7 @@ app.post('/api/site-edit/:token/poster/file', async (c) => {
 // ---------------------------------------------------------------- Syncly Pay: a business's invoices and bills, booked on Arc
 const payHits = new Map<string, number[]>();
 const payAllowed = (c: any, max = 12) => {
-  const who = c.req.header('x-forwarded-for')?.split(',')[0].trim() || 'local', now = Date.now();
+  const who = clientIp(c), now = Date.now();
   const hits = (payHits.get(who) ?? []).filter((t) => now - t < 3600_000);
   if (hits.length >= max) return false;
   payHits.set(who, [...hits, now]);
@@ -524,6 +554,7 @@ let verified: { at: number; v: Awaited<ReturnType<typeof verifyLog>> } | null = 
 // After the Boss changes the vault's limits from the Books page: the CFO re-plans now instead of at its next tick.
 const nudges: number[] = [];
 app.post('/api/cfo/nudge', (c) => {
+  if (!isOwner(c)) return c.json({ error: 'owner only' }, 401);
   const now = Date.now();
   while (nudges.length && now - nudges[0] > 3600_000) nudges.shift();
   if (nudges.length >= 12) return c.json({ ok: false }, 429);
@@ -551,7 +582,7 @@ app.get('/api/cfo', async (c) => {
   });
 });
 app.get('/api/team', (c) => c.json(shown(c, team())));
-app.get('/api/replay', (c) => c.json({ mode: DRY ? 'demo' : 'live', orders: shown(c, replay(Number(c.req.query('limit') ?? 6), c.req.query('order') || undefined)) }));
+app.get('/api/replay', (c) => c.json({ mode: DRY ? 'demo' : 'live', orders: shown(c, replay(Math.min(20, Math.max(1, Number(c.req.query('limit')) || 6)), c.req.query('order') || undefined)) }));
 // Public: counts and Arc transactions. With the owner's key: the money figures too.
 app.get('/api/traction.md', (c) => {
   if (DRY) return c.text('Traction is only reported from live books.', 404);
