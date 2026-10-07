@@ -9,18 +9,18 @@ Syncly does the jobs a small business would otherwise pay an agency or a freelan
 
 | Service | Price | Typical time | You get |
 |---|---|---|---|
-| **Money Report** | 2 USDC | ~4 min | Your bank statement read by the CFO: money in and out reconciled, where it goes, who pays you, what to cut, what to do this month. Private |
-| **Business Website** | 2 USDC | ~2 min | A professional site from your Google listing, Instagram and photos, live at a link today, plus the files |
-| **Social Media Posts** | 2 USDC | ~3 min | What's working in your niche this week, backed by real posts, then 7 posts in your voice and 3 images |
-| **Ad Campaign** | 2 USDC | ~4 min | 3 ads with feed and Story designs, an 8 s video ad, copy, and a 7-day plan for your budget |
+| **Money Report** | 1 USDC | ~4 min | Your bank statement read by the CFO: money in and out reconciled, where it goes, who pays you, what to cut, what to do this month. Private |
+| **Business Website** | 1 USDC | ~2 min | A professional site from your Google listing, Instagram and photos, live at a link today, plus the files |
+| **Social Media Posts** | 1 USDC | ~3 min | What's working in your niche this week, backed by real posts, then 7 posts in your voice and 3 images |
+| **Ad Campaign** | 1 USDC | ~4 min | 3 ads with feed and Story designs, an 8 s video ad, copy, and a 7-day plan for your budget |
 | **Promo Video** | 1 USDC | ~4 min | A 12–24 s video of your products and offer for Reels, TikTok and Status, with licensed music |
 | **Flyers & Price Lists** | 1 USDC | ~3 min | A promo flyer, price list, menu or announcement in your colours, for WhatsApp Status, Instagram and A4 print |
-| **Product Photos** | 2 USDC | ~3 min | Your phone photos turned into studio, lifestyle and white-background shots, sized for where you sell |
-| **Market & Google Report** | 2 USDC | ~5 min | Where you rank on Google Maps street by street, your competitors and what they charge, what ChatGPT says about you, and the fixes |
-| **Best Price & Seller Check** | 2 USDC | ~3 min | The cheapest trustworthy offers for what you need, and a risk check on the sellers before you pay |
-| **Find Customers** | 2 USDC | ~4 min | Who buys what you sell, up to 40 of them with contacts, a first message for each, and people asking for it right now |
+| **Product Photos** | 1 USDC | ~3 min | Your phone photos turned into studio, lifestyle and white-background shots, sized for where you sell |
+| **Market & Google Report** | 1 USDC | ~5 min | Where you rank on Google Maps street by street, your competitors and what they charge, what ChatGPT says about you, and the fixes |
+| **Best Price & Seller Check** | 1 USDC | ~3 min | The cheapest trustworthy offers for what you need, and a risk check on the sellers before you pay |
+| **Find Customers** | 1 USDC | ~4 min | Who buys what you sell, up to 40 of them with contacts, a first message for each, and people asking for it right now |
 
-Quick jobs cost 1 USDC (about ₦1,330) and bigger ones 2 USDC (about ₦2,660). You pay into an escrow on Arc. The money only leaves when you accept the work; reject it and you get it back, plus a bond. See [Escrow payments](/docs/escrow).
+Every job costs 1 USDC (about ₦1,400 if you pay in naira). You pay into an escrow on Arc. The money only leaves when you accept the work; reject it and you get it back, plus a bond. See [Escrow payments](/docs/escrow).
 
 ## Money
 

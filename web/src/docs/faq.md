@@ -7,7 +7,7 @@ order: 4
 
 ## Do I need crypto?
 
-You need a wallet with USDC on Arc: every job is 1 or 2 USDC, paid into escrow, and you only pay if you accept the work.
+You need a wallet with USDC on Arc: every job is 1 USDC (or about ₦1,400 by bank transfer or card), paid into escrow, and you only pay if you accept the work.
 
 ## Can I pay in naira?
 

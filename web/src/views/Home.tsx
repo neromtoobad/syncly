@@ -42,7 +42,7 @@ function Hero({ stats }: { stats: Stats | null }) {
             <Link href="/#money" className="pill ghost lg">Follow the money <Arrow /></Link>
           </Rv>
         </div>
-        <div className="hx__foot mono"><span>Every payment settles on Arc · every decision signed · 1–2 USDC a job</span><span>Scroll ↓</span></div>
+        <div className="hx__foot mono"><span>Every payment settles on Arc · every decision signed · 1 USDC a job</span><span>Scroll ↓</span></div>
       </div>
     </section>
   );
@@ -360,7 +360,7 @@ function Close() {
               <button type="submit" className="pill green">Get a free quote <Arrow /></button>
             </form>
             <div className="cl__chips">{ASK.map(([id, label]) => <button type="button" key={id} className={`chip click dark${svc === id ? ' on' : ''}`} onClick={() => setSvc(id)}>{label}</button>)}</div>
-            <p className="mono cl__fine">1–2 USDC a job, no card · pay only if you accept · refund + bond if you reject</p>
+            <p className="mono cl__fine">1 USDC a job · pay only if you accept · refund + bond if you reject</p>
           </Rv>
         </div>
         <div className={`cl__art${seen ? ' in' : ''}`} ref={ref}><MarkBlock /></div>

@@ -16,7 +16,7 @@ Each quote is worked out step by step, and the steps are printed on it:
 | **Tool cost** | The median measured cost of past jobs of this service, but never below half the listed estimate. New services use the listed estimate. |
 | **p(accept)** | The chance you'll accept: a Beta(4, 1) prior updated with this service's real accepts and rejects. |
 | **Bond** | 10% of the price when p(accept) ≤ 0.70, rising to 30% at p(accept) ≥ 0.95. It is capped by how much the vault's BOND bucket can still cover. |
-| **Expected profit** | p · price − cost − (1 − p) · bond. Prices are kept at 1 or 2 USDC on purpose, so some jobs run at a loss; the CFO declines a job only if it would lose more than 2 USDC. |
+| **Expected profit** | p · price − cost − (1 − p) · bond. Every job is 1 USDC on purpose, to grow the customer base, so some jobs run at a loss; the CFO declines a job only if it would lose more than 3.50 USDC. |
 | **Free first website** (off) | During launch week, a first Website was free when the week's promo budget (2 USDC) and a 1.50 USDC cost cap allowed it. It's switched off now (`FREE_FIRST_WEBSITE=1` turns it back on); the rule stays in the CFO for when it is. |
 
 The more jobs customers accept, the higher p(accept) climbs and the bigger the bond the CFO puts up: it bets more on work it has earned confidence in.

@@ -44,7 +44,7 @@ export const SERVICES: Record<string, Runnable> = {
 /** The menu: what a business would otherwise pay an agency or a freelancer for, plus research it can order in a sentence. */
 export const CATALOG = [
   {
-    id: 'money-report', name: 'Money Report', dept: 'Money', live: true, priceUsd: 2, listedCostUsd: 0.3, etaMin: 4,
+    id: 'money-report', name: 'Money Report', dept: 'Money', live: true, priceUsd: 1, listedCostUsd: 0.3, etaMin: 4,
     tagline: 'Upload your bank statement; the CFO shows where your money goes, who pays you most, what to cut, and what to do this month.',
     youGet: ['Money in and out by month, reconciled to your statement’s own balances', 'Where the money goes, by category, and how much is personal spending mixed in', 'Who pays you most, who you pay most, what you pay every month, and what bank charges cost you a year', 'Your tightest days, and 5 actions for this month, every figure traced to the statement', 'A chart and a spreadsheet of every transaction, labelled. Private: your statement is deleted after the report'],
     team: ['analyst', 'auditor', 'writer', 'messenger'],
@@ -52,21 +52,21 @@ export const CATALOG = [
   },
   {
     // The free first website ran during launch week; it's off now, and FREE_FIRST_WEBSITE=1 turns it back on.
-    id: 'website', name: 'Business Website', dept: 'Marketing', live: true, freeFirst: process.env.FREE_FIRST_WEBSITE === '1', priceUsd: 2, listedCostUsd: 0.7, etaMin: 2,
+    id: 'website', name: 'Business Website', dept: 'Marketing', live: true, freeFirst: process.env.FREE_FIRST_WEBSITE === '1', priceUsd: 1, listedCostUsd: 0.7, etaMin: 2,
     tagline: 'A professional website for your business, built from your Google listing and Instagram, live today.',
     youGet: ['A site in one of 7 designed themes, in a colour taken from your own photos, live at a link today', 'Your menu or prices, real Google reviews and your best photos (flyers are left out)', 'WhatsApp on every screen, live "open now" hours, map and directions', 'Every price and phone number checked against your sources; reviewed on a phone and a laptop', 'Search-ready, and the files to host anywhere with your own domain'],
     team: ['researcher', 'scout', 'reader', 'analyst', 'illustrator', 'auditor', 'messenger'],
     example: 'A website for Tolu’s Small Chops in Surulere, Lagos. WhatsApp 0803 555 0142, Instagram @tolussmallchops',
   },
   {
-    id: 'content-pack', name: 'Social Media Posts', dept: 'Marketing', live: true, priceUsd: 2, listedCostUsd: 1.1, etaMin: 3,
+    id: 'content-pack', name: 'Social Media Posts', dept: 'Marketing', live: true, priceUsd: 1, listedCostUsd: 1.1, etaMin: 3,
     tagline: '7 ready-to-post social media posts and 3 images, based on what is working in your niche this week.',
     youGet: ['The content styles pulling views in your niche right now, each backed by real posts and their numbers', 'What your own account shows: what worked and what didn’t', '7 posts in your voice: hook, caption, CTA, hashtags, shot list', '3 designed images, ready to post', 'Checked: every example is real, no invented claims'],
     team: ['researcher', 'reader', 'scout', 'analyst', 'writer', 'illustrator', 'auditor', 'messenger'],
     example: 'Content for Tolu’s Small Chops in Lagos, Instagram @tolussmallchops',
   },
   {
-    id: 'ad-launch', name: 'Ad Campaign', dept: 'Marketing', live: true, priceUsd: 2, listedCostUsd: 2.0, etaMin: 4,
+    id: 'ad-launch', name: 'Ad Campaign', dept: 'Marketing', live: true, priceUsd: 1, listedCostUsd: 2.0, etaMin: 4,
     tagline: 'A ready-to-run Instagram, Facebook and TikTok ad campaign: designs, a video ad, copy and a 7-day budget plan.',
     youGet: ['3 ad angles built on ads in your niche that have kept running for 30+ days', 'Feed and Story creatives for each, made from your own product photo', 'An 8 s video ad, and copy to paste for Instagram, Facebook and TikTok', 'Who to target, your budget split into a 7-day test, and step-by-step setup', 'Already boosting? Send a screenshot and we tell you what to change'],
     team: ['researcher', 'scout', 'analyst', 'writer', 'illustrator', 'producer', 'auditor', 'messenger'],
@@ -87,28 +87,28 @@ export const CATALOG = [
     example: 'A price list for Tolu’s Small Chops: party trays from ₦25,000, order on WhatsApp 0803 555 0142',
   },
   {
-    id: 'product-photos', name: 'Product Photos', dept: 'Marketing', live: true, priceUsd: 2, listedCostUsd: 1.1, etaMin: 3,
+    id: 'product-photos', name: 'Product Photos', dept: 'Marketing', live: true, priceUsd: 1, listedCostUsd: 1.1, etaMin: 3,
     tagline: 'Your phone photos turned into about 8 professional product shots, sized for Instagram, WhatsApp and online stores.',
     youGet: ['About 8 shots from your own 1–3 photos, at exact sizes for Instagram, WhatsApp Status, Jumia, Jiji and Konga, and your website', 'Your product kept as it is: the label words, colours and shape are written down first, and every shot is held to them', 'Every shot checked beside your photo by a separate AI; one that changes your product is remade once, then left out', 'A before-and-after sheet, plus copies of your social shots with your own logo in the corner', 'All photos in one zip, with where to post each one'],
     team: ['analyst', 'illustrator', 'auditor', 'messenger'],
     example: 'Product photos of Adunni Naturals’ 250 g whipped shea body butter jar for Instagram, WhatsApp and Jumia, clean look',
   },
   {
-    id: 'get-found', name: 'Market & Google Report', dept: 'Sales & Research', live: true, priceUsd: 2, listedCostUsd: 3.3, etaMin: 5,
+    id: 'get-found', name: 'Market & Google Report', dept: 'Sales & Research', live: true, priceUsd: 1, listedCostUsd: 3.3, etaMin: 5,
     tagline: 'Where you rank on Google Maps and in ChatGPT, who shows up instead, your competitors and what they charge, and what to fix first.',
     youGet: ['Your Google Maps position from 9 spots around your shop, for the searches customers really type, as a coloured map', 'You next to the businesses that show above you: rating, reviews, website, hours', 'Your market: competitors, their prices, what customers want and how you can win, every claim cited to a source', 'What ChatGPT, Gemini, Claude and Perplexity tell customers about you, every wrong fact quoted, and your Google profile checked line by line', 'One fix list, most urgent first, a new profile description and review replies to paste, checked by an independent AI'],
     team: ['researcher', 'scout', 'reader', 'investigator', 'analyst', 'writer', 'auditor', 'messenger'],
     example: 'Mama Put Kitchen, a restaurant in Yaba, Lagos. Website mamaputkitchen.ng. Customers search "jollof rice yaba"',
   },
   {
-    id: 'buy-smart', name: 'Best Price & Seller Check', dept: 'Buying', live: true, priceUsd: 2, listedCostUsd: 0.7, etaMin: 3,
+    id: 'buy-smart', name: 'Best Price & Seller Check', dept: 'Buying', live: true, priceUsd: 1, listedCostUsd: 0.7, etaMin: 3,
     tagline: 'The cheapest place to buy what you need, delivered, and whether the seller is safe to pay.',
     youGet: ['Best pick and runner-up for up to 5 items, with the delivered total in your currency', 'Every price re-checked on the seller’s own page, with stock and delivery fee', 'A RED / AMBER / GREEN check on up to 3 sellers: the ones you’re talking to, and any pick from a classified ad or a shop we don’t know', 'Every signal cited, what to ask each seller, and how to pay safely', 'A spreadsheet of every offer and the raw seller signals, emailed to you'],
     team: ['researcher', 'scout', 'reader', 'analyst', 'investigator', 'writer', 'auditor', 'messenger'],
     example: '2 chest freezers (300 L) and a double-basket deep fryer, new, delivered to Surulere, Lagos. Budget ₦900k. Also talking to @frostking_ng on Instagram',
   },
   {
-    id: 'find-customers', name: 'Find Customers', dept: 'Sales & Research', live: true, priceUsd: 2, listedCostUsd: 0.5, etaMin: 4,
+    id: 'find-customers', name: 'Find Customers', dept: 'Sales & Research', live: true, priceUsd: 1, listedCostUsd: 0.5, etaMin: 4,
     tagline: 'Tell us what you sell; we find the businesses most likely to buy it, with their contacts and a first message for each.',
     youGet: ['Who buys what you sell: 2–3 customer types, and the sign that each one needs you now (no website, new, few reviews)', 'Up to 40 of them from Google Maps, best fits first, with phone, WhatsApp link, website and verified email where published', 'A personal first message for every business, written from its real details, ready to send', 'People publicly asking for what you offer right now, with links', 'Where to find more of them, a 7-day outreach plan and a pitch to paste anywhere'],
     team: ['researcher', 'analyst', 'scout', 'reader', 'investigator', 'writer', 'auditor', 'messenger'],

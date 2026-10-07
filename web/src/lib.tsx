@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type React from 'react';
 
-export const NGN_PER_USD = 1330; // ≈ market rate, Sep 2026; shown as an approximation only
+export const NGN_PER_USD = 1392; // ≈ the live naira checkout price per USDC (Bachs rate + 3.5%), Oct 2026; shown as an approximation only
 
 export const usd = (x: number, d = 2) => `${x.toFixed(d)}`;
 export const ngn = (x: number) => `≈ ₦${Math.round(x * NGN_PER_USD).toLocaleString('en-NG')}`;

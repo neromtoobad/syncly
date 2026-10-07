@@ -34,7 +34,7 @@ Syncly's CFO doesn't only run Syncly's money. [**Syncly Pay**](https://hiresyncl
 
 1. **Follow the money** on the home page ([/#money](https://hiresyncly.site/#money)): each stop has a live number from the running company.
 2. **Read the CFO's log** at [/api/cfo](https://hiresyncly.site/api/cfo): the vault's buckets, each agent's balance and allowance, this week's plan, and every decision with what the CFO saw, signed and hash-chained. `verify.ok` means every hash and signature checks out.
-3. **Order a website** at [/hire/website](https://hiresyncly.site/hire/website) (2 USDC, paid into escrow on Arc). The job page shows the team working live and **the money on this job**: the CFO's quote and bond, the escrow, every tool the agents bought with its Arc settlement, and the release or refund.
+3. **Order a website** at [/hire/website](https://hiresyncly.site/hire/website) (1 USDC, paid into escrow on Arc). The job page shows the team working live and **the money on this job**: the CFO's quote and bond, the escrow, every tool the agents bought with its Arc settlement, and the release or refund.
 4. **Check a receipt.** Job #1 ([ord_mulrvp33_0603](https://hiresyncly.site/job/ord_mulrvp33_0603)) found 9 restaurants with 5 x402 payments, each linked to its settlement on Arc ([0xb76f18…](https://explorer.arc.io/tx/0xb76f1819087eea9c3bbd9886384a44556450a6fa831a1575818165fa0355fe25), [0xc99ba1…](https://explorer.arc.io/tx/0xc99ba105332d26b54c73cc1ba1677e299c9dc632eb3f835e50309a40d41d4fbd)).
 5. **Pay for a job** (needs about 2.05 USDC on Arc in a browser wallet). The page walks through the steps: connect the wallet, the CFO opens the escrow, then approve and fund. On the job page you then accept, revise or reject from the same wallet.
 6. **Watch the office** at [/live](https://hiresyncly.site/live). The agents act out real events: the CFO stamps the quote and walks the brief to the whiteboard, and the Messenger carries the delivery out.
@@ -70,7 +70,7 @@ Every 10 minutes, and soon after any job is accepted, delivered or refunded, the
 
 New money in the vault is acted on within a minute. The owner funds the team by sending USDC to the vault (the **Fund the team** box on the books page), and the CFO credits it, moves what the week needs into TOOLS and tops the agents up.
 
-It also prices every job ([`server/src/cfo/quote.ts`](server/src/cfo/quote.ts)). The cost comes from the median measured cost. p(accept) comes from a Beta(4,1) prior updated with the service's acceptance history. The bond is 10–30% of the price, higher when confidence is higher, and capped by what the BOND bucket can cover. Every service is priced at 1 or 2 USDC on purpose (traction over profit), so the CFO takes a job unless it is expected to lose more than 2 USDC. Every number is on the quote, which only the owner sees in full.
+It also prices every job ([`server/src/cfo/quote.ts`](server/src/cfo/quote.ts)). The cost comes from the median measured cost. p(accept) comes from a Beta(4,1) prior updated with the service's acceptance history. The bond is 10–30% of the price, higher when confidence is higher, and capped by what the BOND bucket can cover. Every service is priced at 1 USDC on purpose (a large customer base over profit), so the CFO takes a job unless it is expected to lose more than 3.50 USDC. Every number is on the quote, which only the owner sees in full.
 
 **Limits it cannot talk its way past** (enforced by [`SynclyVault.sol`](contracts/src/SynclyVault.sol), not by a prompt):
 
@@ -142,16 +142,16 @@ Real money has to flow for the CFO to manage it, so Syncly sells work small busi
 
 | Service | Price | What you get |
 |---|---|---|
-| Money Report | 2 USDC | The business's bank statement read by the CFO: every transaction labelled, totals reconciled in code to the statement's balances, where the money goes, top customers and suppliers, recurring payments, bank charges, and actions with every figure traced. Private: the statement is deleted after the report, which opens only from the customer's email link |
-| Business Website | 2 USDC | A professional site from the business's Google listing, Instagram and photos, live the same day, with an editor and integrations (Chowdeck, Paystack, bank transfer card, QR posters) |
-| Social Media Posts | 2 USDC | The content styles working in the niche this week (backed by real posts and their numbers), then 7 posts and 3 images |
-| Ad Campaign | 2 USDC | 3 ad angles from ads that have run 30+ days, feed and Story creatives, an 8 s video, copy, and a 7-day plan for the budget; diagnoses the ads they already ran |
+| Money Report | 1 USDC | The business's bank statement read by the CFO: every transaction labelled, totals reconciled in code to the statement's balances, where the money goes, top customers and suppliers, recurring payments, bank charges, and actions with every figure traced. Private: the statement is deleted after the report, which opens only from the customer's email link |
+| Business Website | 1 USDC | A professional site from the business's Google listing, Instagram and photos, live the same day, with an editor and integrations (Chowdeck, Paystack, bank transfer card, QR posters) |
+| Social Media Posts | 1 USDC | The content styles working in the niche this week (backed by real posts and their numbers), then 7 posts and 3 images |
+| Ad Campaign | 1 USDC | 3 ad angles from ads that have run 30+ days, feed and Story creatives, an 8 s video, copy, and a 7-day plan for the budget; diagnoses the ads they already ran |
 | Promo Video | 1 USDC | A 12–24 s full-frame promo of the products and offer, from the business's photos and website, cut on the beat of a licensed track, rendered on our own server |
 | Flyers & Price Lists | 1 USDC | A promo flyer, price list or announcement in the brand's colour, for WhatsApp Status, Instagram and A4 print, in two styles |
-| Product Photos | 2 USDC | Phone photos turned into about 8 studio, lifestyle and white-background shots, sized for where they sell |
-| Market & Google Report | 2 USDC | Competitors, their prices and demand (cited research), Google Maps rank street by street against competitors, profile gaps, what ChatGPT, Gemini, Claude and Perplexity say, a fix list, a profile description and review replies |
-| Best Price & Seller Check | 2 USDC | The cheapest trustworthy offers, delivered, and a red/amber/green check on the sellers before paying |
-| Find Customers | 2 USDC | For freelancers and businesses: who buys what they sell, up to 40 of them from Google Maps with phone, WhatsApp and verified email, a first message for each, people publicly asking for it now, and a 7-day plan |
+| Product Photos | 1 USDC | Phone photos turned into about 8 studio, lifestyle and white-background shots, sized for where they sell |
+| Market & Google Report | 1 USDC | Competitors, their prices and demand (cited research), Google Maps rank street by street against competitors, profile gaps, what ChatGPT, Gemini, Claude and Perplexity say, a fix list, a profile description and review replies |
+| Best Price & Seller Check | 1 USDC | The cheapest trustworthy offers, delivered, and a red/amber/green check on the sellers before paying |
+| Find Customers | 1 USDC | For freelancers and businesses: who buys what they sell, up to 40 of them from Google Maps with phone, WhatsApp and verified email, a first message for each, people publicly asking for it now, and a 7-day plan |
 
 The menu comes from research into what small businesses already pay agencies and freelancers for, and what a search or a chatbot can't do: jobs that need fresh data from many paid sources at once, checking against the truth, or real production.
 
