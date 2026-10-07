@@ -1277,3 +1277,8 @@ label.check input { margin-top: 3px; }
   .hx__copy { position: relative; left: auto; top: auto; transform: none; margin-left: clamp(22px, 4vw, 60px); padding: 56px 0 76px; }
   .hx h1 { font-size: clamp(42px, min(6.3vw, 9.6vh), 92px); }
 }
+/* phones: the "Live on Arc mainnet" tag sits on the green text panel under the picture, not on the picture's edge */
+@media (max-width: 760px) {
+  .hx__copy { margin-top: 0; padding-top: 20px; }
+  .hx h1 { margin-top: 12px; }
+}
