@@ -48,7 +48,7 @@ export function Check({ size = 16 }: { size?: number }) {
 }
 
 /** Soft backdrop per department, for service cards. */
-export const DEPT_TINT: Record<string, string> = { "Research": "#f4e2e5", "Sales & Growth": "#fbefcc", "Growth Studio": "#eee8f8", "Buying & Suppliers": "#e2edf9", "Content & Creative": "#eee8f8", "Web & Tech": "#e2edf9", "Finance & Ops": "#e1ece5" };
+export const DEPT_TINT: Record<string, string> = { "Marketing": "#eee8f8", "Sales & Research": "#fbefcc", "Buying": "#e2edf9", "Research": "#f4e2e5", "Sales & Growth": "#fbefcc", "Growth Studio": "#eee8f8", "Buying & Suppliers": "#e2edf9", "Content & Creative": "#eee8f8", "Web & Tech": "#e2edf9", "Finance & Ops": "#e1ece5" };
 
 export function Seal({ size = 32 }: { size?: number }) {
   return (
@@ -129,8 +129,8 @@ export type BooksSummary = {
   pnl: { revenue: number; tools: number; experts: number; guarantee: number; grossMargin: number; byVendor: Record<string, number>; bondsPaid: number; refunds: number };
 };
 export const SERVICE_NAME: Record<string, string> = {
-  "research-brief": "Research Brief", "local-business-finder": "Local Business Finder", "lead-list": "Lead List",
-  "content-pack": "Content Pack", website: "Website", "motion-ad": "Motion Ad", "video-ad": "Video Ad",
+  "research-brief": "Market Research", "find-customers": "Find Customers", "local-business-finder": "Local Business Finder", "lead-list": "Lead List",
+  "content-pack": "Social Media Posts", website: "Business Website", "motion-ad": "Promo Video", "video-ad": "Video Ad",
   "best-price": "Best Price Finder", "ai-answer-audit": "AI Answer Audit", "vendor-check": "Check Before You Pay",
-  "ad-launch": "Ad Launch", "product-photos": "Product Photo Studio", "get-found": "Get Found", "buy-smart": "Buy Smart",
+  "ad-launch": "Ad Campaign", "product-photos": "Product Photos", "get-found": "Google Visibility Check", "buy-smart": "Best Price & Seller Check",
 };

@@ -19,7 +19,7 @@ Every agent has its own wallet on Arc and its own balance in **Circle Gateway**.
 | **Analyst** | Compares prices, answers and signals; the numbers on every report; reads suppliers' bills for Syncly Pay | AI models, business records | BlockRun, Openmart |
 | **Investigator** | Live-checks emails, phone numbers (SIM swap, call forwarding), domains and sellers, and asks ChatGPT, Gemini, Claude and Perplexity what they tell customers; checks every Syncly Pay payee before a bill is booked | Verification lookups, AI-assistant answers, screening | APEX, BlockRun (Twilio), DataForSEO via AIsa, Didit |
 | **Designer** | Websites (Claude Opus 5), product photos, ad creatives and post images | AI models, images | BlockRun on Arc |
-| **Producer** | Motion ads (Claude Opus 5) and the video in every Ad Launch | AI models, video, music | BlockRun on Arc |
+| **Producer** | Promo Videos and the video in every Ad Campaign | AI models, video, music | BlockRun on Arc |
 | **Auditor** | Checks the work on a different model family, looks at every page and frame, runs Lighthouse | AI models | BlockRun, DataForSEO |
 | **Messenger** | Packs the files and emails the delivery from hello@hiresyncly.site; sends Syncly Pay invoices, reminders and receipts | Email sending | Resend (AgentMail by x402 as a fallback) |
 | Mailer, Bookkeeper, Linguist | For outreach, bookkeeping and translation services still to come; not in the office yet | | |

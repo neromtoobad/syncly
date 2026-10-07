@@ -31,10 +31,10 @@ export const MAIL_BUDGET_USD = MAIL ? MAIL.sendUsd + Math.min(MAIL.inboxUsd, 0.1
 
 export const PUBLIC_URL = process.env.OUTLAY_PUBLIC_URL ?? 'https://hiresyncly.site';
 const SERVICE: Record<string, string> = {
-  'research-brief': 'Research Brief', 'local-business-finder': 'Local Business Finder', 'lead-list': 'Lead List',
-  'content-pack': 'Content Pack', website: 'Website', 'motion-ad': 'Motion Ad', 'video-ad': 'Video Ad',
+  'research-brief': 'Market Research', 'find-customers': 'Find Customers', 'local-business-finder': 'Local Business Finder', 'lead-list': 'Lead List',
+  'content-pack': 'Social Media Posts', website: 'Business Website', 'motion-ad': 'Promo Video', 'video-ad': 'Video Ad',
   'ai-answer-audit': 'AI Answer Audit', 'best-price': 'Best Price Finder', 'vendor-check': 'Check Before You Pay',
-  'ad-launch': 'Ad Launch', 'product-photos': 'Product Photo Studio', 'get-found': 'Get Found', 'buy-smart': 'Buy Smart',
+  'ad-launch': 'Ad Campaign', 'product-photos': 'Product Photos', 'get-found': 'Google Visibility Check', 'buy-smart': 'Best Price & Seller Check',
 };
 export const maskEmail = (e: string) => e.replace(/^(.).*(@.*)$/, '$1•••$2');
 

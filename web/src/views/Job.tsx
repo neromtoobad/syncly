@@ -47,7 +47,7 @@ function Timeline({ steps }: { steps: Step[] }) {
 function MoreFor({ o }: { o: Order }) {
   const router = useRouter();
   const { data } = useApi<{ services: Service[] }>('/api/services');
-  const next = (data?.services ?? []).filter((s) => s.live && s.id !== o.service && !['local-business-finder', 'lead-list', 'research-brief'].includes(s.id));
+  const next = (data?.services ?? []).filter((s) => s.live && s.id !== o.service && !['local-business-finder', 'lead-list', 'research-brief', 'find-customers'].includes(s.id));
   if (!next.length) return null;
   return (
     <div style={{ marginTop: 18, borderTop: '1px solid var(--line)', paddingTop: 16 }}>

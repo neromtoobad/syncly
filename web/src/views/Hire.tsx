@@ -14,6 +14,7 @@ const FORM_SERVICES = new Set(['website', 'content-pack', 'motion-ad', 'ad-launc
 
 // One-line examples for the services ordered in a sentence (the rest use the business form).
 const EXAMPLES: Record<string, string[]> = {
+  'find-customers': ['I\'m a freelance graphic designer in Abuja. I do logos, flyers and brand kits', 'We supply bottled water in Ikeja and want offices and restaurants that order weekly', 'I do event photography in Port Harcourt and want more corporate clients'],
   'local-business-finder': ['Every café and coffee shop in Lekki Phase 1 that has no website', 'Pharmacies in Yaba, Lagos with a phone number', 'Hair salons in Wuse 2, Abuja rated 4 stars or more'],
   'lead-list': ['25 fitness studios and gyms in Lekki and Ikoyi for my smoothie delivery business', 'Boutique hotels in Victoria Island for our laundry service', 'Private schools in Ikeja for our school-bus app'],
   'research-brief': ['Competitors and pricing for a small bakery in Lekki that wants to add cake delivery', 'Is there demand for solar inverter rentals in Ibadan?', 'How do Lagos co-working spaces price day passes?'],
@@ -228,10 +229,10 @@ export default function Hire({ service }: { service: string }) {
             </div>
             ) : (
             <div className="card pad formcard">
-              <h3>Tell the team what you need</h3>
-              <p className="muted">One or two sentences is enough. You'll see the exact price before anything starts.</p>
+              <h3>{service === 'find-customers' ? 'What do you sell, and where?' : 'Tell the team what you need'}</h3>
+              <p className="muted">{service === 'find-customers' ? "Say what you offer and where you work. If you already know who you want (e.g. hotels, schools), say so; if not, the team works it out. You'll see the exact price before anything starts." : "One or two sentences is enough. You'll see the exact price before anything starts."}</p>
               <div className="form">
-                <label className="field">The job
+                <label className="field">{service === 'find-customers' ? 'What you sell' : 'The job'}
                   <textarea value={brief} onChange={(e) => setBrief(e.target.value)} placeholder={examples[0] ?? 'Describe the job'} autoFocus={!brief} />
                 </label>
                 {examples.length > 0 && <div className="examples">{examples.map((x) => <button type="button" key={x} className="chip click" onClick={() => setBrief(x)}>{x}</button>)}</div>}

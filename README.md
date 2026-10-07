@@ -142,16 +142,15 @@ Real money has to flow for the CFO to manage it, so Syncly sells work small busi
 
 | Service | Price | What you get |
 |---|---|---|
-| Website | 2 USDC | A designed site from the Google listing, Instagram and the owner's photos, hosted at a link the same day, plus the files. It wires in where the business already sells (Chowdeck, with its menu and ₦ prices read from the store, Glovo, Heyfood, Paystack, Flutterwave, Selar, Bumpa, Fresha, Calendly, Tix and more) and a pay-by-transfer card, and the owner gets a private editor to change prices, hours, links and photos themselves, post an announcement with dates, and make QR posters whose scans are counted |
-| Content Pack | 2 USDC | The content styles working in the niche this week (backed by real posts and their numbers), then 7 posts and 3 images |
-| Ad Launch | 2 USDC | 3 ad angles from ads that have run 30+ days, feed and Story creatives, an 8 s video, copy, and a 7-day plan for the budget; diagnoses the ads they already ran |
-| Motion Ad | 1 USDC | A 12–24 s motion video with an original soundtrack, rendered on our own server |
-| Product Photo Studio | 2 USDC | Phone photos turned into studio, lifestyle and white-background shots, each checked against the original so the product doesn't change |
-| Get Found | 2 USDC | Google Maps rank street by street against competitors, profile gaps, what ChatGPT, Gemini, Claude and Perplexity say, a fix list, a profile description and review replies |
-| Buy Smart | 2 USDC | The cheapest trustworthy offers, delivered, and a red/amber/green check on the sellers before paying |
-| Local Business Finder | 1 USDC | Every business of a type in an area, with phone, website and rating, as a spreadsheet |
-| Lead List | 1 USDC | Up to 25 verified business emails, each with a personalised first line |
-| Research Brief | 1 USDC | Competitors, market and pricing, with every claim cited |
+| Business Website | 2 USDC | A professional site from the business's Google listing, Instagram and photos, live the same day, with an editor and integrations (Chowdeck, Paystack, bank transfer card, QR posters) |
+| Social Media Posts | 2 USDC | The content styles working in the niche this week (backed by real posts and their numbers), then 7 posts and 3 images |
+| Ad Campaign | 2 USDC | 3 ad angles from ads that have run 30+ days, feed and Story creatives, an 8 s video, copy, and a 7-day plan for the budget; diagnoses the ads they already ran |
+| Promo Video | 1 USDC | A 12–24 s full-frame promo of the products and offer, from the business's photos and website, cut on the beat of a licensed track, rendered on our own server |
+| Product Photos | 2 USDC | Phone photos turned into about 8 studio, lifestyle and white-background shots, sized for where they sell |
+| Google Visibility Check | 2 USDC | Google Maps rank street by street against competitors, profile gaps, what ChatGPT, Gemini, Claude and Perplexity say, a fix list, a profile description and review replies |
+| Best Price & Seller Check | 2 USDC | The cheapest trustworthy offers, delivered, and a red/amber/green check on the sellers before paying |
+| Find Customers | 2 USDC | For freelancers and businesses: who buys what they sell, up to 40 of them from Google Maps with phone, WhatsApp and verified email, a first message for each, people publicly asking for it now, and a 7-day plan |
+| Market Research | 1 USDC | Competitors, market and pricing, with every claim cited |
 
 The menu comes from research into what small businesses already pay agencies and freelancers for, and what a search or a chatbot can't do: jobs that need fresh data from many paid sources at once, checking against the truth, or real production.
 
@@ -176,9 +175,9 @@ The menu comes from research into what small businesses already pay agencies and
 | Path | What |
 |---|---|
 | [`server/`](server) | The company: API (Hono, Node 24 running TypeScript directly), services, x402 payments, the CFO, escrow, the ledger |
-| [`server/assets/promo/`](server/assets/promo) | Motion Ad's promo engine: full-frame scene templates (hook, product, showcase, grid, points, price, CTA) filled from a storyboard, text fitted to its box, rendered frame by frame in headless Chrome |
+| [`server/assets/promo/`](server/assets/promo) | Promo Video's engine: full-frame scene templates (hook, product, showcase, grid, points, price, CTA) filled from a storyboard, text fitted to its box, rendered frame by frame in headless Chrome |
 | [`server/assets/reel/`](server/assets/reel) | The UI-reel engine (for apps and software) and the synthesised sound design (whooshes, impacts; a full score only as a fallback): one-shape morph reels with springs and a cursor |
-| [`server/src/music.ts`](server/src/music.ts) | Motion Ad's licensed music: 15 Mixkit tracks (fetched on first use, never committed), each with a beat grid measured by [`server/src/beats.ts`](server/src/beats.ts) so scenes cut on the beat |
+| [`server/src/music.ts`](server/src/music.ts) | Promo Video's licensed music: 15 Mixkit tracks (fetched on first use, never committed), each with a beat grid measured by [`server/src/beats.ts`](server/src/beats.ts) so scenes cut on the beat |
 | [`web/`](web) | The site (Next.js 16): hire, job pages, books, the CFO's desk, the office (PixiJS) with a marimba soundtrack |
 | [`contracts/`](contracts) | SynclyVault, JobEscrow, InvoiceBook and PayVault, with tests (Foundry) |
 | [`deployments/`](deployments) | Mainnet addresses and deploy transactions |

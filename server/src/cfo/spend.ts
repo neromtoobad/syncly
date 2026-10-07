@@ -4,6 +4,7 @@
 import type { Role } from '../wallets.ts';
 
 export const SPEND: Record<string, Partial<Record<Role, number>>> = {
+  'find-customers': { researcher: 0.01, analyst: 0.03, scout: 0.06, reader: 0.006, investigator: 0.01, writer: 0.06 },
   'local-business-finder': { researcher: 0.02, scout: 0.02 },
   'lead-list': { researcher: 0.02, scout: 0.015, reader: 0.006, investigator: 0.01, writer: 0.03 },
   'research-brief': { researcher: 0.02, scout: 0.015, reader: 0.003, auditor: 0.01 },
