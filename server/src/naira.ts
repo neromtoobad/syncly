@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { keccak256, toBytes, type Hex } from 'viem';
 import { DATA_DIR } from './config.ts';
 import * as chain from './escrow.ts';
-import { getOrder, listOrders, openEscrow, saveOrder, syncEscrow, type Order } from './orders.ts';
+import { getOrder, isCustomer, listOrders, NOT_CUSTOMER, openEscrow, saveOrder, syncEscrow, type Order } from './orders.ts';
 import { PUBLIC_URL } from './mail.ts';
 import { record } from './cfo/log.ts';
 
