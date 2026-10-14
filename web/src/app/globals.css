@@ -861,6 +861,9 @@ body:has(.home) .foot { margin-top: var(--gutter); }
 .media__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
 .media__grid figure { margin: 0; display: grid; gap: 6px; }
 .media__grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--r-sm); border: 1px solid var(--line); }
+/* charts and grids (wide pictures made by the team) show whole, never cropped to a square */
+.media__grid figure.wide { grid-column: 1 / -1; }
+.media__grid figure.wide img { aspect-ratio: auto; height: auto; object-fit: contain; background: #fff; }
 @media (max-width: 640px) {
   .media__site { grid-template-columns: 1fr; justify-items: center; }
   .media__site .phone { width: min(100%, 300px); height: 560px; }
@@ -1127,6 +1130,28 @@ label.check input { margin-top: 3px; }
 @media (max-width: 760px) { .moneygrid { grid-template-columns: minmax(0, 1fr); } }
 .jobpage .notes { margin-top: 6px; border-top: 1px solid var(--line); padding-top: 12px; }
 .jobpage .notes > summary { cursor: pointer; font-weight: 600; font-size: 14.5px; color: var(--ink-2); padding: 4px 0 10px; }
+/* A wide table must scroll inside the report, never stretch the card past the screen (grid items size to their
+   content unless told otherwise), and long words and links wrap. */
+.jobpage .stage > *, .jobpage .notes, .jobpage .media, .deliverable { min-width: 0; }
+.deliverable { overflow-wrap: anywhere; }
+.deliverable table { max-width: 100%; -webkit-overflow-scrolling: touch; }
+.deliverable td { min-width: 52px; overflow-wrap: break-word; }
+.deliverable img { max-width: 100%; height: auto; }
+.jobpage .qa .model { opacity: .75; }
+@media (max-width: 640px) {
+  .jobpage .card.pad { padding: 18px 16px; }
+  .jobpage .qa { padding: 12px 14px; font-size: 14px; }
+  .jobpage .qa .model { display: none; } /* the auditor's model list is for the desktop page, not a phone */
+  .jobpage .crumbs .id, .jobpage .crumbs .sep { display: none; }
+  .jobpage .dochead h3 { font-size: 24px; }
+  .deliverable { font-size: 15px; line-height: 1.6; }
+  .deliverable h1 { font-size: 25px; }
+  .deliverable h2 { font-size: 20px; margin-top: 22px; }
+  .deliverable h3 { font-size: 16px; }
+  .deliverable ul, .deliverable ol { padding-left: 20px; }
+  .deliverable table { font-size: 12.5px; }
+  .deliverable th, .deliverable td { padding: 6px 7px; }
+}
 .decidebar { position: sticky; bottom: 14px; z-index: 5; display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 18px; padding: 12px 18px; border-radius: 999px; background: var(--ink, #1b1a17); color: #fff; text-decoration: none; font-size: 14px; box-shadow: var(--shadow); }
 .decidebar b { font-weight: 600; }
 .uploads .docfile { grid-column: 1 / -1; aspect-ratio: auto; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; font-size: 13.5px; }

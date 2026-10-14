@@ -26,7 +26,9 @@ export function teaser(md: string, what = 'work'): string {
   const firstSection = lines.findIndex((l) => /^##\s/.test(l));
   const intro = (firstSection < 0 ? lines : lines.slice(0, firstSection)).filter((l) => l.trim() && !/^#/.test(l) && !/^[|>\-*!]/.test(l.trim())).join(' ').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/\s+/g, ' ').trim();
   const cut = intro.length > 220 ? `${intro.slice(0, 220).replace(/\s+\S*$/, '')}…` : intro;
-  const heads = lines.filter((l) => /^#{2,3}\s/.test(l)).map((l) => l.replace(/^#+\s+/, '').replace(/[*_`]/g, '').trim()).filter(Boolean).slice(0, 14);
+  // the main sections only (sub-sections too if there are few), without the report's own numbering
+  const level = (re: RegExp) => lines.filter((l) => re.test(l)).map((l) => l.replace(/^#+\s+/, '').replace(/^\d+[.)]\s*/, '').replace(/[*_`]/g, '').trim()).filter(Boolean);
+  const top = level(/^##\s/), heads = (top.length >= 3 ? top : level(/^#{2,3}\s/)).slice(0, 10);
   const words = md.replace(/[#|*_>`-]/g, ' ').split(/\s+/).filter(Boolean).length;
   const tables = (md.match(/^\|.*\|\s*$\n^\|[\s:|-]+\|\s*$/gm) ?? []).length;
   const site = md.match(/\[[^\]]*\]\((?:https?:\/\/[^)\s]+)?\/s\/[a-z0-9-]+\)/)?.[0];

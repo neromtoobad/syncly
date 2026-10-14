@@ -99,6 +99,8 @@ function PaperReceipt({ o, receipt }: { o: Order; receipt: Receipt[] }) {
 const isVideo = (f: string) => /\.(mp4|webm)$/i.test(f);
 const isImage = (f: string) => /\.(png|jpe?g|webp)$/i.test(f);
 const isMedia = (f: string) => isVideo(f) || isImage(f) || /\.zip$/i.test(f);
+/** A wide picture (a chart, a map grid, a banner) spans the row and shows whole instead of a square crop. */
+const wideIfWide = (e: React.SyntheticEvent<HTMLImageElement>) => { const i = e.currentTarget; if (i.naturalWidth > i.naturalHeight * 1.3) i.closest('figure')?.classList.add('wide'); };
 
 /** What the growth team made: the live site in a phone frame, videos that play, images at full size. */
 function Media({ id, files, deliverable, locked }: { id: string; files: string[]; deliverable: string; locked: boolean }) {
@@ -132,7 +134,7 @@ function Media({ id, files, deliverable, locked }: { id: string; files: string[]
       {images.length > 0 && (
         <div className="media__grid">
           {images.map((f) => (
-            <figure key={f}>{locked ? <img src={url(f)} alt={f} loading="lazy" onContextMenu={(e) => e.preventDefault()} /> : <a href={url(f)} target="_blank" rel="noreferrer"><img src={url(f)} alt={f} loading="lazy" /></a>}<figcaption><span className="mono">{f}</span>{locked ? <span className="lockchip">Preview</span> : <a href={`${url(f)}${url(f).includes('?') ? '&' : '?'}download`}>↓</a>}</figcaption></figure>
+            <figure key={f} className={/grid|chart/i.test(f) ? 'wide' : undefined}>{locked ? <img src={url(f)} alt={f} loading="lazy" onLoad={wideIfWide} onContextMenu={(e) => e.preventDefault()} /> : <a href={url(f)} target="_blank" rel="noreferrer"><img src={url(f)} alt={f} loading="lazy" onLoad={wideIfWide} /></a>}<figcaption><span className="mono">{f}</span>{locked ? <span className="lockchip">Preview</span> : <a href={`${url(f)}${url(f).includes('?') ? '&' : '?'}download`}>↓</a>}</figcaption></figure>
           ))}
         </div>
       )}
@@ -297,7 +299,7 @@ export default function Job({ id }: { id: string }) {
   const files = last?.files.filter((f) => !f.startsWith('preview-')) ?? [];
   const docFiles = files.filter((f) => !isImage(f) && !isVideo(f));
   const hasMedia = files.some((f) => isImage(f) || isVideo(f)) || /\]\((?:https?:\/\/[^)\s]+)?\/s\/[a-z0-9-]+\)/.test(last?.deliverable ?? '');
-  const qaBox = last?.qa ? <div className={`qa ${last.qa.verdict === 'pass' ? 'pass' : 'revise'}`} style={{ margin: '4px 0 18px' }}><Avatar role="auditor" /><div><b>Auditor {last.qa.verdict === 'pass' ? 'passed it' : 'left notes'}</b> <span style={{ opacity: .75 }}>· {last.qa.model}</span>{last.qa.notes && <div style={{ fontSize: 13.5, marginTop: 2 }}>{last.qa.notes}</div>}</div></div> : null;
+  const qaBox = last?.qa ? <div className={`qa ${last.qa.verdict === 'pass' ? 'pass' : 'revise'}`} style={{ margin: '4px 0 18px' }}><Avatar role="auditor" /><div><b>Auditor {last.qa.verdict === 'pass' ? 'passed it' : 'left notes'}</b> <span className="model">· {last.qa.model}</span>{last.qa.notes && <div style={{ fontSize: 13.5, marginTop: 2 }}>{last.qa.notes}</div>}</div></div> : null;
 
   const decisionPanel = () => {
     if (o.status === 'delivered' && o.escrow && !o.naira) return cfg ? <EscrowDecision o={o} cfg={cfg} onUpdate={setO} /> : <p className="muted">Loading the escrow…</p>;
@@ -332,7 +334,7 @@ export default function Job({ id }: { id: string }) {
   return (
     <main className="wrap jobpage">
       <div className="jobtop">
-        <div className="crumbs"><Link href={`/hire/${o.service}`}>{SERVICE_NAME[o.service] ?? o.service}</Link><span>/</span><span className="mono" style={{ fontSize: 13 }}>{o.id}</span></div>
+        <div className="crumbs"><Link href={`/hire/${o.service}`}>{SERVICE_NAME[o.service] ?? o.service}</Link><span className="sep">/</span><span className="mono id" style={{ fontSize: 13 }}>{o.id}</span></div>
         <div className="jobhead">
           <div>
             <h1 className="h2">{title}</h1>
