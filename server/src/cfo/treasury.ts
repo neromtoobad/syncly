@@ -295,13 +295,21 @@ export async function teamShortfall(service: string): Promise<string | undefined
   const item = CATALOG.find((c) => c.id === service);
   if (!item) return undefined;
   const need = Object.entries(spendFor(service)).filter(([, v]) => (v ?? 0) > 0.0005) as [Role, number][];
-  const rows = await Promise.all(need.map(async ([role, perJob]) => ({ role, need: r6(perJob), have: await cachedBalance(role) })));
-  const short = rows.filter((r) => Number.isFinite(r.have) && r.have < r.need);
+  const check = async () => {
+    const rows = await Promise.all(need.map(async ([role, perJob]) => ({ role, need: r6(perJob), have: await cachedBalance(role) })));
+    return { rows, short: rows.filter((r) => Number.isFinite(r.have) && r.have < r.need) };
+  };
+  let { rows, short } = await check();
+  if (!short.length) return undefined;
+  // Before turning a customer away, the CFO tops the short agents up (re-planning the week's allowances if it
+  // must, inside the weekly budget) and looks again. Usually a job that just ran has drawn them down.
+  await tickNow(`a ${item.name} quote needs ${short.map((r) => r.role).join(', ')} topped up`);
+  for (const r of short) balances.delete(r.role);
+  ({ rows, short } = await check());
   if (!short.length) return undefined;
   const who = short.map((r) => `${r.role} (${usd(r.have)} of ${usd(r.need)})`).join(', ');
-  await escalate(`unfunded:${service}`, `Declined a ${item.name} quote: ${who} can't cover their part of a job. Asking the Boss to fund them.`,
+  await escalate(`unfunded:${service}`, `Declined a ${item.name} quote: ${who} can't cover their part of a job, even after topping up inside this week's budget. Asking the Boss to fund them.`,
     'never start a job the team can’t pay its tools for', { service, rows: rows.map((r) => ({ ...r, have: Number.isFinite(r.have) ? r6(r.have) : null })) });
-  void tick(`a ${item.name} quote was declined: ${short.map((r) => r.role).join(', ')} short`); // re-plan and top up now, within the budget
   return `The ${item.name} team isn't funded for this job yet, so the CFO won't take it (it would fail halfway). It has asked the owner to fund them; please try again later.`;
 }
 
@@ -310,6 +318,12 @@ const write = (fn: string, args: unknown[]) => () => cfoWrite(DEP!.vault, VAULT,
 // ---------------------------------------------------------------- one tick
 
 let running = false;
+/** Run a check now and wait for it (up to 45 s), even if one is already under way: then run a fresh one. */
+async function tickNow(reason: string) {
+  const until = Date.now() + 45_000;
+  while (running && Date.now() < until) await new Promise((r) => setTimeout(r, 1000));
+  await Promise.race([tick(reason), new Promise((r) => setTimeout(r, Math.max(0, until - Date.now())))]);
+}
 export async function tick(reason = 'scheduled') {
   if (running || !DEP || !hasSeed()) return;
   running = true;

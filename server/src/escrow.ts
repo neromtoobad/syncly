@@ -107,6 +107,16 @@ export async function readEscrow(id: Hex) {
   return { customer, fundBy: Number(fundBy), deliverBy: Number(deliverBy), acceptBy: Number(acceptBy), revised, state: STATES[state] ?? 'None' };
 }
 
+/** After the customer's wallet funds a job: wait for their transaction, then for the escrow to read as funded.
+ *  The node we read can be a block behind the wallet's, so a fresh payment can still read "Open" for a moment. */
+export async function waitFunded(id: Hex, tx: string, ms = 20_000): Promise<EscrowState> {
+  const until = Date.now() + ms;
+  if (/^0x[0-9a-fA-F]{64}$/.test(tx)) await pub.waitForTransactionReceipt({ hash: tx as Hex, timeout: ms }).catch(() => undefined);
+  let state = (await readEscrow(id)).state;
+  while (state === 'Open' && Date.now() < until) { await new Promise((r) => setTimeout(r, 1500)); state = (await readEscrow(id)).state; }
+  return state;
+}
+
 /** The transaction that emitted `event` for this job (the customer's fund / accept / reject / revision). */
 export async function txOf(event: 'JobFunded' | 'RevisionRequested' | 'JobAccepted' | 'JobRejected', id: Hex, fromBlock: bigint): Promise<Hex | undefined> {
   const logs = await pub.getContractEvents({ address: DEP!.escrow, abi: ESCROW_ABI, eventName: event, args: { id } as any, fromBlock, toBlock: 'latest' });

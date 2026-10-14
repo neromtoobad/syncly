@@ -390,6 +390,8 @@ export function syncEscrow(orderId: string, tx?: string) {
     e.state = c.state;
 
     if (o.status === 'quoted') {
+      // the customer's wallet has just paid: don't answer "not paid yet" because our node is a block behind
+      if (c.state === 'Open' && tx) e.state = c.state = await chain.waitFunded(e.id, tx);
       if (c.state === 'Funded') {
         e.fundTx = await theirs('JobFunded');
         saveOrder(o);

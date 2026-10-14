@@ -255,7 +255,9 @@ export default function Job({ id }: { id: string }) {
   // A delivered order can still change from elsewhere (another tab, the 48 h auto-accept), so keep listening.
   const retryPaid = !!o && o.status === 'failed' && !o.refund && o.escrow?.state === 'Funded' && Date.now() < Date.parse(o.escrow.deliverBy) - 20 * 60_000; // matches canRetryPaid on the server
   const awaitingNaira = o?.status === 'quoted' && o?.naira?.status === 'open'; // the page turns into the live job when the naira lands
-  const listening = active || awaitingNaira || o?.status === 'delivered' || (o?.status === 'failed' && o.escrow?.state === 'Funded');
+  // paid from a wallet a moment ago: the chain can be a block behind, so keep checking until the team starts
+  const awaitingUsdc = o?.status === 'quoted' && !o?.naira && !!o?.escrow && ['Open', 'Funded'].includes(o.escrow.state);
+  const listening = active || awaitingNaira || awaitingUsdc || o?.status === 'delivered' || (o?.status === 'failed' && o.escrow?.state === 'Funded');
   useEffect(() => {
     if (!listening) return;
     const es = new EventSource(`/api/events?order=${id}`);
@@ -263,9 +265,9 @@ export default function Job({ id }: { id: string }) {
     es.addEventListener('step', bump);
     es.addEventListener('purchase', bump);
     es.addEventListener('order', bump);
-    const t = active || awaitingNaira ? setInterval(load, 4000) : undefined;
+    const t = active || awaitingNaira || awaitingUsdc ? setInterval(load, 3000) : undefined;
     return () => { es.close(); clearInterval(t); };
-  }, [id, listening, active, awaitingNaira]);
+  }, [id, listening, active, awaitingNaira, awaitingUsdc]);
 
   const last = o?.runs.at(-1);
   const running = o?.live && (!last || last.id !== o.live.jobId) && active ? o.live : null;
@@ -352,6 +354,11 @@ export default function Job({ id }: { id: string }) {
         <section className="card pad stage">
           <h3 className="t">Waiting for your naira payment</h3>
           <p className="muted" style={{ margin: 0 }}>A bank transfer through Bachs can take a few minutes. This page updates by itself once it lands, and the team starts straight away.</p>
+        </section>
+      ) : awaitingUsdc ? (
+        <section className="card pad stage">
+          <h3 className="t">Confirming your payment on Arc</h3>
+          <p className="muted" style={{ margin: 0 }}>If you just paid from your wallet, this takes a few seconds. This page updates by itself, and the team starts the moment the escrow shows your USDC. You don't need to pay or order again.</p>
         </section>
       ) : active ? (
         <section className="stage">
