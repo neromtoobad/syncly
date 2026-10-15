@@ -5,7 +5,8 @@
 // Google Maps (open web if Maps is down) → rules rank who fits the sign best and drop duplicates → Reader looks for a
 // published email on the best fits' own sites; Investigator checks each one can receive mail → Scout also searches for
 // people publicly asking for this right now → Writer drafts one first message per lead from its real data, where to
-// find more, and a 7-day plan → deterministic QA. Syncly never contacts anyone for you.
+// find more, and a 7-day plan → deterministic QA. Every Nigerian mobile gets a one-tap WhatsApp link with its message
+// already typed, and the CSV doubles as a tracker (status, date sent, follow-up day). Syncly never contacts anyone for you.
 import { Job } from '../job.ts';
 import { MODELS } from '../config.ts';
 import { HOSTS, emailsIn, llm, mapsSearch, parseJson, verifyEmails, webPlaces, webRead, webSearch, type Place } from '../tools.ts';
@@ -29,6 +30,10 @@ function normPhone(p?: string): string | undefined {
   if (d.startsWith('0') && d.length === 11) return '+234' + d.slice(1);
   return d || undefined;
 }
+// a Nigerian mobile (WhatsApp lives on mobiles; 01/09 landlines and short codes don't)
+const isMobile = (e?: string) => !!e && /^\+234[789][01]\d{8}$/.test(e);
+/** One tap opens WhatsApp with the message already typed; they read it and press send. */
+const waWith = (e: string, text?: string) => `https://wa.me/${e.slice(1)}${text ? `?text=${encodeURIComponent(text)}` : ''}`;
 const fits = (p: Place, s: Signal) => s === 'no_website' ? !p.website || SOCIAL.test(hostOf(p.website)) : s === 'few_reviews' ? (p.ratingCount ?? 0) < 25 : s === 'has_website' ? !!p.website && !SOCIAL.test(hostOf(p.website)) : true;
 
 export const findCustomers = {
@@ -126,16 +131,17 @@ export const findCustomers = {
 
       // 6. Messages, where to find more, and the plan, in one call from the real data only
       job.log('writer', 'messages', `${leads.length} first messages, where to find more, a 7-day plan`);
-      const out = parseJson<{ messages: { i: number; message: string }[]; asking: { i: number; who: string }[]; places: string[]; plan: string[]; pitch: string }>(await llm(job, 'writer', [
+      const out = parseJson<{ messages: { i: number; message: string }[]; asking: { i: number; who: string }[]; places: string[]; plan: string[]; pitch: string; followup?: string }>(await llm(job, 'writer', [
         { role: 'system', content: `You help ${spec.seller || 'a seller'} who sells "${spec.offer}" in ${spec.location} win customers. Reply JSON only:
 {"messages": [{"i": lead index, "message": a first WhatsApp or DM message to that business, max 45 words, warm and specific: name the business and one real thing from its data (its area, its rating, that it has no website, that it's new), then one line on what you offer them and a simple question. No invented facts, no flattery clichés, no prices unless given.}],
 "asking": [{"i": search result index, "who": one line on who is asking and for what}] only for results where a real person or business is clearly asking for this kind of offer (skip articles, directories and adverts),
 "places": [4-6 specific places to find more of these customers: named online communities, platforms, markets, associations or events in ${spec.location}; only ones you are confident exist],
 "plan": [7 short lines, Day 1 to Day 7, a realistic outreach plan using this list],
-"pitch": a 3-sentence pitch they can paste anywhere}` },
+"pitch": a 3-sentence pitch they can paste anywhere,
+"followup": one short, friendly follow-up for anyone who hasn't replied after 3 days, max 30 words, with {name} where the business name goes}` },
         { role: 'user', content: JSON.stringify({ leads: leads.map((l, i) => ({ i, name: l.title, type: l.segment, category: l.category, area: l.address, rating: l.rating, reviews: l.ratingCount, has_website: !!l.domain })), search_results: asking.map((h, i) => ({ i, title: h.title, link: h.link, snippet: h.snippet })) }) },
       ], 'write the messages and the plan', { maxTokens: 4000, json: true,
-        dry: () => JSON.stringify({ messages: leads.map((l, i) => ({ i, message: `Hi ${l.title}, saw you on ${l.address ?? 'Google Maps'}. I help businesses like yours with ${spec.offer}. Can I send a few ideas?` })), asking: asking.slice(0, 2).map((_, i) => ({ i, who: 'Someone asking for a recommendation' })), places: ['Abuja Business Network on Facebook', 'Jiji services section'], plan: ['Day 1: message the 10 best fits'], pitch: `I help ${segments[0].name} with ${spec.offer}.` }) }),
+        dry: () => JSON.stringify({ messages: leads.map((l, i) => ({ i, message: `Hi ${l.title}, saw you on ${l.address ?? 'Google Maps'}. I help businesses like yours with ${spec.offer}. Can I send a few ideas?` })), asking: asking.slice(0, 2).map((_, i) => ({ i, who: 'Someone asking for a recommendation' })), places: ['Abuja Business Network on Facebook', 'Jiji services section'], plan: ['Day 1: message the 10 best fits'], pitch: `I help ${segments[0].name} with ${spec.offer}.`, followup: 'Hi {name}, just following up on my message from a few days ago. Happy to send a quick sample if that helps.' }) }),
         { messages: [], asking: [], places: [], plan: [], pitch: '' });
       for (const m of out.messages ?? []) if (leads[m.i]) leads[m.i].message = String(m.message ?? '').slice(0, 400);
       const askingNow = (out.asking ?? []).filter((a) => asking[a.i]).map((a) => ({ ...asking[a.i], who: String(a.who ?? '') }));
@@ -154,18 +160,23 @@ export const findCustomers = {
       job.log('auditor', 'check', hardFail ? issues.join('; ') : `pass${issues.length ? ` (notes: ${issues.join('; ')})` : ''}`);
       job.qa = { verdict: hardFail ? 'revise' : 'pass', notes: issues.join(' | '), model: 'deterministic rules' };
 
-      const header = ['business', 'customer type', 'shows the sign', 'phone', 'whatsapp', 'email', 'website', 'address', 'rating', 'reviews', 'first message'];
-      const csv = [header.join(','), ...leads.map((l) => [l.title, l.segment, l.fit ? 'yes' : 'no', l.phoneE164, l.phoneE164?.startsWith('+234') ? `https://wa.me/${l.phoneE164.slice(1)}` : '', l.email, l.domain ? `https://${l.domain}` : '', l.address, l.rating, l.ratingCount, l.message].map(csvCell).join(','))].join('\n');
+      // the list doubles as a tracker: open it in Google Sheets or Excel, tap the WhatsApp link, mark the status
+      const follow = String(out.followup ?? '').trim().slice(0, 300);
+      const followFor = (l: Lead) => (follow.includes('{name}') ? follow.replace(/\{name\}/g, l.title) : follow);
+      const header = ['business', 'customer type', 'shows the sign', 'phone', 'whatsapp (tap to open with the message typed)', 'email', 'website', 'address', 'rating', 'reviews', 'first message', 'status', 'date sent', 'follow up on (day 3)', 'follow-up message', 'follow-up whatsapp', 'notes'];
+      const csv = [header.join(','), ...leads.map((l) => [l.title, l.segment, l.fit ? 'yes' : 'no', l.phoneE164, isMobile(l.phoneE164) ? waWith(l.phoneE164!, l.message) : '', l.email, l.domain ? `https://${l.domain}` : '', l.address, l.rating, l.ratingCount, l.message, 'to message', '', '', follow ? followFor(l) : '', follow && isMobile(l.phoneE164) ? waWith(l.phoneE164!, followFor(l)) : '', ''].map(csvCell).join(','))].join('\n');
       job.files.push({ name: 'customers.csv', content: csv + '\n' });
-      const top = leads.filter((l) => l.message).slice(0, 8);
+      const top = leads.filter((l) => l.message).slice(0, 15);
+      const onWa = leads.filter((l) => l.message && isMobile(l.phoneE164)).length;
       job.deliverable = [
         `# ${leads.length} potential customers for ${spec.offer}, ${spec.location}`,
         `## Who buys it`,
         ...segments.map((s) => `- **${s.name}**${s.why ? `: ${s.why.trim().replace(/[.!]?$/, '.')}` : ''}${s.signal !== 'any' ? ` Best sign they need it now: ${s.signalText}.` : ''} (${leads.filter((l) => l.segment === s.name).length} found)`),
         `## Your list`,
-        `${reachable} of ${leads.length} have a phone${leads.some((l) => l.email) ? ` or an email that passed a deliverability check (${leads.filter((l) => l.email).length} emails)` : ''}. ${leads.filter((l) => l.fit).length} show the sign they need you now and are at the top. Every row has a first message written from its real Google Maps data; Nigerian numbers have a WhatsApp link. Read before you send: Syncly never contacts anyone for you.`,
-        `| Business | Type | Phone | First message |\n|---|---|---|---|\n` + top.map((l) => `| ${l.title} | ${l.segment} | ${l.phoneE164 ?? l.email ?? ''} | ${(l.message ?? '').replace(/\|/g, '/')} |`).join('\n'),
-        `The full list is in \`customers.csv\`.`,
+        `${reachable} of ${leads.length} have a phone${leads.some((l) => l.email) ? ` or an email that passed a deliverability check (${leads.filter((l) => l.email).length} emails)` : ''}. ${leads.filter((l) => l.fit).length} show the sign they need you now and are at the top. Every row has a first message written from its real Google Maps data. **${onWa} are one tap away:** the WhatsApp link opens the chat with the message already typed, so you read it, change anything you like, and press send. Syncly never contacts anyone for you.`,
+        `| Business | Type | First message | Send |\n|---|---|---|---|\n` + top.map((l) => `| ${l.title.replace(/\|/g, '/')} | ${l.segment} | ${(l.message ?? '').replace(/\|/g, '/')} | ${isMobile(l.phoneE164) ? `[WhatsApp](${waWith(l.phoneE164!, l.message)})` : l.phoneE164 ? `Call ${l.phoneE164}` : l.email ?? ''} |`).join('\n'),
+        `## Track your replies`,
+        `\`customers.csv\` has all ${leads.length}, and it's a tracker too: open it in Google Sheets or Excel, and as you go mark each one's **status** (sent, replied, meeting, won, not now), the **date sent**, and the day to **follow up** (3 days later).${follow ? ` Each row has a follow-up message ready${onWa ? ', with its own WhatsApp link' : ''}: _${follow.replace(/\{name\}/g, '[business]')}_` : ''} One in ten replying is a good week; most sales come from the follow-up.`,
         ...(askingNow.length ? [`## People asking for this right now`, ...askingNow.slice(0, 6).map((a) => `- ${a.who} [${a.title}](${a.link})`)] : []),
         ...(out.places?.length ? [`## Where to find more`, ...out.places.slice(0, 6).map((p) => `- ${p}`)] : []),
         ...(out.plan?.length ? [`## Your next 7 days`, ...out.plan.slice(0, 7).map((p) => `- ${p}`)] : []),
