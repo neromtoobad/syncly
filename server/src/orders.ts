@@ -293,6 +293,9 @@ export function resumeInterrupted() {
 }
 
 /** A paid job still funded in escrow can be tried again until 20 minutes before its delivery deadline. */
+/** A free redo the owner gave on the house (not a customer's free first job). */
+export const isRedo = (o: Order) => !!o.quote.reasons?.some((r) => /^On the house/.test(r));
+
 export const canRetryPaid = (o: Order) =>
   o.status === 'failed' && !o.refund && o.escrow?.state === 'Funded' && Date.now() < Date.parse(o.escrow.deliverBy) - 20 * 60_000;
 

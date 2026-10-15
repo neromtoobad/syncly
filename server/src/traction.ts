@@ -2,7 +2,7 @@
 // its Arc settlement, the escrow jobs, the CFO's decisions, and the contracts. Served at
 // /api/traction.md; scripts/traction.ts writes it to TRACTION.md. The public version has counts and
 // Arc transactions but no money figures (the books are the owner's); the owner's key gets amounts too.
-import { listOrders, readJob } from './orders.ts';
+import { isRedo, listOrders, readJob } from './orders.ts';
 import { DEP } from './escrow.ts';
 import { decisions } from './cfo/log.ts';
 import { publicBrief } from './orders.ts';
@@ -36,7 +36,8 @@ export function tractionReport(opts: { money?: boolean } = {}) {
   const refunded = orders.filter((o) => o.refund && o.payment?.mode !== 'promo').reduce((s, o) => s + o.refund!.priceUsd + o.refund!.bondUsd, 0);
   const log = decisions(1000);
   const cfoDone = log.filter((d) => d.status === 'done');
-  const customers = new Set(orders.map((o) => o.email)).size;
+  // a customer is a business (the owner sometimes orders for one with their own email), else an email
+  const customers = new Set(orders.map((o) => (o.details?.name ? `b:${o.details.name.toLowerCase().replace(/[^a-z0-9]/g, '').replace(/resturant|restaurent|restraunt/g, 'restaurant')}` : `e:${o.email}`))).size;
 
   const summary = { orders: orders.length, quotes: quotes.length, customers, delivered: delivered.length, accepted: accepted.length, paidJobs: escrowJobs.length, escrowIn, revenue, refunded, toolPayments: payments, toolSpend: spent, settled, cfoDecisions: cfoDone.length, cfoEscalated: log.filter((d) => d.status === 'escalated').length };
   const md = `# Traction
@@ -68,7 +69,7 @@ ${money ? `| Revenue (accepted, paid jobs) | ${revenue.toFixed(2)} USDC |
 
 | Created | Order | Service | Status | Payment | Brief |
 |---|---|---|---|---|---|
-${orders.map((o) => `| ${o.createdAt.slice(0, 16).replace('T', ' ')} | [${o.id}](https://hiresyncly.site/job/${o.id}) | ${NAME[o.service] ?? o.service} | ${o.status} | ${o.payment?.mode === 'promo' ? 'free first job' : o.escrow ? `${money ? `${o.quote.priceUsd} USDC ` : ''}escrow ${tx(o.escrow.fundTx)}` : o.payment?.mode ?? ''} | ${cell(publicBrief(o, 70))} |`).join('\n')}
+${orders.map((o) => `| ${o.createdAt.slice(0, 16).replace('T', ' ')} | [${o.id}](https://hiresyncly.site/job/${o.id}) | ${NAME[o.service] ?? o.service} | ${o.status} | ${o.payment?.mode === 'promo' ? (isRedo(o) ? 'free redo, on the house' : 'free first job') : o.escrow ? `${money ? `${o.quote.priceUsd} USDC ` : ''}escrow ${tx(o.escrow.fundTx)}` : o.payment?.mode ?? ''} | ${cell(publicBrief(o, 70))} |`).join('\n')}
 
 ## The CFO's decisions
 

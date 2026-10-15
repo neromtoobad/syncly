@@ -85,7 +85,7 @@ export function compose(job: Pick<Job, 'deliverable' | 'files'>, o: Order) {
     : o.escrow
     ? `Your ${o.quote.priceUsd.toFixed(2)} USDC is waiting in escrow on Arc. On the job page, from the wallet that paid, accept to release it, ask for your one free revision, or reject it and get it back plus a ${o.quote.bondUsd.toFixed(2)} USDC bond. Silence for 48 hours counts as acceptance.`
     : o.quote.promo
-      ? 'This one was your free first job. Tell us on the job page if it was good.'
+      ? (o.quote.reasons?.some((r) => /^On the house/.test(r)) ? 'This one is a free redo, on us. Tell us on the job page if it is right this time.' : 'This one was your free first job. Tell us on the job page if it was good.')
       : 'Accept, revise or reject it on the job page.';
   const unlock = locked ? ' What you see here and on the job page is a preview; the full work and the full-quality files are emailed to you the moment you accept.' : '';
   const subject = `${revised ? 'Revised: ' : ''}your ${name} is ready · ${brief}`;
