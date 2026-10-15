@@ -22,7 +22,7 @@ import { htmlToPng } from '../browser.ts';
 import { researchInto } from './research-brief.ts';
 import { MAIL_BUDGET_USD, MAIL_HOST } from '../mail.ts';
 import type { BusinessDetails } from '../details.ts';
-import { e164 } from '../site/facts.ts';
+import { e164, prettyPhone } from '../site/facts.ts';
 import {
   addOwnerFacts, auditAnswers, cell, csvCell, errMsg, gatherTruth, GENERIC, hostOf, nameScore, nOf, place, plain, readSpec, recordText, shortHours, today, uniq, words,
   type AuditResult, type Fix, type Kind, type MapsHints, type Spec, type Truth,
@@ -638,6 +638,21 @@ export const getFound = {
       const week = fixes.slice(0, 3);
       L.push('## This week: your 3 fixes', '', ...(week.length ? week.map((f, i) => `${i + 1}. ${f.text} *(about ${minutes(f.text)} minutes)*`) : ['Nothing urgent: you show up well and the assistants got your facts right. Re-check in a month; both change.']), '',
         week.length ? `About ${week.reduce((t, f) => t + minutes(f.text), 0)} minutes in all. The texts you need are ready to paste in section 5; the rest of this report is the evidence behind each fix.` : '', '');
+      // no listing yet (most Instagram-only sellers): the 20 minutes to get on Google, with their own details filled in
+      if (!truth.listing) {
+        const contact = d?.whatsapp ?? d?.phone;
+        const site = d?.website ?? (d?.instagram ? `instagram.com/${d.instagram.replace(/^@/, '')}` : undefined);
+        const areas = [d?.area ?? spec.area, spec.city].filter(Boolean).join(', ');
+        L.push('## Get on Google in 20 minutes', '', `We found no Google listing for ${spec.name}, so customers searching Google Maps can't find you and AI assistants have no record to read. Setting one up is free. Everything you need is below, filled in with your details.`, '',
+          '1. On your phone, open the **Google Maps** app, tap your picture, then **Add your business** (or go to business.google.com). Use a Gmail address you will keep.',
+          `2. **Business name:** \`${spec.name}\`. Use the name on your sign or page, exactly. Adding extra words like "best" or your area can get the profile suspended.`,
+          `3. **Category:** start typing \`${spec.category}\` and pick the closest match Google offers.`,
+          `4. **Do customers visit you?** ${d?.address ? `If they come to your shop or kitchen, choose Yes and enter \`${d.address}\`.` : 'Choose Yes only if customers come to a shop or kitchen.'} If you deliver or work from home, choose No, then add the areas you serve${areas ? `: \`${areas}\`` : ''}. Google hides a home address when you choose No.`,
+          `5. **Phone${site ? ' and website' : ''}:** ${contact ? `\`${prettyPhone(contact) ?? contact}\`` : 'the number customers call or WhatsApp'}${site ? `, and \`${site}\`` : ''}.`,
+          '6. **Verify it.** Google shows the ways it allows; usually a short video: film your street or shop sign, then where you work (your kitchen, stock or tools), then something that shows you run it, like opening up or a business document. One continuous take. Google takes a few days to approve.',
+          '7. **While you wait:** paste the description from section 5, set your real opening hours, and add your logo, a cover photo and at least 3 product photos.',
+          '8. **Once it is live:** tap **Ask for reviews**, copy the link, and send it on WhatsApp to 5 customers who were happy. The first reviews matter most.', '');
+      }
 
       L.push('## 1. Where you show on Google Maps', '');
       if (!truth.listing) L.push(`We found no Google listing for ${spec.name}, so you can't appear in these results yet. Here is what customers see instead.`, '');
