@@ -66,9 +66,9 @@ export const CATALOG = [
     example: 'Content for Tolu’s Small Chops in Lagos, Instagram @tolussmallchops',
   },
   {
-    id: 'ad-launch', name: 'Ad Campaign', dept: 'Marketing', live: true, priceUsd: 1, listedCostUsd: 2.0, etaMin: 4,
-    tagline: 'A ready-to-run Instagram, Facebook and TikTok ad campaign: designs, a video ad, copy and a 7-day budget plan.',
-    youGet: ['3 ad angles built on ads in your niche that have kept running for 30+ days', 'Feed and Story creatives for each, made from your own product photo', 'An 8 s video ad, and copy to paste for Instagram, Facebook and TikTok', 'Who to target, your budget split into a 7-day test, and step-by-step setup', 'Already boosting? Send a screenshot and we tell you what to change'],
+    id: 'ad-launch', name: 'Ad Campaign', dept: 'Marketing', live: true, priceUsd: 1, listedCostUsd: 0.9, etaMin: 4,
+    tagline: 'A ready-to-run Instagram, Facebook and TikTok ad campaign: designs, a video per ad, copy and a 7-day budget plan.',
+    youGet: ['3 ad angles built on ads in your niche that have kept running for 30+ days', 'Feed and Story creatives for each, made from your own product photo, a different layout per angle', 'A 10 s video for each angle, cut on the beat with your real product photo, and copy to paste for Instagram, Facebook and TikTok', 'Who to target, your budget split into a 7-day test, and step-by-step setup', 'Already boosting? Send a screenshot and we tell you what to change'],
     team: ['researcher', 'scout', 'analyst', 'writer', 'illustrator', 'producer', 'auditor', 'messenger'],
     example: 'Ads for Tolu’s Small Chops party trays, ₦25,000 for 20 guests, orders on WhatsApp 0803 555 0142, ₦5,000 a day',
   },

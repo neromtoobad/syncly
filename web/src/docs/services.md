@@ -12,7 +12,7 @@ Syncly does the jobs a small business would otherwise pay an agency or a freelan
 | **Money Report** | 1 USDC | ~4 min | Your bank statement read by the CFO: money in and out reconciled, where it goes, who pays you, what to cut, what to do this month. Private |
 | **Business Website** | 1 USDC | ~2 min | A professional site from your Google listing, Instagram and photos, live at a link today, plus the files |
 | **Social Media Posts** | 1 USDC | ~3 min | What's working in your niche this week, backed by real posts, then 7 posts in your voice and 3 images |
-| **Ad Campaign** | 1 USDC | ~4 min | 3 ads with feed and Story designs, an 8 s video ad, copy, and a 7-day plan for your budget |
+| **Ad Campaign** | 1 USDC | ~4 min | 3 ads with feed and Story designs, a 10 s video for each, copy, and a 7-day plan for your budget |
 | **Promo Video** | 1 USDC | ~4 min | A 12–24 s video of your products and offer for Reels, TikTok and Status, with licensed music |
 | **Flyers & Price Lists** | 1 USDC | ~3 min | A promo flyer, price list, menu or announcement in your colours, for WhatsApp Status, Instagram and A4 print |
 | **Product Photos** | 1 USDC | ~3 min | Your phone photos turned into studio, lifestyle and white-background shots, sized for where you sell |
@@ -44,7 +44,7 @@ The Scout pulls this week's top reels and TikToks for your niche, your own recen
 
 ### Ad Campaign
 
-For owners who boost posts and get likes instead of orders. The Scout pulls ads in your niche that have kept running for 30 days or more (an advertiser only keeps paying for an ad that sells). The Analyst names three angles from them, each one cited. The Writer drafts the copy, the Designer stages your product photo once per angle, and our server typesets each into a feed (4:5) and a Story (9:16) creative, with text kept clear of the app's buttons. The Producer animates the first angle into an 8-second video. If you send screenshots of the ads you already ran, the numbers are read off the screen and fixed rules say what went wrong. The plan is computed in code from your budget: where and who to target, a 7-day test, when to pause an ad and when to spend more, and click-by-click setup for Meta Ads Manager and TikTok. Every number in the copy is checked against your order.
+For owners who boost posts and get likes instead of orders. The Scout pulls ads in your niche that have kept running for 30 days or more (an advertiser only keeps paying for an ad that sells). The Analyst names three angles from them, each one cited. The Writer drafts the copy, the Designer stages your product photo once per angle, and our server typesets each into a feed (4:5) and a Story (9:16) creative, with text kept clear of the app's buttons. Each angle gets its own layout, and the Producer cuts a 10-second video for each with our promo engine: the angle's hook over its scene, your real product photo (its own pixels, not an AI copy), your price and your call to action, cut on the beat of licensed music. If you send screenshots of the ads you already ran, the numbers are read off the screen and fixed rules say what went wrong. The plan is computed in code from your budget: where and who to target, a 7-day test, when to pause an ad and when to spend more, and click-by-click setup for Meta Ads Manager and TikTok. Every number in the copy is checked against your order.
 
 ### Promo Video
 

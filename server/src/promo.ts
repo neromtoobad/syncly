@@ -190,7 +190,7 @@ export function pickMusic(mood = ''): Music {
 }
 
 /** Write the scene folder: the page, the engine, the score engine and the photos. Returns the page's path. */
-export function writePromo(dir: string, sb: ReturnType<typeof cleanStoryboard>, o: { size: [number, number]; fps: number; business: string; logo?: string; photos: Photo[]; files: { name: string; buf: Buffer }[]; music?: Music; bpm?: number; score?: Record<string, unknown> }): string {
+export function writePromo(dir: string, sb: ReturnType<typeof cleanStoryboard>, o: { size: [number, number]; fps: number; business: string; logo?: string; photos: Photo[]; files: { name: string; buf: Buffer }[]; music?: Music; bpm?: number; score?: Record<string, unknown>; seed?: number }): string {
   const [W, H] = o.size, font = FONTS[(sb.font ?? 'bold') as FontKey];
   for (const f of ['promo.js', 'promo.css']) copyFileSync(join(KIT, f), join(dir, f));
   copyFileSync(join(REEL, 'score.js'), join(dir, 'score.js'));
@@ -200,7 +200,7 @@ export function writePromo(dir: string, sb: ReturnType<typeof cleanStoryboard>, 
     size: o.size, fps: o.fps, bpm: o.bpm ?? 120, palette: sb.palette, font: { display: font.display, body: font.body },
     brand: { name: o.business, logo: o.logo ?? null }, cutouts: o.photos.filter((p) => p.cut).map((p) => p.name),
     // the motion grammar is picked per business (a hash of its name), so no two customers' videos move alike
-    seed: [...o.business].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7),
+    seed: o.seed ?? [...o.business].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7),
     scenes: sb.scenes.map((s, i) => ({ ...s, id: ids[i] })),
     score: (() => {
       const m = MUSIC[o.music?.id ?? 'bounce'], seconds = sb.scenes.reduce((a, x) => a + x.dur, 0), bars = Math.round(seconds / ((4 * 60) / (o.bpm ?? 120)));
