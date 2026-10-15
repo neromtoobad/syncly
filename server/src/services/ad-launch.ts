@@ -238,7 +238,8 @@ export const adLaunch = {
       });
 
       // 5. The creatives: their product, staged once per angle, typeset in two sizes
-      const photo = await productPhoto(job, { upload: d?.photos?.[0], instagram: ig });
+      // the brand kit already picked their photos from the Instagram on the form; only a handle in the brief is searched here
+      const photo = await productPhoto(job, { upload: d?.photos?.[0], instagram: opts.details?.instagram ? undefined : ig, about: spec.product, name: spec.business });
       const { accent, onAccent } = accentFor(d?.colour);
       const logo = d?.logo ? readUpload(d.logo) : undefined;
       const priceTag = spec.price && !unsourced(spec.price).length ? spec.price : undefined;

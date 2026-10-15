@@ -16,6 +16,7 @@ import { MAIL_BUDGET_USD, MAIL_HOST, PUBLIC_URL } from '../mail.ts';
 import type { BusinessDetails } from '../details.ts';
 import { readUpload } from '../uploads.ts';
 import { palette } from '../site/color.ts';
+import { relevantPosts } from '../brandkit.ts';
 
 type Spec = { business: string; product: string; offer: string; price?: string; cta: string; photo?: string; instagram?: string; palette: string; mood: string; scene: string };
 type Copy = { overlay: string; endTitle: string; endLine: string; hooks: string[]; primary: string[]; headline: string[] };
@@ -25,8 +26,9 @@ const card = (inner: string, css: string) => `<!doctype html><html><head><link h
 
 // ---------- shared with Ad Launch
 
-/** Their real product photo: one they uploaded, a link they gave, or their latest Instagram post. */
-export async function productPhoto(job: Job, o: { upload?: string; url?: string; instagram?: string }): Promise<Buffer | undefined> {
+/** Their real product photo: one they uploaded, a link they gave, or the Instagram post that best shows what they sell
+ *  (never just the latest post, which is often an event or a flyer). */
+export async function productPhoto(job: Job, o: { upload?: string; url?: string; instagram?: string; about?: string; name?: string }): Promise<Buffer | undefined> {
   let photo: Buffer | undefined = o.upload ? readUpload(o.upload) : undefined;
   if (photo) job.log('scout', 'photo', 'using the product photo they uploaded');
   if (!photo && o.url) {
@@ -36,10 +38,20 @@ export async function productPhoto(job: Job, o: { upload?: string; url?: string;
   const ig = o.instagram?.replace(/^@/, '').replace(/\/.*$/, '');
   if (!photo && ig) {
     try {
-      job.log('scout', 'photo', `their latest product photo from @${ig}`);
+      job.log('scout', 'photo', `a photo of what they sell from @${ig}'s recent posts`);
       const d = await aisa<any>(job, 'instagram/user/posts', { query: { handle: ig, trim: true } }, { agent: 'scout', vendor: 'Instagram posts (AIsa)', reason: `a product photo from @${ig}`, dry: () => ({ items: [{ display_uri: 'dry://photo' }] }) });
-      const p = (d?.items ?? []).find((x: any) => x.display_uri || x.image_versions2?.candidates?.[0]?.url);
-      if (p) photo = DRY ? (await image(job, 'illustrator', { prompt: 'their photo', reason: 'demo photo' })).buf : await download(p.display_uri ?? p.image_versions2.candidates[0].url, 12);
+      if (DRY) photo = (await image(job, 'illustrator', { prompt: 'their photo', reason: 'demo photo' })).buf;
+      else {
+        const posts: { buf: Buffer; caption: string; likes: number }[] = [];
+        for (const x of (d?.items ?? []).slice(0, 10)) {
+          const src = x.display_uri ?? x.image_versions2?.candidates?.[0]?.url;
+          const buf = src ? await download(src, 12).catch(() => undefined) : undefined;
+          if (buf) posts.push({ buf, caption: String(x.caption?.text ?? ''), likes: Number(x.like_count ?? 0) });
+        }
+        const pick = await relevantPosts(job, 'scout', posts, { name: o.name, about: o.about });
+        photo = pick.length ? posts[pick[0]].buf : undefined;
+        if (!photo && posts.length) job.log('scout', 'photo', `none of @${ig}'s recent posts show what they sell, so none is used`);
+      }
     } catch (e: any) { job.log('scout', 'skip', `Instagram unavailable (${String(e?.message ?? e).slice(0, 50)})`); }
   }
   return photo;
@@ -113,7 +125,7 @@ export const videoAd = {
       }
 
       // 1. Their real product photo: one they uploaded, a link they gave, or their latest Instagram post
-      const photo = await productPhoto(job, { upload: d?.photos?.[0], url: spec.photo, instagram: spec.instagram });
+      const photo = await productPhoto(job, { upload: d?.photos?.[0], url: spec.photo, instagram: spec.instagram, about: spec.product, name: spec.business });
 
       // 2. The key visual (9:16), staged from their photo or generated
       const visualPrompt = `A vertical 9:16 advertising photograph of ${spec.product} for ${spec.business}, set in ${spec.scene}. ${spec.mood}, premium commercial lighting, shallow depth of field, the product sharp and centred in the middle third, calm space at the top and bottom for text. ${spec.palette ? `Colour accents: ${spec.palette}.` : ''} Photorealistic. No text, no letters, no logos, no watermark.`;

@@ -4,6 +4,7 @@
 // best photos are saved as ordinary uploads, so every service that already takes uploads uses them unchanged; what
 // the owner uploaded or typed always comes first. Only public pages are read.
 import type { Job } from './job.ts';
+import type { Role } from './wallets.ts';
 import { aisa } from './sellers.ts';
 import { download } from './media.ts';
 import { siteBrand } from './browser.ts';
@@ -64,6 +65,32 @@ export function byCaption(posts: { caption: string; likes: number }[], about: st
 
 const PRICE = /(?:₦|\bN|#|NGN)\s?\d[\d,.]*\s?k?\b|\b\d{1,3}(?:,\d{3})+\s?(?:naira|NGN)\b/gi;
 
+/**
+ * Which of a business's Instagram posts show what it sells (its food, products or finished work), best first; the
+ * rest (events, flyers, logos, people, notices) are left out, and an empty list means none do. A vision model looks
+ * at the pictures (a second model if the first fails); with no model, the captions decide. Shared by every service
+ * that takes photos from Instagram.
+ */
+export async function relevantPosts(job: Job, agent: Role, posts: { buf: Buffer; caption: string; likes: number }[], o: { name?: string; about?: string; bio?: string }): Promise<number[]> {
+  if (!posts.length) return [];
+  const thumbs = await Promise.all(posts.map((p) => ffmpeg({ in: p.buf }, (f, out) => ['-i', f.in, '-vf', 'scale=256:-2,format=yuvj420p', '-q:v', '7', '-frames:v', '1', out], 'jpg').catch(() => undefined)));
+  const msgs: Msg[] = [
+    { role: 'system', content: 'You choose photos for a small business\'s ads from its Instagram posts. Keep ONLY the photos that clearly show what it sells: for a restaurant or caterer, plates of food, dishes, drinks; for a shop, its products; for a service, the finished result. Best first: sharp, appetising, the item filling the frame. Leave out logos, flyers, posters and anything mostly text, screenshots, selfies and group photos, weddings, birthdays and other events, and photos of the building or staff, unless that is what the business sells. If none qualify, return an empty list. Reply JSON only: {"pick": [photo numbers, best first]}' },
+    { role: 'user', content: [{ type: 'text', text: `The business: ${o.name ?? ''}. It sells: ${o.about || 'see the photos'}. ${posts.length} photos:` }, ...thumbs.flatMap((t, i) => (t ? [{ type: 'text' as const, text: `Photo ${i + 1}` }, { type: 'image_url' as const, image_url: { url: `data:image/jpeg;base64,${t.toString('base64')}` } }] : []))] },
+  ];
+  for (const model of [MODELS.vision, MODELS.auditor]) {
+    try {
+      const pick = parseJson<{ pick: number[] }>(await llm(job, agent, msgs, 'keep only the photos that show what they sell', { model, maxTokens: 120, json: true, maxUsd: 0.08, dry: () => JSON.stringify({ pick: posts.map((_, i) => i + 1) }) }), { pick: [] }).pick;
+      const order = (Array.isArray(pick) ? pick : []).map((x) => Number(x) - 1).filter((x, k, xs) => Number.isInteger(x) && x >= 0 && x < posts.length && xs.indexOf(x) === k);
+      job.log(agent, 'photos', order.length ? `${order.length} of ${posts.length} recent posts show what they sell; using those` : `none of their ${posts.length} recent posts show what they sell`);
+      return order;
+    } catch (e: any) { job.log(agent, 'skip', `photo pick with ${model.split('/')[1]} failed (${String(e?.message ?? e).slice(0, 100)})`); }
+  }
+  const order = byCaption(posts, `${o.about ?? ''} ${o.bio ?? ''}`);
+  job.log(agent, 'photos', `picked by their captions: ${order.length} of ${posts.length} posts are about what they sell`);
+  return order;
+}
+
 /** Read the brand kit from an Instagram handle and/or a website. Never throws: a page that won't read is skipped. */
 export async function brandKit(job: Job, o: { instagram?: string; website?: string; photos?: number; agent?: 'reader' | 'scout'; name?: string; about?: string }): Promise<BrandKit> {
   const kit: BrandKit = { photos: [], prices: [], captions: [], sources: [], notes: [] };
@@ -118,24 +145,8 @@ export async function brandKit(job: Job, o: { instagram?: string; website?: stri
         }
         let order: number[] | undefined;
         if (wantPhotos && posts.length) {
-          const thumbs = await Promise.all(posts.map((p) => ffmpeg({ in: p.buf }, (f, out) => ['-i', f.in, '-vf', 'scale=256:-2,format=yuvj420p', '-q:v', '7', '-frames:v', '1', out], 'jpg').catch(() => undefined)));
-          const msgs: Msg[] = [
-            { role: 'system', content: 'You choose photos for a small business\'s ads from its Instagram posts. Keep ONLY the photos that clearly show what it sells: for a restaurant or caterer, plates of food, dishes, drinks; for a shop, its products; for a service, the finished result. Best first: sharp, appetising, the item filling the frame. Leave out logos, flyers, posters and anything mostly text, screenshots, selfies and group photos, weddings, birthdays and other events, and photos of the building or staff, unless that is what the business sells. If none qualify, return an empty list. Reply JSON only: {"pick": [photo numbers, best first]}' },
-            { role: 'user', content: [{ type: 'text', text: `The business: ${o.name ?? kit.name ?? ''}. It sells: ${o.about ?? kit.category ?? 'see the photos'}. ${posts.length} photos:` }, ...thumbs.flatMap((t, i) => (t ? [{ type: 'text' as const, text: `Photo ${i + 1}` }, { type: 'image_url' as const, image_url: { url: `data:image/jpeg;base64,${t.toString('base64')}` } }] : []))] },
-          ];
-          for (const model of [MODELS.vision, MODELS.auditor]) {
-            try {
-              const pick = parseJson<{ pick: number[] }>(await llm(job, agent, msgs, 'keep only the photos that show what they sell', { model, maxTokens: 120, json: true, maxUsd: 0.08, dry: () => JSON.stringify({ pick: posts.map((_, i) => i + 1) }) }), { pick: [] }).pick;
-              order = (Array.isArray(pick) ? pick : []).map((x) => Number(x) - 1).filter((x, k, xs) => Number.isInteger(x) && x >= 0 && x < posts.length && xs.indexOf(x) === k);
-              job.log(agent, 'photos', order.length ? `${order.length} of ${posts.length} recent posts show what they sell; using those` : `none of their ${posts.length} recent posts show what they sell`);
-              break;
-            } catch (e: any) { job.log(agent, 'skip', `photo pick with ${model.split('/')[1]} failed (${String(e?.message ?? e).slice(0, 100)})`); }
-          }
-          if (!order) {
-            order = byCaption(posts, `${o.about ?? ''} ${kit.category ?? ''} ${kit.bio ?? ''}`);
-            job.log(agent, 'photos', `picked by their captions: ${order.length} of ${posts.length} posts are about what they sell`);
-          }
-          if (!order.length) kit.notes.push('Your recent Instagram posts don\'t show what you sell, so we didn\'t use them. Upload a few photos of it in a revision and we remake the video with them.');
+          order = await relevantPosts(job, agent, posts, { name: o.name ?? kit.name, about: `${o.about ?? ''} ${kit.category ?? ''}`.trim(), bio: kit.bio });
+          if (!order.length) kit.notes.push('Your recent Instagram posts don\'t show what you sell, so we didn\'t use them. Upload a few photos of it in a revision and we remake it with them.');
         }
         for (const i of order ?? []) {
           if (kit.photos.length >= wantPhotos) break;
