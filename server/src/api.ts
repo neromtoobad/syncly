@@ -17,7 +17,7 @@ import { bus, type SynclyEvent } from './bus.ts';
 import { CATALOG, findService } from './services/index.ts';
 import { cleanDetails, detailsBrief, type BusinessDetails } from './details.ts';
 import { MAX_BYTES, allowUpload, readUpload, saveUpload } from './uploads.ts';
-import { addPhoto, applyPatch, editorView, previewHtml, publishPatch, sourceBySlug, sourceByToken, undoLast, type SiteSource } from './site/edit.ts';
+import { addPhoto, applyPatch, editorView, previewHtml, publishPatch, rerenderAll, sourceBySlug, sourceByToken, undoLast, type SiteSource } from './site/edit.ts';
 import { PREVIEW, SITE_GONE, SITE_RIBBON, jobDir, previewFile, released, teaser, withdrawn } from './release.ts';
 import { allowStatement, saveStatement, sweepStatements } from './statements.ts';
 import { LINKS, chowdeckHours, readChowdeck, samePhone } from './site/links.ts';
@@ -634,6 +634,8 @@ app.get('/api/events', (c) =>
 setInterval(() => autoAcceptDue(), 60_000);
 // jobs a deploy or crash cut off are picked up again once the server is up
 setTimeout(() => resumeInterrupted(), 5_000);
+// customer sites are rebuilt with this version of the engine (their sources hold every edit the owner made)
+setTimeout(() => { try { const r = rerenderAll(); console.log(`sites: rebuilt ${r.done}${r.failed.length ? `, failed ${r.failed.join('; ')}` : ''}`); } catch (e: any) { console.error(`sites: ${e?.message ?? e}`); } }, 8_000);
 // the CFO's side of every open escrow: start funded jobs, submit deliveries, release, refund, cancel
 let ticking = false;
 async function escrowTick() {

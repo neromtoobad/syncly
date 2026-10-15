@@ -1,7 +1,7 @@
 // The site plan: the only thing the model writes. It picks a theme, a brand colour from candidates, the
 // sections in order with one variant each, which real photos, items and reviews go where, and short
 // copy for fixed slots with hard length limits. validatePlan() repairs what it can and reports the rest.
-import type { Facts, Kind } from './facts.ts';
+import { usableNumber, type Facts, type Kind } from './facts.ts';
 import { THEMES, type ThemeId } from './themes.ts';
 
 export type Action = 'whatsapp' | 'call' | 'directions' | 'menu' | 'book';
@@ -78,7 +78,7 @@ export function validatePlan(raw: any, facts: Facts, photos: { id: string; kind:
   if (raw?.theme !== theme) notes.push(`unknown theme "${raw?.theme}"; used atelier`);
   const brand = typeof raw?.brand === 'string' && /^#[0-9a-f]{6}$/i.test(raw.brand) ? raw.brand : candidates[0] ?? '#2E6B4F';
   const action = (a: any, d: Action): Action => (['whatsapp', 'call', 'directions', 'menu', 'book'].includes(a) ? a : d);
-  const canChat = !!(facts.whatsapp ?? facts.phone);
+  const canChat = !!usableNumber(facts.country, facts.whatsapp, facts.phone);
   const h = raw?.hero ?? {};
   let heroVariant = ['photo', 'split', 'stack', 'type'].includes(h.variant) ? h.variant : 'split';
   const heroPhoto = photoIds.has(h.photo) ? h.photo : undefined;
@@ -173,7 +173,7 @@ export function defaultPlan(f: Facts, photos: { id: string; kind: string; qualit
     if (k === 'reviews' && f.reviews.length) sections.push({ kind: 'reviews', variant: f.rating ? 'summary' : 'quotes', title: 'What customers say', ids: f.reviews.slice(0, 3).map((r) => r.id) });
     if (k === 'location' && f.address) sections.push({ kind: 'location', variant: 'map', title: where ? `Find us in ${f.area ?? f.city}` : 'Find us', note: f.landmark });
   }
-  sections.push({ kind: 'cta', variant: 'band', headline: f.whatsapp ?? f.phone ? 'Message us on WhatsApp' : 'Get in touch', action: f.whatsapp ?? f.phone ? 'whatsapp' : 'call' });
+  sections.push({ kind: 'cta', variant: 'band', headline: usableNumber(f.country, f.whatsapp, f.phone) ? 'Message us on WhatsApp' : 'Get in touch', action: f.whatsapp ?? f.phone ? 'whatsapp' : 'call' });
   return {
     theme, brand: candidates[0] ?? '#2E6B4F',
     title: `${f.name}${where ? ` · ${where}` : ''}`.slice(0, 60),

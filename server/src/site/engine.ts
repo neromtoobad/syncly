@@ -3,7 +3,7 @@
 // Every phone number, price, address, hour and review is rendered from the facts, never from model text.
 import { linksIn, LINKS, type LinkId } from './links.ts';
 import type { Facts, Photo } from './facts.ts';
-import { e164, hoursLines, prettyPhone, priceValue, showPrice, telLink, waLink } from './facts.ts';
+import { e164, hoursLines, prettyPhone, priceValue, showPrice, telLink, usableNumber, waLink } from './facts.ts';
 import type { Action, Plan, Section } from './plan.ts';
 import { THEMES } from './themes.ts';
 import { palette } from './color.ts';
@@ -38,9 +38,10 @@ export function renderSite(plan: Plan, f: Facts, photos: Photo[], opts: { url: s
   const ph = new Map(photos.map((p) => [p.id, p]));
   const item = new Map(f.items.map((i) => [i.id, i]));
   const review = new Map(f.reviews.map((r) => [r.id, r]));
-  const chat = f.whatsapp ?? f.phone;
+  // only numbers someone can answer: a placeholder or a broken number gets no button, never an empty link
+  const chat = usableNumber(f.country, f.whatsapp, f.phone), callNo = usableNumber(f.country, f.phone, f.whatsapp);
   const wa = (msg = plan.whatsappText) => waLink(chat, msg, f.country);
-  const tel = telLink(f.phone ?? f.whatsapp, f.country);
+  const tel = telLink(callNo, f.country);
   const dir = f.mapsUrl ?? (f.address ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${f.name}, ${f.address}`)}` : undefined);
   const hasOffer = plan.sections.some((s) => s.kind === 'offer');
   const GROUP_ICON = { order: ICON.bag, shop: ICON.bag, book: ICON.cal, tickets: ICON.ticket } as const;
@@ -164,7 +165,7 @@ export function renderSite(plan: Plan, f: Facts, photos: Photo[], opts: { url: s
         const flat = (x?: string) => (x ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
         const note = s.note && !flat(s.note).includes(flat(f.address)) && !flat(f.address).includes(flat(s.note)) ? s.note : undefined;
         const place = [f.area, f.city].filter((x) => x && !flat(f.address).includes(flat(x))).join(', ');
-        const info = `<div class="loc-info rv">${h(2, s.title)}<p class="addr">${ICON.pin}<span>${esc(f.address)}</span></p>${place ? `<p class="muted">${esc(place)}</p>` : ''}${note ? `<p class="muted">${esc(note)}</p>` : ''}${lines.length ? `<table class="hours"><caption class="label">Opening hours</caption>${lines.map((l) => `<tr><th scope="row">${esc(l.days)}</th><td>${esc(l.time)}</td></tr>`).join('')}</table>` : f.hoursText ? `<p class="muted">${esc(f.hoursText)}</p>` : ''}<p class="btns">${dir ? `<a class="btn btn-primary" href="${esc(dir)}" target="_blank" rel="noopener">${ICON.pin}<span>Get directions</span></a>` : ''}${tel ? `<a class="btn btn-ghost" href="${esc(tel)}">${ICON.phone}<span>${esc(prettyPhone(f.phone ?? f.whatsapp, f.country))}</span></a>` : ''}</p></div>`;
+        const info = `<div class="loc-info rv">${h(2, s.title)}<p class="addr">${ICON.pin}<span>${esc(f.address)}</span></p>${place ? `<p class="muted">${esc(place)}</p>` : ''}${note ? `<p class="muted">${esc(note)}</p>` : ''}${lines.length ? `<table class="hours"><caption class="label">Opening hours</caption>${lines.map((l) => `<tr><th scope="row">${esc(l.days)}</th><td>${esc(l.time)}</td></tr>`).join('')}</table>` : f.hoursText ? `<p class="muted">${esc(f.hoursText)}</p>` : ''}<p class="btns">${dir ? `<a class="btn btn-primary" href="${esc(dir)}" target="_blank" rel="noopener">${ICON.pin}<span>Get directions</span></a>` : ''}${tel ? `<a class="btn btn-ghost" href="${esc(tel)}">${ICON.phone}<span>${esc(prettyPhone(callNo, f.country))}</span></a>` : ''}</p></div>`;
         if (s.variant === 'card') return `<section id="visit" class="sect location location-card"><div class="wrap">${info}</div></section>`;
         const card = `<span class="mc-grid" aria-hidden="true"></span><span class="mc-pin" aria-hidden="true"></span><span class="mc-label"><b>${esc(f.name)}</b><span>${esc([f.address, f.area].filter(Boolean).join(', ').slice(0, 48))}</span></span>${dir ? '<span class="mc-open">Open in Google Maps ↗</span>' : ''}`;
         return `<section id="visit" class="sect location location-map"><div class="wrap two">${info}${dir ? `<a class="map mapcard rv" href="${esc(dir)}" target="_blank" rel="noopener" aria-label="Open ${esc(f.name)} in Google Maps">${card}</a>` : `<div class="map mapcard rv">${card}</div>`}</div></section>`;
@@ -172,7 +173,7 @@ export function renderSite(plan: Plan, f: Facts, photos: Photo[], opts: { url: s
       case 'faq':
         return `<section class="sect faq"><div class="wrap narrow"><header class="sect-head rv">${h(2, s.title)}</header>${s.items.map((q) => `<details class="rv"><summary>${esc(q.q)}<span class="plus" aria-hidden="true"></span></summary><p>${esc(q.a)}</p></details>`).join('')}</div></section>`;
       case 'cta':
-        return `<section class="cta cta-${s.variant}"><div class="wrap rv">${h(2, s.headline)}${s.sub ? `<p class="lede">${esc(s.sub)}</p>` : ''}<p class="btns">${btn(s.action, 'btn-invert')}${s.action !== 'call' && tel ? `<a class="btn btn-line" href="${esc(tel)}">${ICON.phone}<span>${esc(prettyPhone(f.phone ?? f.whatsapp, f.country))}</span></a>` : ''}</p></div></section>`;
+        return `<section class="cta cta-${s.variant}"><div class="wrap rv">${h(2, s.headline)}${s.sub ? `<p class="lede">${esc(s.sub)}</p>` : ''}<p class="btns">${btn(s.action, 'btn-invert')}${s.action !== 'call' && tel ? `<a class="btn btn-line" href="${esc(tel)}">${ICON.phone}<span>${esc(prettyPhone(callNo, f.country))}</span></a>` : ''}</p></div></section>`;
     }
   };
 
@@ -191,12 +192,12 @@ export function renderSite(plan: Plan, f: Facts, photos: Photo[], opts: { url: s
 
   const bar = chat || tel || dir ? `<div class="bar" role="navigation" aria-label="Contact">${chat ? `<a class="b-wa" href="${esc(wa())}" target="_blank" rel="noopener">${ICON.whatsapp}<span>WhatsApp</span></a>` : ''}${tel ? `<a href="${esc(tel)}">${ICON.phone}<span>Call</span></a>` : ''}${dir ? `<a href="${esc(dir)}" target="_blank" rel="noopener">${ICON.pin}<span>Directions</span></a>` : ''}</div>${chat ? `<a class="float-wa" href="${esc(wa())}" target="_blank" rel="noopener" aria-label="Chat on WhatsApp">${ICON.whatsapp}</a>` : ''}` : '';
 
-  const footer = `<footer class="foot"><div class="wrap"><div><p class="brand">${esc(f.name)}</p><p class="muted">${esc(f.offer)}</p></div><ul>${f.address ? `<li>${ICON.pin}<span>${esc(f.address)}</span></li>` : ''}${tel ? `<li>${ICON.phone}<a href="${esc(tel)}">${esc(prettyPhone(f.phone ?? f.whatsapp, f.country))}</a></li>` : ''}${f.instagram ? `<li>${ICON.ig}<a href="https://instagram.com/${esc(f.instagram.replace(/^@/, ''))}" target="_blank" rel="noopener">@${esc(f.instagram.replace(/^@/, ''))}</a></li>` : ''}${f.tiktok ? `<li>${ICON.tiktok}<a href="https://www.tiktok.com/@${esc(f.tiktok.replace(/^@/, ''))}" target="_blank" rel="noopener">TikTok @${esc(f.tiktok.replace(/^@/, ''))}</a></li>` : ''}${f.facebook ? `<li>${ICON.fb}<a href="https://facebook.com/${esc(f.facebook)}" target="_blank" rel="noopener">Facebook</a></li>` : ''}${linksIn(f.links, 'social').filter((l) => !(l.id === 'instagram' && f.instagram) && !(l.id === 'tiktok' && f.tiktok) && !(l.id === 'facebook' && f.facebook)).map((l) => `<li>${l.id === 'instagram' ? ICON.ig : l.id === 'tiktok' ? ICON.tiktok : l.id === 'facebook' ? ICON.fb : ICON.out}<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)}</a></li>`).join('')}${f.email ? `<li><a href="mailto:${esc(f.email)}">${esc(f.email)}</a></li>` : ''}</ul><p class="fine">© ${opts.year ?? new Date().getFullYear()} ${esc(f.name)} · <a href="https://hiresyncly.site" target="_blank" rel="noopener">Site by Syncly</a></p></div></footer>`;
+  const footer = `<footer class="foot"><div class="wrap"><div><p class="brand">${esc(f.name)}</p><p class="muted">${esc(f.offer)}</p></div><ul>${f.address ? `<li>${ICON.pin}<span>${esc(f.address)}</span></li>` : ''}${tel ? `<li>${ICON.phone}<a href="${esc(tel)}">${esc(prettyPhone(callNo, f.country))}</a></li>` : ''}${f.instagram ? `<li>${ICON.ig}<a href="https://instagram.com/${esc(f.instagram.replace(/^@/, ''))}" target="_blank" rel="noopener">@${esc(f.instagram.replace(/^@/, ''))}</a></li>` : ''}${f.tiktok ? `<li>${ICON.tiktok}<a href="https://www.tiktok.com/@${esc(f.tiktok.replace(/^@/, ''))}" target="_blank" rel="noopener">TikTok @${esc(f.tiktok.replace(/^@/, ''))}</a></li>` : ''}${f.facebook ? `<li>${ICON.fb}<a href="https://facebook.com/${esc(f.facebook)}" target="_blank" rel="noopener">Facebook</a></li>` : ''}${linksIn(f.links, 'social').filter((l) => !(l.id === 'instagram' && f.instagram) && !(l.id === 'tiktok' && f.tiktok) && !(l.id === 'facebook' && f.facebook)).map((l) => `<li>${l.id === 'instagram' ? ICON.ig : l.id === 'tiktok' ? ICON.tiktok : l.id === 'facebook' ? ICON.fb : ICON.out}<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)}</a></li>`).join('')}${f.email ? `<li><a href="mailto:${esc(f.email)}">${esc(f.email)}</a></li>` : ''}</ul><p class="fine">© ${opts.year ?? new Date().getFullYear()} ${esc(f.name)} · <a href="https://hiresyncly.site" target="_blank" rel="noopener">Site by Syncly</a></p></div></footer>`;
 
   // ---------- structured data (only known facts; no self-serving review markup)
   const ldType = { food: 'Restaurant', beauty: 'BeautySalon', health: 'MedicalBusiness', retail: 'Store', creative: 'ProfessionalService', events: 'ProfessionalService', professional: 'ProfessionalService', other: 'LocalBusiness' }[f.kind];
   const ld: Record<string, unknown> = { '@context': 'https://schema.org', '@type': ldType, name: f.name, description: plan.description, url: opts.url };
-  if (f.phone ?? f.whatsapp) ld.telephone = `+${e164(f.phone ?? f.whatsapp, f.country)}`;
+  if (callNo) ld.telephone = `+${e164(callNo, f.country)}`;
   if (f.address) ld.address = { '@type': 'PostalAddress', streetAddress: f.address, addressLocality: f.area ?? f.city, addressRegion: f.city, addressCountry: f.country };
   if (f.hours) ld.openingHoursSpecification = f.hours.map((x) => ({ '@type': 'OpeningHoursSpecification', dayOfWeek: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][x.day], opens: `${String(Math.floor(x.open / 60)).padStart(2, '0')}:${String(x.open % 60).padStart(2, '0')}`, closes: `${String(Math.floor(Math.min(x.close, 1439) / 60)).padStart(2, '0')}:${String(Math.min(x.close, 1439) % 60).padStart(2, '0')}` }));
   if (nt?.closed && nt.from) ld.specialOpeningHoursSpecification = [{ '@type': 'OpeningHoursSpecification', opens: '00:00', closes: '00:00', validFrom: nt.from, validThrough: nt.until ?? nt.from }];
@@ -252,7 +253,7 @@ ${bar}
 </body>
 </html>`;
 
-  const llms = `# ${f.name}\n\n> ${f.offer}\n\n${nt && (!nt.until || nt.until >= new Date().toISOString().slice(0, 10)) ? `Notice${nt.from || nt.until ? ` (${[nt.from, nt.until].filter(Boolean).join(' to ')})` : ''}: ${nt.text}${nt.closed ? ' (closed on these dates)' : ''}\n\n` : ''}${[...gets.map((l) => `- ${l.cta}: ${l.url}`), f.bank && `- Pay by transfer: ${f.bank.bank}, ${f.bank.accountName}, ${f.bank.accountNumber}`, f.address && `- Address: ${f.address}`, (f.phone ?? f.whatsapp) && `- Phone/WhatsApp: +${e164(f.phone ?? f.whatsapp, f.country)}`, f.hoursText && `- Hours: ${f.hoursText}`, f.rating && `- Google rating: ${f.rating} (${f.ratingCount} reviews)`, f.instagram && `- Instagram: https://instagram.com/${f.instagram.replace(/^@/, '')}`].filter(Boolean).join('\n')}\n\n## ${f.kind === 'food' ? 'Menu' : 'Offer'}\n\n${f.items.map((i) => `- ${i.name}${i.price ? `: ${showPrice(i.price, f.country)}` : ''}`).join('\n')}\n`;
+  const llms = `# ${f.name}\n\n> ${f.offer}\n\n${nt && (!nt.until || nt.until >= new Date().toISOString().slice(0, 10)) ? `Notice${nt.from || nt.until ? ` (${[nt.from, nt.until].filter(Boolean).join(' to ')})` : ''}: ${nt.text}${nt.closed ? ' (closed on these dates)' : ''}\n\n` : ''}${[...gets.map((l) => `- ${l.cta}: ${l.url}`), f.bank && `- Pay by transfer: ${f.bank.bank}, ${f.bank.accountName}, ${f.bank.accountNumber}`, f.address && `- Address: ${f.address}`, callNo && `- Phone/WhatsApp: +${e164(callNo, f.country)}`, f.hoursText && `- Hours: ${f.hoursText}`, f.rating && `- Google rating: ${f.rating} (${f.ratingCount} reviews)`, f.instagram && `- Instagram: https://instagram.com/${f.instagram.replace(/^@/, '')}`].filter(Boolean).join('\n')}\n\n## ${f.kind === 'food' ? 'Menu' : 'Offer'}\n\n${f.items.map((i) => `- ${i.name}${i.price ? `: ${showPrice(i.price, f.country)}` : ''}`).join('\n')}\n`;
   return { html, llms, robots: 'User-agent: *\nAllow: /\n' };
 }
 

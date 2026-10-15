@@ -56,16 +56,27 @@ export type Facts = {
 export function e164(raw?: string, country = 'NG'): string | undefined {
   if (!raw) return undefined;
   const first = raw.split(/[\/,;|]|\bor\b/i).find((x) => (x.match(/\d/g) ?? []).length >= 7) ?? raw;
-  let d = first.replace(/[^\d+]/g, '');
-  if (d.startsWith('+')) return d.slice(1);
-  if (d.startsWith('00')) return d.slice(2);
+  let d = first.replace(/[^\d+]/g, '').replace(/^\+?234\(?0/, '234');
+  if (d.startsWith('+')) return real(d.slice(1));
+  if (d.startsWith('00')) return real(d.slice(2));
   if (country === 'NG') {
-    if (d.startsWith('234')) return d;
-    if (d.startsWith('0') && d.length === 11) return '234' + d.slice(1);
-    if (d.length === 10) return '234' + d;
+    if (d.startsWith('234')) return real(d);
+    if (d.startsWith('0') && d.length === 11) return real('234' + d.slice(1));
+    if (d.length === 10) return real('234' + d);
   }
-  return d.length >= 8 ? d : undefined;
+  return d.length >= 8 ? real(d) : undefined;
 }
+/** A number someone could actually answer: no placeholders (08000000000, 0800 000 0000, 1234567890) and, for
+ *  Nigeria, a real mobile or landline shape. A site never links or prints a number that fails this. */
+function real(n: string): string | undefined {
+  if (n.length < 8 || n.length > 15) return undefined;
+  const local = n.startsWith('234') ? n.slice(3) : n;
+  if (/0{5,}/.test(local) || /^(\d)\1+$/.test(local.slice(-7)) || /1234567|2345678|9876543/.test(local)) return undefined;
+  if (n.startsWith('234') && !/^234([789][01]\d{8}|[1-9]\d{7,8})$/.test(n)) return undefined;
+  return n;
+}
+/** The first of these numbers that is real, as written (for showing), or undefined. */
+export const usableNumber = (country: string | undefined, ...raws: (string | undefined)[]) => raws.find((r) => !!e164(r, country));
 export const telLink = (raw?: string, country?: string) => { const n = e164(raw, country); return n ? `tel:+${n}` : undefined; };
 export const waLink = (raw: string | undefined, text: string, country?: string) => { const n = e164(raw, country); return n ? `https://wa.me/${n}?text=${encodeURIComponent(text)}` : undefined; };
 /** How a Nigerian number is usually written: 0803 555 0142. */
@@ -140,6 +151,7 @@ export function priceValue(p?: string): number | undefined {
 }
 /** Normalised for display: "N25000", "25,000 naira" and "₦25k" all become "₦25,000". */
 export function showPrice(p: string, country = 'NG'): string {
+  p = p.replace(/(^|\s|from\s*)#\s?(?=\d)/gi, '$1₦'); // "#50k", "From #1000": many owners type # for naira
   if (country !== 'NG' || !/(₦|ngn|naira|\bn\s?\d)/i.test(p) && !/^\s*\d/.test(p)) return p.trim();
   const v = priceValue(p);
   if (v === undefined) return p.trim();
@@ -161,6 +173,8 @@ export function parseMenu(text?: string): Omit<Item, 'id'>[] {
   let category: string | undefined;
   for (const line of text.split('\n').map((l) => l.trim()).filter(Boolean)) {
     const m = line.match(/^(.*?)\s*(?:[-–—:|]|\.{2,}|\s)\s*((?:from\s+)?(?:₦|NGN|N|\$|£|€)?\s?\d[\d,]*(?:\.\d+)?\s?(?:k|K)?(?:\s*[-–]\s*(?:₦|N)?\s?\d[\d,]*(?:k|K)?)?)\s*$/);
+    // "Tray for 10 - ₦25,000": a bare number before a priced dash belongs to the name, not a price range
+    if (m && /^\d[\d,]*\s*[-–]\s*(?:₦|NGN|N)/.test(m[2])) { const g = line.match(/^(.*\S)\s*[-–—:|]\s*((?:₦|NGN|N)\s?\d[\d,]*(?:\.\d+)?\s?(?:k|K)?)\s*$/); if (g) { m[1] = g[1]; m[2] = g[2]; } }
     if (m && m[1] && /[a-z]/i.test(m[1])) { out.push({ name: m[1].replace(/[-–—:|.\s]+$/, '').slice(0, 60), price: m[2].trim(), category, source: line }); continue; }
     if (/:$/.test(line) && line.length <= 40) { category = line.replace(/:$/, '').trim(); continue; }
     if (line.length <= 60 && /[a-z]/i.test(line)) out.push({ name: line.replace(/[-–—:|.\s]+$/, ''), category, source: line });

@@ -16,6 +16,10 @@ export const SIZES = { status: [1080, 1920], post: [1080, 1350], a4: [794, 1123]
 
 const esc = (s: unknown) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 function shade(hex: string, k: number) { const n = parseInt(hex.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255; const f = (c: number) => Math.round(k < 0 ? c * (1 + k) : c + (255 - c) * k); return `#${[f(r), f(g), f(b)].map((x) => x.toString(16).padStart(2, '0')).join('')}`; }
+/** A bare price ("4500", "25000") reads as naira with thousands commas; anything else is kept exactly as written. */
+export const money = (p?: string) => { const t = String(p ?? '').trim(); return /^\d[\d,]*(\.\d+)?$/.test(t) ? `₦${Number(t.replace(/,/g, '')).toLocaleString('en-NG')}` : t; };
+/** Nigerian phone numbers spaced the way people read them out: 0803 555 0142, +234 803 555 0142. */
+export const spacedPhones = (t: string) => t.replace(/(\+?234|0)\s?([789][01]\d)\s?(\d{3})\s?(\d{4})\b/g, (_, cc, a, b, c) => `${cc === '0' ? '0' : `${cc} `}${a} ${b} ${c}`);
 const lum = (hex: string) => { const n = parseInt(hex.slice(1), 16); const c = [n >> 16, (n >> 8) & 255, n & 255].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
 
 export function flyerHtml(f: FlyerInput): string {
@@ -39,17 +43,21 @@ export function flyerHtml(f: FlyerInput): string {
     dm: '<path d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zm0 2a3 3 0 0 0-3 3v10a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V7a3 3 0 0 0-3-3zm5 3.5a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9zm0 2a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM17.3 5.6a1.1 1.1 0 1 1 0 2.2 1.1 1.1 0 0 1 0-2.2z"/>',
     website: '<path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm6.9 6h-2.95a15.6 15.6 0 0 0-1.38-3.56A8 8 0 0 1 18.9 8zM12 4.04c.83 1.2 1.48 2.53 1.91 3.96h-3.82c.43-1.43 1.08-2.76 1.91-3.96zM4.26 14a8.2 8.2 0 0 1 0-4h3.38a16.5 16.5 0 0 0 0 4zm.84 2h2.95c.32 1.25.78 2.45 1.38 3.56A8 8 0 0 1 5.1 16zM8.05 8H5.1a8 8 0 0 1 4.33-3.56A15.6 15.6 0 0 0 8.05 8zM12 19.96c-.83-1.2-1.48-2.53-1.91-3.96h3.82A13.5 13.5 0 0 1 12 19.96zM14.34 14H9.66a14.7 14.7 0 0 1 0-4h4.68a14.7 14.7 0 0 1 0 4zm.25 5.56c.6-1.11 1.06-2.31 1.38-3.56h2.95a8 8 0 0 1-4.33 3.56zM16.36 14a16.5 16.5 0 0 0 0-4h3.38a8.2 8.2 0 0 1 0 4z"/>',
   };
-  const cta = `<div class="cta"><svg viewBox="0 0 24 24">${ICON[f.ctaKind ?? 'whatsapp'] ?? ICON.whatsapp}</svg><span data-fit>${esc(f.cta)}</span></div>`;
-  const foot = f.footer.length ? `<div class="foot" data-fit>${f.footer.map(esc).join('<i>·</i>')}</div>` : '';
+  const cta = `<div class="cta"><svg viewBox="0 0 24 24">${ICON[f.ctaKind ?? 'whatsapp'] ?? ICON.whatsapp}</svg><span data-fit>${esc(spacedPhones(f.cta))}</span></div>`;
+  const foot = f.footer.length ? `<div class="foot" data-fit>${f.footer.map((x) => esc(spacedPhones(x))).join('<i>·</i>')}</div>` : '';
+  // without a photo, the words take the middle of the page instead of leaving its bottom half empty
+  const grow = photo ? '' : '<div class="grow"></div>';
 
   let body = '';
   if (f.kind === 'promo') {
-    body = `${head}${hero}
-      ${f.copy.badge ? `<div class="badge"><span data-fit>${esc(f.copy.badge)}</span></div>` : ''}
-      <div class="hl" data-fit><div>${esc(f.copy.headline)}</div></div>
+    // the price badge sits on the photo; with no photo it takes its own place above the headline
+    const badge = f.copy.badge ? `<div class="badge${photo ? '' : ' inline'}"><span>${esc(money(f.copy.badge))}</span></div>` : '';
+    body = `${head}${hero}${grow}
+      ${badge}
+      <div class="hl${photo ? '' : ' big'}" data-fit><div>${esc(f.copy.headline)}</div></div>
       ${f.copy.sub ? `<div class="sub" data-fit>${esc(f.copy.sub)}</div>` : ''}
       ${f.copy.points?.length ? `<div class="pts">${f.copy.points.slice(0, 3).map((p) => `<div><i>✓</i><span data-fit>${esc(p)}</span></div>`).join('')}</div>` : ''}
-      ${cta}${foot}`;
+      ${grow}${cta}${foot}`;
   } else if (f.kind === 'pricelist') {
     const items = (f.items ?? []).slice(0, 30);
     const groups: { name?: string; items: FlyerItem[] }[] = [];
@@ -57,11 +65,22 @@ export function flyerHtml(f: FlyerInput): string {
     const cols = items.length > (tall ? 16 : 9) ? 2 : 1;
     // photos only when the list leaves room for them
     const strip = f.photos.slice(0, items.length > (tall ? 14 : f.size === 'a4' ? 12 : 7) ? 0 : 3);
-    // two columns, balanced by lines (a group heading counts as one), never splitting a group
-    const colOf: number[] = [];
-    if (cols === 2) { const total = groups.reduce((t, g) => t + g.items.length + (g.name ? 1 : 0), 0); let run = 0; for (const g of groups) { colOf.push(run < total / 2 ? 0 : 1); run += g.items.length + (g.name ? 1 : 0); } }
-    const section = (g: { name?: string; items: FlyerItem[] }) => `<section>${g.name ? `<h4>${esc(g.name)}</h4>` : ''}${g.items.map((it) => `<p><span>${esc(it.name)}</span><em></em><b>${esc(it.price ?? '')}</b></p>`).join('')}</section>`;
-    const listInner = cols === 2 ? [0, 1].map((c) => `<div class="col">${groups.filter((_, i) => colOf[i] === c).map(section).join('')}</div>`).join('') : `<div class="col">${groups.map(section).join('')}</div>`;
+    // two columns balanced by lines (a heading counts as one). A group moves to the second column whole when that
+    // keeps the columns close; a long group (or a list with no groups) splits between items, its heading repeated.
+    const section = (g: { name?: string; items: FlyerItem[] }) => `<section>${g.name ? `<h4>${esc(g.name)}</h4>` : ''}${g.items.map((it) => `<p><span>${esc(it.name)}</span><em></em><b>${esc(money(it.price))}</b></p>`).join('')}</section>`;
+    const columns: { name?: string; items: FlyerItem[] }[][] = [[], []];
+    if (cols === 2) {
+      const lines = groups.reduce((t, g) => t + g.items.length + (g.name ? 1 : 0), 0), half = Math.ceil(lines / 2);
+      let run = 0;
+      for (const g of groups) {
+        const size = g.items.length + (g.name ? 1 : 0);
+        if (run >= half) columns[1].push(g);
+        else if (run + size <= half + 1) columns[0].push(g);
+        else { const k = Math.max(1, half - run - (g.name ? 1 : 0)); columns[0].push({ name: g.name, items: g.items.slice(0, k) }); columns[1].push({ name: g.name, items: g.items.slice(k) }); }
+        run += size;
+      }
+    }
+    const listInner = cols === 2 ? columns.map((c) => `<div class="col">${c.map(section).join('')}</div>`).join('') : `<div class="col">${groups.map(section).join('')}</div>`;
     body = `${head}
       <div class="ttl" data-fit><div>${esc(f.copy.title || f.copy.headline || 'Price list')}</div></div>
       ${f.copy.sub ? `<div class="sub small" data-fit>${esc(f.copy.sub)}</div>` : ''}
@@ -70,12 +89,12 @@ export function flyerHtml(f: FlyerInput): string {
       ${f.copy.note ? `<div class="note" data-fit>${esc(f.copy.note)}</div>` : ''}
       ${cta}${foot}`;
   } else {
-    body = `${head}
+    body = `${head}${grow}
       ${f.copy.date ? `<div class="date"><span data-fit>${esc(f.copy.date)}</span></div>` : ''}
       <div class="hl big" data-fit><div>${esc(f.copy.headline)}</div></div>
       ${f.copy.sub ? `<div class="sub" data-fit>${esc(f.copy.sub)}</div>` : ''}
       ${f.copy.points?.length ? `<div class="pts">${f.copy.points.slice(0, 3).map((p) => `<div><i>•</i><span data-fit>${esc(p)}</span></div>`).join('')}</div>` : ''}
-      ${hero}${cta}${foot}`;
+      ${hero}${grow}${cta}${foot}`;
   }
 
   return `<!doctype html><html><head><meta charset="utf-8">
@@ -101,7 +120,9 @@ body>*{position:relative}
 .sub{font-size:calc(var(--u)*4.6);line-height:1.25;color:${soft};font-weight:600;max-height:calc(var(--u)*13);overflow:hidden;flex:none}
 .sub.small{font-size:calc(var(--u)*3.8);max-height:calc(var(--u)*6)}
 .badge{position:absolute;right:calc(var(--u)*5);top:calc(var(--u)*${tall ? 20 : 17});width:calc(var(--u)*28);height:calc(var(--u)*28);border-radius:50%;background:${bold ? ink : accent};color:${bold ? bg : onAccent};display:grid;place-items:center;transform:rotate(-8deg);box-shadow:0 calc(var(--u)*1.4) calc(var(--u)*3) rgba(0,0,0,.25);z-index:3}
-.badge span{display:block;width:80%;text-align:center;font-family:'Bricolage Grotesque';font-weight:800;font-size:calc(var(--u)*7);line-height:1;max-height:62%;overflow:hidden}
+.badge span{display:block;width:78%;text-align:center;font-family:'Bricolage Grotesque';font-weight:800;font-size:calc(var(--u)*7.5);line-height:1.02;overflow-wrap:normal;word-break:keep-all}
+.badge.inline{position:relative;right:auto;top:auto;align-self:flex-end;width:calc(var(--u)*${tall ? 30 : 24});height:calc(var(--u)*${tall ? 30 : 24});margin:calc(var(--u)*-2) calc(var(--u)*1) calc(var(--u)*-4) 0;flex:none}
+.grow{flex:1 1 0;min-height:0}
 .pts{display:grid;gap:calc(var(--u)*1.6);flex:none}
 .pts div{display:flex;align-items:center;gap:calc(var(--u)*2);font-size:calc(var(--u)*4.4);font-weight:600}
 .pts i{flex:none;width:calc(var(--u)*6);height:calc(var(--u)*6);border-radius:50%;display:grid;place-items:center;background:${bold ? ink : accent};color:${bold ? bg : onAccent};font-style:normal;font-size:calc(var(--u)*3.4)}
@@ -133,9 +154,19 @@ body>*{position:relative}
     const over = () => inner ? (inner.scrollWidth > inner.clientWidth + 1 || inner.offsetHeight > el.clientHeight + 1) : (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1);
     while (over() && size > min && guard-- > 0) { size *= 0.95; el.style.fontSize = size + 'px'; }
   }
+  // the badge: as big as fits inside its circle (the fit above can't judge a circle, and Bricolage's glyphs
+  // overhang their line box, which made it shrink the price to its floor)
+  for (const span of document.querySelectorAll('.badge span')) {
+    const box = span.parentElement.clientWidth; let size = box * 0.3; let guard = 60;
+    span.style.fontSize = size + 'px';
+    while (guard-- > 0 && size > box * 0.08 && (span.scrollWidth > span.clientWidth + 1 || span.getBoundingClientRect().height > box * 0.6)) { size *= 0.94; span.style.fontSize = size + 'px'; }
+  }
   // a list with room to spare grows its type, up to 1.35×
   const list = document.querySelector('.list');
   if (list) { let size = parseFloat(getComputedStyle(list).fontSize); const max = size * 1.35; let guard = 30; while (size < max && guard-- > 0) { list.style.fontSize = (size * 1.04) + 'px'; if (list.scrollHeight > list.clientHeight + 1 || list.scrollWidth > list.clientWidth + 1) { list.style.fontSize = size + 'px'; break; } size *= 1.04; } }
+  // anything the list still couldn't show is counted, so the delivery never claims every item is on it
+  const lst = document.querySelector('.list');
+  if (lst) { const bottom = lst.getBoundingClientRect().bottom; window.POSTER_NOTE = { hidden: [...lst.querySelectorAll('p')].filter((p) => p.getBoundingClientRect().bottom > bottom + 1).length }; }
   window.POSTER_READY = true;
 })();
 </script></body></html>`;

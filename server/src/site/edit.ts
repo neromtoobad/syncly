@@ -145,6 +145,17 @@ function write(src: SiteSource) {
   writeFileSync(join(dir, 'robots.txt'), r.robots);
 }
 
+/** Every customer site rebuilt from its source with the current engine, so fixes to the engine (a broken link, a
+ *  layout bug) reach sites already delivered. Only the page and its text files change; the owner's edits are the
+ *  source, so they all stay. Sites finished by hand are served from the repo and aren't touched. */
+export function rerenderAll(): { done: number; failed: string[] } {
+  let done = 0; const failed: string[] = [];
+  for (const f of readdirSync(SRC()).filter((x) => x.endsWith('.json'))) {
+    try { write(JSON.parse(readFileSync(join(SRC(), f), 'utf8'))); done++; } catch (e: any) { failed.push(`${f}: ${String(e?.message ?? e).slice(0, 80)}`); }
+  }
+  return { done, failed };
+}
+
 /** Publish an edit: the previous version is kept (last 10) and the live page is rewritten. */
 export function publishPatch(src: SiteSource, patch: SitePatch): SiteSource {
   const { plan, facts, hidden } = applyPatch(src, patch);

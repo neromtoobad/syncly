@@ -7,7 +7,7 @@ import QRCode from 'qrcode';
 import { DATA_DIR } from '../config.ts';
 import { palette } from './color.ts';
 import { ICON, esc } from './engine.ts';
-import { prettyPhone, waLink, type Facts, type Photo } from './facts.ts';
+import { prettyPhone, usableNumber, waLink, type Facts, type Photo } from './facts.ts';
 import { LINKS, linksIn } from './links.ts';
 import type { Plan } from './plan.ts';
 import { THEMES } from './themes.ts';
@@ -26,7 +26,7 @@ const WHERE = (f: Facts) => [f.category, [f.area, f.city].filter(Boolean).join('
 
 /** What a poster's code can open, with the words that go with it. Only targets the site has the facts for. */
 export function posterTargets(s: Site): { id: PosterTarget; label: string; url: string; headline: string; sub: string }[] {
-  const f = s.facts, chat = f.whatsapp ?? f.phone, out: ReturnType<typeof posterTargets> = [];
+  const f = s.facts, chat = usableNumber(f.country, f.whatsapp, f.phone), out: ReturnType<typeof posterTargets> = [];
   const look = f.kind === 'food' ? 'See our menu & order' : ['beauty', 'health'].includes(f.kind) ? 'See our prices & book' : ['creative', 'events'].includes(f.kind) ? 'See our work & book' : f.items.some((i) => i.price) ? 'See our prices' : 'See what we do';
   out.push({ id: 'site', label: 'Your website', url: `${s.url}?src=qr`, headline: look, sub: f.kind === 'food' ? 'Our menu, prices, opening hours and directions' : 'Prices, opening hours, directions and how to reach us' });
   const wa = waLink(chat, s.plan.whatsappText, f.country);
@@ -64,7 +64,7 @@ export async function posterHtml(s: Site, o: PosterOpts, fit = false): Promise<{
   const headline = (o.headline ?? '').trim().slice(0, 70) || tg.headline;
   const sub = (o.sub ?? '').trim().slice(0, 90) || tg.sub;
   const showBank = !!f.bank && tg.id !== 'pay' && !!o.bank; // the transfer poster shows them in the middle instead
-  const chat = f.whatsapp ?? f.phone;
+  const chat = usableNumber(f.country, f.whatsapp, f.phone);
   const short = tg.id === 'site' || tg.id === 'pay' ? s.url.replace(/^https?:\/\//, '') : tg.id === 'whatsapp' ? `WhatsApp ${prettyPhone(chat, f.country)}` : tg.url.replace(/^https?:\/\/(www\.)?/, '').replace(/\?.*$/, '').slice(0, 48);
   const status = format === 'status', caps = t.display.caps;
   const initial = f.name.replace(/^(the|le|la)\s+/i, '').charAt(0).toUpperCase();

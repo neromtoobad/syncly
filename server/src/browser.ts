@@ -228,7 +228,7 @@ export async function siteImages(url: string, max = 8): Promise<{ src: string; a
 
 
 /** Several poster-style pages (each says POSTER_READY when laid out) rendered in one browser: PNG at `scale`× or PDF. */
-export async function renderPages(pages: { html: string; w: number; h: number; kind: 'png' | 'pdf'; scale?: number }[]): Promise<Buffer[]> {
+export async function renderPages(pages: { html: string; w: number; h: number; kind: 'png' | 'pdf'; scale?: number }[], notes?: unknown[]): Promise<Buffer[]> {
   const browser = await launch();
   try {
     const out: Buffer[] = [];
@@ -237,6 +237,7 @@ export async function renderPages(pages: { html: string; w: number; h: number; k
       await page.setViewport({ width: p.w, height: p.h, deviceScaleFactor: p.kind === 'png' ? p.scale ?? 1 : 1 });
       await page.setContent(p.html, { waitUntil: 'load', timeout: 30_000 }).catch(() => undefined);
       await page.waitForFunction('window.POSTER_READY === true', { timeout: 15_000 }).catch(() => undefined);
+      notes?.push(await page.evaluate('window.POSTER_NOTE ?? null').catch(() => null)); // what the page reports about its own layout
       out.push(Buffer.from(p.kind === 'pdf'
         ? await page.pdf({ width: `${p.w}px`, height: `${p.h}px`, printBackground: true, pageRanges: '1' })
         : await page.screenshot({ type: 'png', clip: { x: 0, y: 0, width: p.w, height: p.h } })));
