@@ -233,7 +233,7 @@ Copy amounts exactly as numbers (no currency signs or commas). One row per trans
       job.qa = { verdict: rec.ok && !stray.length ? 'pass' : 'revise', notes: issues.join(' | ') || rec.note, model: 'reconciliation + rules' };
 
       // 7. Chart, spreadsheet, report
-      const chart = await htmlToPng(chartHtml(byMonth, spendCats.slice(0, 7), cur), 1200, 640).catch(() => undefined);
+      const chart = await htmlToPng(chartHtml(byMonth, spendCats.slice(0, 7), cur, sumIn, sumOut), 1080, 1350).catch(() => undefined);
       if (chart) job.files.push({ name: 'money-chart.png', content: chart });
       const header2 = ['date', 'description', 'money in', 'money out', 'balance', 'category', 'other party'];
       job.files.push({ name: 'transactions.csv', content: [header2.join(','), ...rowsL.map((r) => [r.date, r.desc, r.in || '', r.out || '', r.balance ?? '', r.cat, r.who].map(csvCell).join(','))].join('\n') + '\n' });
@@ -273,19 +273,27 @@ Copy amounts exactly as numbers (no currency signs or commas). One row per trans
 };
 
 const esc = (x: string) => x.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-function chartHtml(byMonth: { m: string; in: number; out: number }[], cats: [string, number][], cur: string) {
-  const max = Math.max(1, ...byMonth.flatMap((x) => [x.in, x.out])), cmax = Math.max(1, ...cats.map((c) => c[1]));
-  const k = (n: number) => (n >= 1e6 ? `${cur}${(n / 1e6).toFixed(1)}m` : n >= 1000 ? `${cur}${Math.round(n / 1000)}k` : `${cur}${Math.round(n)}`);
-  const bars = byMonth.slice(-6).map((x) => `<div class="m"><div class="pair"><i class="in" style="height:${(x.in / max) * 100}%"><b>${k(x.in)}</b></i><i class="out" style="height:${(x.out / max) * 100}%"><b>${k(x.out)}</b></i></div><span>${/^\d{4}-\d{2}$/.test(x.m) ? new Date(`${x.m}-01T12:00:00Z`).toLocaleString('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' }) : esc(x.m)}</span></div>`).join('');
-  const rows = cats.map(([c, v]) => `<div class="c"><span>${esc(c)}</span><div class="t"><i style="width:${(v / cmax) * 100}%"></i></div><b>${k(v)}</b></div>`).join('');
+/** The chart, sized for a phone (1080×1350, the shape of an Instagram post): the three totals, money in and out by
+ *  month, then where the money went, all in type that stays readable at phone width. */
+export function chartHtml(byMonth: { m: string; in: number; out: number }[], cats: [string, number][], cur: string, sumIn: number, sumOut: number) {
+  const months = byMonth.slice(-6);
+  const max = Math.max(1, ...months.flatMap((x) => [x.in, x.out])), cmax = Math.max(1, ...cats.map((c) => c[1]));
+  const k = (n: number) => { const a = Math.abs(n), sign = n < 0 ? '−' : ''; return a >= 1e6 ? `${sign}${cur}${(a / 1e6).toFixed(1)}m` : a >= 1000 ? `${sign}${cur}${Math.round(a / 1000)}k` : `${sign}${cur}${Math.round(a)}`; };
+  const mon = (m: string) => (/^\d{4}-\d{2}$/.test(m) ? new Date(`${m}-01T12:00:00Z`).toLocaleString('en-GB', { month: 'short', timeZone: 'UTC' }) : esc(m));
+  const net = sumIn - sumOut;
+  const bars = months.map((x) => `<div class="m"><div class="pair"><i class="in" style="height:${(x.in / max) * 100}%"><b>${k(x.in)}</b></i><i class="out" style="height:${(x.out / max) * 100}%"><b>${k(x.out)}</b></i></div><span>${mon(x.m)}</span></div>`).join('');
+  const rows = cats.map(([c, v]) => `<div class="c"><div class="l"><span>${esc(c)}</span><b>${k(v)} · ${Math.round((v / Math.max(1, sumOut)) * 100)}%</b></div><div class="t"><i style="width:${Math.max(1.5, (v / cmax) * 100)}%"></i></div></div>`).join('');
   return `<!doctype html><html><head><meta charset="utf-8"><style>
-*{box-sizing:border-box;margin:0}body{width:1200px;height:640px;background:#fbf9f4;font-family:Arial,Helvetica,sans-serif;color:#13271c;padding:36px 40px;display:grid;grid-template-columns:1fr 1.1fr;gap:44px}
-h2{font-size:22px;margin-bottom:6px}p{font-size:14px;color:#5b6b60;margin-bottom:18px}.key{display:flex;gap:16px;font-size:13px;margin-bottom:12px}.key i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
-.chart{display:flex;gap:18px;align-items:flex-end;height:400px;border-bottom:2px solid #d9d4c7;padding-bottom:4px}.m{flex:1;display:flex;flex-direction:column;align-items:center;height:100%}.pair{flex:1;width:100%;display:flex;gap:6px;align-items:flex-end}
-.pair i{flex:1;border-radius:6px 6px 0 0;position:relative;min-height:2px}.pair b{position:absolute;top:-20px;left:50%;transform:translateX(-50%);font-size:11px;white-space:nowrap}.in{background:#2e7a38}.out{background:#c8902f}.m span{font-size:13px;margin-top:8px;color:#5b6b60}
-.c{display:grid;grid-template-columns:210px 1fr 80px;gap:12px;align-items:center;margin:10px 0;font-size:14px}.t{height:22px;background:#ece7db;border-radius:6px;overflow:hidden}.t i{display:block;height:100%;background:#13271c;border-radius:6px}.c b{text-align:right}
-</style></head><body><div><h2>Money in and out</h2><p>By month, without transfers between your own accounts</p><div class="key"><span><i style="background:#2e7a38"></i>In</span><span><i style="background:#c8902f"></i>Out</span></div><div class="chart">${bars}</div></div>
-<div><h2>Where the money went</h2><p>Biggest spending categories in the period</p>${rows}</div></body></html>`;
+*{box-sizing:border-box;margin:0}body{width:1080px;height:1350px;background:#fbf9f4;font-family:Arial,Helvetica,sans-serif;color:#13271c;padding:52px 60px;display:flex;flex-direction:column;gap:30px}
+.tiles{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px}.tile{background:#fff;border:2px solid #ece7db;border-radius:24px;padding:24px 26px}.tile span{font-size:26px;color:#5b6b60;display:flex;align-items:center;gap:10px}.tile span i{width:18px;height:18px;border-radius:5px;display:inline-block}.tile b{display:block;font-size:50px;margin-top:8px;letter-spacing:-.02em}
+h2{font-size:34px;margin-bottom:6px}p{font-size:24px;color:#5b6b60}
+.chart{display:flex;gap:22px;align-items:flex-end;height:290px;border-bottom:3px solid #d9d4c7;padding-bottom:4px;margin-top:44px}.m{flex:1;display:flex;flex-direction:column;align-items:center;height:100%}.pair{flex:1;width:100%;display:flex;gap:6px;align-items:flex-end}
+.pair i{flex:1;border-radius:8px 8px 0 0;position:relative;min-height:3px}.pair b{position:absolute;top:-32px;left:50%;transform:translateX(-50%);font-size:20px;font-style:normal;white-space:nowrap}.pair i.out b{top:-34px}.in{background:#2e7a38}.out{background:#c8902f}.m span{font-size:24px;margin-top:10px;color:#5b6b60}
+.cats{display:flex;flex-direction:column;gap:12px;margin-top:16px}.c .l{display:flex;justify-content:space-between;gap:16px;font-size:26px;margin-bottom:6px}.c .l span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.c .l b{white-space:nowrap}.t{height:18px;background:#ece7db;border-radius:8px;overflow:hidden}.t i{display:block;height:100%;background:#13271c;border-radius:8px}
+</style></head><body>
+<div class="tiles"><div class="tile"><span><i style="background:#2e7a38"></i>Money in</span><b>${k(sumIn)}</b></div><div class="tile"><span><i style="background:#c8902f"></i>Money out</span><b>${k(sumOut)}</b></div><div class="tile"><span>Net</span><b style="color:${net < 0 ? '#b3261e' : '#2e7a38'}">${net >= 0 ? '+' : ''}${k(net)}</b></div></div>
+${months.length ? `<div><h2>In and out, by month</h2><p>Without transfers between your own accounts</p><div class="chart">${bars}</div></div>` : ''}
+<div><h2>Where the money went</h2><p>Biggest spending, share of all money out</p><div class="cats">${rows}</div></div></body></html>`;
 }
 
 // demo-mode stand-ins: a small, consistent statement
