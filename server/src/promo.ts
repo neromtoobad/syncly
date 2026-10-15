@@ -198,7 +198,7 @@ export function writePromo(dir: string, sb: ReturnType<typeof cleanStoryboard>, 
   const ids = sb.scenes.map((_, i) => `s${i}`);
   const PROMO = {
     size: o.size, fps: o.fps, bpm: o.bpm ?? 120, palette: sb.palette, font: { display: font.display, body: font.body },
-    brand: { name: o.business, logo: o.logo ?? null }, cutouts: o.photos.filter((p) => p.cut).map((p) => p.name),
+    brand: { name: o.business, logo: o.logo ?? null, logoCover: !!o.logo && !/\.png$/i.test(o.logo) }, cutouts: o.photos.filter((p) => p.cut).map((p) => p.name),
     // the motion grammar is picked per business (a hash of its name), so no two customers' videos move alike
     seed: o.seed ?? [...o.business].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7),
     scenes: sb.scenes.map((s, i) => ({ ...s, id: ids[i] })),

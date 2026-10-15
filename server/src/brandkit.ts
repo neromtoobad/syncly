@@ -10,12 +10,15 @@ import { siteBrand } from './browser.ts';
 import { saveUpload } from './uploads.ts';
 import { brandCandidates } from './site/color.ts';
 import { e164 } from './site/facts.ts';
-import { DRY } from './config.ts';
+import { DRY, MODELS } from './config.ts';
+import { llm, parseJson, type Msg } from './tools.ts';
+import { ffmpeg } from './media.ts';
 
 export type BrandKit = {
   name?: string; bio?: string; category?: string; website?: string; whatsapp?: string; phone?: string;
   logo?: string; photos: string[]; colour?: string; prices: string[]; captions: string[]; sources: string[];
   notes: string[]; // for the customer: a handle or site we couldn't find, and what we used instead
+  siteDead?: boolean; // the website they gave didn't open
 };
 
 const handleOf = (s?: string) => (s ?? '').trim().replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/^@/, '').split(/[/?#\s]/)[0] || undefined;
@@ -50,7 +53,7 @@ export function handleVariants(h: string, name?: string): string[] {
 const PRICE = /(?:₦|\bN|#|NGN)\s?\d[\d,.]*\s?k?\b|\b\d{1,3}(?:,\d{3})+\s?(?:naira|NGN)\b/gi;
 
 /** Read the brand kit from an Instagram handle and/or a website. Never throws: a page that won't read is skipped. */
-export async function brandKit(job: Job, o: { instagram?: string; website?: string; photos?: number; agent?: 'reader' | 'scout'; name?: string }): Promise<BrandKit> {
+export async function brandKit(job: Job, o: { instagram?: string; website?: string; photos?: number; agent?: 'reader' | 'scout'; name?: string; about?: string }): Promise<BrandKit> {
   const kit: BrandKit = { photos: [], prices: [], captions: [], sources: [], notes: [] };
   const agent = o.agent ?? 'reader';
   const logoBufs: Buffer[] = [];
@@ -93,11 +96,27 @@ export async function brandKit(job: Job, o: { instagram?: string; website?: stri
         const ranked = [...nodes].sort((a, b) => (b.edge_liked_by?.count ?? b.edge_media_preview_like?.count ?? 0) - (a.edge_liked_by?.count ?? a.edge_media_preview_like?.count ?? 0));
         for (const n of nodes) { const c = String(n.edge_media_to_caption?.edges?.[0]?.node?.text ?? '').trim(); if (c) kit.captions.push(c.slice(0, 280)); }
         for (const c of [kit.bio ?? '', ...kit.captions]) for (const m of c.match(PRICE) ?? []) if (kit.prices.length < 8 && !kit.prices.includes(m.trim())) kit.prices.push(m.trim());
-        for (const n of ranked) {
+        // the pictures of what they sell, not their most-liked post (often an event, a flyer or the logo): a vision
+        // model looks at up to 12 and picks the ones that show the food or product; most-liked order if it can't
+        const cands: Buffer[] = [];
+        for (const n of ranked.slice(0, 12)) { const src = n.display_url ?? n.thumbnail_src; const b = src ? await getImage(src) : undefined; if (b) cands.push(b); }
+        let order = cands.map((_, i) => i);
+        if (wantPhotos && cands.length > 1) {
+          try {
+            const thumbs = await Promise.all(cands.map((b) => ffmpeg({ in: b }, (f, out) => ['-i', f.in, '-vf', 'scale=320:-2,format=yuvj420p', '-q:v', '6', '-frames:v', '1', out], 'jpg')));
+            const msgs: Msg[] = [
+              { role: 'system', content: 'You choose photos for a small business\'s ads from its Instagram posts. Pick the photos that clearly show what it sells (its food, dishes, drinks, products, or the finished result of its service), best first: sharp, appetising, the item filling the frame. Leave out logos, flyers, posters and anything that is mostly text, screenshots, and photos of people, events or the venue unless that is what the business sells. Reply JSON only: {"pick": [photo numbers, best first]}' },
+              { role: 'user', content: [{ type: 'text', text: `The business sells: ${o.about ?? kit.category ?? 'see the photos'}. ${cands.length} photos:` }, ...thumbs.flatMap((t, i) => [{ type: 'text' as const, text: `Photo ${i + 1}` }, { type: 'image_url' as const, image_url: { url: `data:image/jpeg;base64,${t.toString('base64')}` } }])] },
+            ];
+            const pick = parseJson<{ pick: number[] }>(await llm(job, agent, msgs, 'pick the photos that show what they sell', { model: MODELS.vision, maxTokens: 120, json: true, maxUsd: 0.06, dry: () => JSON.stringify({ pick: cands.map((_, i) => i + 1) }) }), { pick: [] }).pick
+              .map((x) => Number(x) - 1).filter((x, k, xs) => Number.isInteger(x) && x >= 0 && x < cands.length && xs.indexOf(x) === k);
+            if (pick.length) { order = pick; job.log(agent, 'photos', `${pick.length} of ${cands.length} posts show what they sell; using those`); }
+          } catch (e: any) { job.log(agent, 'skip', `photo pick unavailable (${String(e?.message ?? e).slice(0, 50)}); using their most-liked posts`); }
+        }
+        for (const i of order) {
           if (kit.photos.length >= wantPhotos) break;
-          const src = n.display_url ?? n.thumbnail_src;
-          const b = src ? await getImage(src) : undefined;
-          if (b) { const up = await saveUpload(b).catch(() => undefined); if (up) kit.photos.push(up.id); }
+          const up = await saveUpload(cands[i]).catch(() => undefined);
+          if (up) kit.photos.push(up.id);
         }
         job.log(agent, 'instagram', `@${ig}: ${[kit.name, logoBufs.length ? 'logo' : '', kit.photos.length ? `${kit.photos.length} photos` : '', kit.whatsapp || kit.phone ? 'a contact number' : '', kit.prices.length ? `${kit.prices.length} prices` : ''].filter(Boolean).join(', ') || 'nothing usable'}`);
       }
@@ -119,8 +138,8 @@ export async function brandKit(job: Job, o: { instagram?: string; website?: stri
         kit.phone = kit.phone ?? b.phone;
         if (b.logo) { const buf = await getImage(b.logo); if (buf) logoBufs.unshift(buf); } // a site's own logo file beats a profile picture
         if (b.themeColour && /^#[0-9a-f]{6}$/i.test(b.themeColour)) kit.colour = b.themeColour;
-      } else { job.log(agent, 'skip', `${url.replace(/^https?:\/\//, '')} didn't open`); kit.notes.push(`${url.replace(/^https?:\/\//, '').replace(/\/$/, '')} didn't open, so nothing was taken from it. Check the address.`); }
-    } catch (e: any) { job.log(agent, 'skip', `website unreadable (${String(e?.message ?? e).slice(0, 60)})`); kit.notes.push(`${site} didn't open, so nothing was taken from it. Check the address.`); }
+      } else { kit.siteDead = true; job.log(agent, 'skip', `${url.replace(/^https?:\/\//, '')} didn't open`); kit.notes.push(`${url.replace(/^https?:\/\//, '').replace(/\/$/, '')} didn't open, so nothing was taken from it. Check the address.`); }
+    } catch (e: any) { kit.siteDead = true; job.log(agent, 'skip', `website unreadable (${String(e?.message ?? e).slice(0, 60)})`); kit.notes.push(`${site} didn't open, so nothing was taken from it. Check the address.`); }
   }
 
   if (logoBufs.length) { const up = await saveUpload(logoBufs[0]).catch(() => undefined); if (up) kit.logo = up.id; }
@@ -148,17 +167,26 @@ function dryProfile(handle: string) {
 /** The brand kit's notes for the customer, as a section to append to a delivery. */
 export const headsUp = (notes: string[]) => (notes.length ? `\n\n## Heads up\n\n${notes.map((n) => `- ${n}`).join('\n')}` : '');
 
-export async function withBrandKit<T extends { name?: string; instagram?: string; website?: string; logo?: string; photos?: string[]; colour?: string; whatsapp?: string; phone?: string; cta?: string }>(job: Job, details: T | undefined, o: { photos?: number } = {}): Promise<{ d: T | undefined; text: string; notes: string[] }> {
+export async function withBrandKit<T extends { name?: string; offer?: string; instagram?: string; website?: string; logo?: string; photos?: string[]; colour?: string; whatsapp?: string; phone?: string; cta?: string }>(job: Job, details: T | undefined, o: { photos?: number } = {}): Promise<{ d: T | undefined; text: string; notes: string[] }> {
   if (!details || (!details.instagram && !details.website)) return { d: details, text: '', notes: [] };
   const d = { ...details };
   const wantPhotos = Math.max(0, (o.photos ?? 6) - (d.photos?.length ?? 0));
   if (d.logo && !wantPhotos && d.colour && (d.whatsapp || d.phone)) return { d, text: '', notes: [] };
-  const kit = await brandKit(job, { instagram: d.instagram, website: d.website, photos: wantPhotos, name: d.name });
+  const kit = await brandKit(job, { instagram: d.instagram, website: d.website, photos: wantPhotos, name: d.name, about: d.offer });
   if (!d.logo && kit.logo) d.logo = kit.logo;
   if (kit.photos.length) d.photos = [...(d.photos ?? []), ...kit.photos].slice(0, o.photos ?? 6);
   if (!d.colour && kit.colour) d.colour = kit.colour;
   if (!d.whatsapp && !d.phone && (kit.whatsapp || kit.phone)) d.whatsapp = kit.whatsapp ?? kit.phone;
   if (!d.website && kit.website) d.website = kit.website;
+  // a website that doesn't open never becomes the button: their WhatsApp or phone does
+  if (kit.siteDead && d.website) {
+    d.website = undefined;
+    if (d.cta === 'website') d.cta = d.whatsapp ? 'whatsapp' : d.phone ? 'call' : d.instagram ? 'dm' : undefined;
+  }
+  // their Instagram confirms how the name is spelled: "OTEGA RESTURANT" typed, "OTEGA RESTAURANT" on the profile
+  const flat = (x: string) => x.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const spelt = (x: string) => SPELL.reduce((t, [re, to]) => t.replace(re, to), x.toLowerCase());
+  if (kit.name && d.name && flat(kit.name) !== flat(d.name) && flat(spelt(d.name)) === flat(kit.name)) { kit.notes.push(`We spelled your name "${kit.name}", as it is on your Instagram.`); d.name = kit.name; }
   if (!d.cta && d.whatsapp) d.cta = 'whatsapp';
   // nothing to brand it with: say so, so the customer knows why and how to fix it
   if (!d.logo && !d.photos?.length) kit.notes.push('We had no logo or photos to work with, so this uses your name and colours only. Upload your logo and a few photos in a revision and we remake it with them.');

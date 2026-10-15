@@ -43,12 +43,13 @@
   const photo = (src, cls = '') => cut(src)
     ? `<div class="ph cut ${cls}"><div class="ph-glow"></div><img class="ph-fg" src="${src}" alt=""></div>`
     : `<div class="ph ${cls}"><div class="ph-bg" style="background-image:url('${src}')"></div><img class="ph-fg" src="${src}" alt=""></div>`;
-  const logo = () => (P.brand && P.brand.logo ? `<div class="logo"><img src="${P.brand.logo}" alt=""></div>` : `<div class="logo mono-logo">${esc((P.brand && P.brand.name || '?').trim().slice(0, 1))}</div>`);
+  const logo = () => (P.brand && P.brand.logo ? `<div class="logo${P.brand.logoCover ? ' cover' : ''}"><img src="${P.brand.logo}" alt=""></div>` : `<div class="logo mono-logo">${esc((P.brand && P.brand.name || '?').trim().slice(0, 1))}</div>`);
   const tag = (t) => (t ? `<div class="tag fit1" data-fit>${esc(t)}</div>` : '');
 
   const T = {
     hook: (s) => `<div class="L hook ${s.tone || 'accent'}${s.photo ? ' withphoto' : ''}">
         ${s.photo ? `${photo(s.photo, 'punch')}<div class="shade"></div>` : '<div class="blob b1"></div><div class="blob b2"></div>'}
+        ${P.brand && P.brand.logo ? `<div class="hook-logo${P.brand.logoCover ? ' cover' : ''}"><img src="${P.brand.logo}" alt=""></div>` : ''}
         <div class="hook-in">
           ${s.eyebrow ? `<div class="eyebrow fit1" data-fit>${esc(s.eyebrow)}</div>` : ''}
           <div class="hl" data-fit>${(s.lines || [s.text]).map((l) => `<div class="ln">${words(l)}</div>`).join('')}</div>
@@ -170,7 +171,7 @@
       blobs(L, lt);
       // the product punches in on the first beat and settles; the words are already readable on frame 0
       q(L, '.punch .ph-fg, .punch .ph-bg').forEach((im) => { const p = outCubic(prog(lt, 0, BEAT)); im.style.transform = `scale(${lerp(1.18, 1.04, p) - 0.04 * inOut(lt / (s.dur + TR))})`; });
-      rise(L.querySelector('.eyebrow'), lt, -0.2, 0.4, 3); revealWords(L, lt, -0.3, 0.05);
+      rise(L.querySelector('.eyebrow'), lt, -0.2, 0.4, 3); revealWords(L, lt, -0.3, 0.05); pop(L.querySelector('.hook-logo'), lt, -0.25);
     },
     product(L, lt, s) { kenBurns(L, lt, s.dur); rise(L.querySelector('.tag'), lt, 0.2, 0.5, 3); revealWords(L, lt, 0.3, 0.07); pop(L.querySelector('.price'), lt, 0.75, -4); },
     showcase(L, lt, s) {

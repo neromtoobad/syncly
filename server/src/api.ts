@@ -298,7 +298,8 @@ app.post('/api/orders/:id/redo', async (c) => {
   if (!DRY && !hasSeed()) return c.json({ error: 'The team is still clocking in. Try again in a few minutes.' }, 503);
   const { fix } = await c.req.json().catch(() => ({}));
   const str = (v: unknown, n: number) => (typeof v === 'string' ? v.slice(0, n) : undefined);
-  try { const n = redoOnTheHouse(o, { name: str(fix?.name, 80), instagram: str(fix?.instagram, 40), website: str(fix?.website, 200) }); return c.json(shown(c, view(n.id, c))); } catch (e: any) { return c.json({ error: e.message }, 400); }
+  // the new job's key goes back to the owner, who opens it with the key so its media plays
+  try { const n = redoOnTheHouse(o, { name: str(fix?.name, 80), instagram: str(fix?.instagram, 40), website: str(fix?.website, 200) }); return c.json({ ...shown(c, view(n.id, c)), customerKey: n.customerKey }); } catch (e: any) { return c.json({ error: e.message }, 400); }
 });
 
 app.post('/api/orders/:id/retry', async (c) => {

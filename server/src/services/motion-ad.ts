@@ -60,7 +60,7 @@ export const motionAd = {
         if (d.length) spec.seconds = d.length;
         if (d.colour) spec.palette = `${d.colour} as the brand colour${spec.palette ? `; ${spec.palette}` : ''}`;
         if (d.tone) spec.mood = d.tone;
-        if (d.website) spec.website = d.website;
+        spec.website = d.website; // the form decides, so a website that didn't open (dropped above) isn't read again from the brief
         const menu = parseMenu(d.menu).filter((m) => m.price).slice(0, 4).map((m) => `${m.name}: ${m.price}`);
         spec.prices = [...(d.price ? [`${d.promote ?? d.offer}: ${d.price}`] : []), ...menu];
         const n = d.whatsapp ?? d.phone;

@@ -141,7 +141,7 @@ function RedoOnTheHouse() {
     if (name.trim()) fix.name = name.trim();
     if (ig.trim()) fix.instagram = ig.trim();
     if (site.trim()) fix.website = /^none$/i.test(site.trim()) ? '' : site.trim();
-    try { const o = await api<{ id: string }>(`/api/orders/${encodeURIComponent(id.trim())}/redo`, { method: 'POST', body: JSON.stringify({ fix }) }); window.location.href = `/job/${o.id}`; }
+    try { const o = await api<{ id: string; customerKey?: string }>(`/api/orders/${encodeURIComponent(id.trim())}/redo`, { method: 'POST', body: JSON.stringify({ fix }) }); window.location.href = `/job/${o.id}${o.customerKey ? `?k=${encodeURIComponent(o.customerKey)}` : ''}`; }
     catch (x: any) { setMsg(x.message); setBusy(false); }
   }
   return (
