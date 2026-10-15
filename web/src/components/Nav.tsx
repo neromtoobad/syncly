@@ -6,7 +6,7 @@ import { useApi } from '@/lib.tsx';
 import Logo from '@/components/Logo.tsx';
 
 // The bar: what a visitor needs first, in the order of the home page, then the story and the tools.
-const LINKS: [string, string][] = [['/#services', 'Services'], ['/#how', 'How it works'], ['/#work', 'Real work'], ['/#cfo', 'The AI CFO'], ['/pay', 'Syncly Pay'], ['/docs', 'Docs']];
+const LINKS: [string, string][] = [['/#services', 'Services'], ['/#how', 'How it works'], ['/#work', 'Real work'], ['/#cfo', 'The AI CFO'], ['/pay', 'Syncly Pay'], ['/arc', 'Get USDC'], ['/docs', 'Docs']];
 // The phone menu: everything, grouped by what you came for.
 const GROUPS: { title: string; items: [string, string, string?][] }[] = [
   { title: 'Hire the team', items: [['/#services', 'Services', '10 jobs, $1 each'], ['/#how', 'How it works'], ['/#work', 'Real work'], ['/#pay', 'Pay in naira or USDC'], ['/#questions', 'Questions']] },
