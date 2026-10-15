@@ -13,7 +13,7 @@ Syncly does the jobs a small business would otherwise pay an agency or a freelan
 | **Business Website** | 1 USDC | ~2 min | A professional site from your Google listing, Instagram and photos, live at a link today, plus the files |
 | **Social Media Posts** | 1 USDC | ~3 min | What's working in your niche this week, backed by real posts, then 7 posts in your voice and 3 images |
 | **Ad Campaign** | 1 USDC | ~4 min | 3 ads with feed and Story designs, a 10 s video for each, copy, and a 7-day plan for your budget |
-| **Promo Video** | 1 USDC | ~4 min | A 12–24 s video of your products and offer for Reels, TikTok and Status, with licensed music |
+| **Promo Video** | 1 USDC | ~6 min | A 12–24 s video of your products and offer, in vertical, square and landscape, with licensed music |
 | **Flyers & Price Lists** | 1 USDC | ~3 min | A promo flyer, price list, menu or announcement in your colours, for WhatsApp Status, Instagram and A4 print |
 | **Product Photos** | 1 USDC | ~3 min | Your phone photos turned into studio, lifestyle and white-background shots, sized for where you sell |
 | **Market & Google Report** | 1 USDC | ~5 min | Where you rank on Google Maps street by street, your competitors and what they charge, what ChatGPT says about you, and the fixes |

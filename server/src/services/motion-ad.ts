@@ -88,7 +88,7 @@ export const motionAd = {
       // Apps and software keep the UI reel below (one shape, a cursor driving it).
       if (spec.kind !== 'app') {
         const made = await promoScene(job, { spec, brief, siteText, format, size: [W, H], seconds, fps, work, logo: d?.logo, uploads: d?.photos ?? [] });
-        return await finish(job, { spec, file: made.file, size: [W, H], seconds: made.seconds, fps, work, look: made.look, scene: readFileSync(made.file, 'utf8'), what: made.what, track: made.track });
+        return await finish(job, { spec, file: made.file, size: [W, H], seconds: made.seconds, fps, work, look: made.look, scene: readFileSync(made.file, 'utf8'), what: made.what, track: made.track, format, rewrite: made.rewrite });
       }
 
       // 1. Storyboard + scene, written against the engine's real API and craft rules
@@ -267,11 +267,13 @@ Rules: use ONLY facts in the brief and the site text; never invent prices, disco
   if (look.problems.some((p) => /did not load|page error/.test(p))) throw new Error(`the scene doesn't run: ${look.problems[0]}`);
   const kinds = sb.scenes.map((x) => x.type);
   job.log('producer', 'scenes', sb.scenes.map((x: any) => `${x.type}${x.photo ? ` (${x.photo})` : x.photos ? ` (${x.photos.length} photos)` : ''}`).join(' → '));
-  return { file, look, track, seconds: total(), what: [`${sb.scenes.length} full-frame scenes: ${kinds.join(', ')}, cut on the beat`, track ? `Music: "${track.title}" by ${track.author}, licensed from Mixkit: free to use on social media and in online ads, not for TV or radio` : `Music: an original "${music!.label}" track in ${music!.key}, made for this ad`, (() => { const shown = new Set(sb.scenes.flatMap((x: any) => [x.photo, ...(x.photos ?? [])].filter(Boolean))); const site = [...shown].filter((n) => String(n).startsWith('site-')).length; return shown.size ? `${shown.size} pictures on screen${site ? ` (${site} from your website)` : ''}` : 'type and colour only (send photos for product scenes)'; })()] };
+  // the same storyboard in another shape, for the extra formats (the templates lay each shape out on their own)
+  const rewrite = (size: [number, number], dir: string) => writePromo(dir, sb, { size, fps: o.fps, business: spec.business, logo, photos, files, music, bpm });
+  return { file, look, track, rewrite, seconds: total(), what: [`${sb.scenes.length} full-frame scenes: ${kinds.join(', ')}, cut on the beat`, track ? `Music: "${track.title}" by ${track.author}, licensed from Mixkit: free to use on social media and in online ads, not for TV or radio` : `Music: an original "${music!.label}" track in ${music!.key}, made for this ad`, (() => { const shown = new Set(sb.scenes.flatMap((x: any) => [x.photo, ...(x.photos ?? [])].filter(Boolean))); const site = [...shown].filter((n) => String(n).startsWith('site-')).length; return shown.size ? `${shown.size} pictures on screen${site ? ` (${site} from your website)` : ''}` : 'type and colour only (send photos for product scenes)'; })()] };
 }
 
 /** Score, render, package. */
-async function finish(job: Job, o: { spec: Spec; file: string; size: [number, number]; seconds: number; fps: number; work: string; look: Look; scene: string; what: string[]; track?: Track; tempo?: number }): Promise<Job> {
+async function finish(job: Job, o: { spec: Spec; file: string; size: [number, number]; seconds: number; fps: number; work: string; look: Look; scene: string; what: string[]; track?: Track; tempo?: number; format?: Format; rewrite?: (size: [number, number], dir: string) => string }): Promise<Job> {
   const { spec, size, seconds, fps, look } = o;
   let wav: Buffer | undefined;
   if (o.track) {
@@ -288,10 +290,32 @@ async function finish(job: Job, o: { spec: Spec; file: string; size: [number, nu
   if (mp4.length < 100_000) throw new Error('the render came out empty');
   const poster = await ffmpeg({ 'in.png': look.stills[Math.min(1, look.stills.length - 1)].png }, (f, p) => ['-i', f['in.png'], '-q:v', '3', p], 'jpg');
   job.files.push({ name: 'motion-ad.mp4', content: mp4 }, { name: 'poster.jpg', content: poster });
+  // the other shapes from the same storyboard and soundtrack: square for the feed, landscape for YouTube, Facebook and
+  // a website, vertical for Reels, TikTok and Status. One that fails to render is left out; the main video stands.
+  const extra: { format: Format; frames: number }[] = [];
+  if (o.rewrite && wav) {
+    for (const f of (Object.keys(FORMATS) as Format[]).filter((x) => x !== o.format)) {
+      const dir = mkdtempSync(join(tmpdir(), `promo-${f}-`));
+      try {
+        const size = [...FORMATS[f]] as [number, number];
+        job.log('producer', 'render', `the ${f} version: ${Math.round(seconds * fps)} frames at ${size[0]}x${size[1]}`);
+        const file = o.rewrite(size, dir), out2 = join(dir, 'ad.mp4');
+        const r2 = await renderReel(file, size, out2, { workers: 2, audio: wav });
+        const buf = readFileSync(out2);
+        if (buf.length < 100_000) throw new Error('the render came out empty');
+        job.files.push({ name: `motion-ad-${f}.mp4`, content: buf });
+        extra.push({ format: f, frames: r2.frames });
+        job.save();
+      } catch (e: any) { job.log('producer', 'skip', `${f} version: ${String(e?.message ?? e).slice(0, 60)}`); }
+      finally { rmSync(dir, { recursive: true, force: true }); }
+    }
+  }
+  const WHERE: Record<Format, string> = { vertical: 'Reels, TikTok, Stories and WhatsApp Status', square: 'the Instagram and Facebook feed', landscape: 'YouTube, Facebook, X and your website' };
   if (!o.file.endsWith('index.html') || o.scene.includes('Reel.define')) job.files.push({ name: 'scene.html', content: o.scene });
   job.deliverable = [
     `# Motion ad: ${spec.business}`,
     `**${Math.round(seconds * 10) / 10} seconds · ${size[0]}×${size[1]} · ${fps} fps · ${o.track ? 'licensed music' : 'original soundtrack'}.** Watch it above; \`poster.jpg\` is a cover frame.`,
+    ...(extra.length ? [`**Every shape, from the same storyboard:** \`motion-ad.mp4\` (${size[0]}×${size[1]}) for ${o.format ? WHERE[o.format] : 'your main use'}${extra.map((x) => `, \`motion-ad-${x.format}.mp4\` (${FORMATS[x.format].join('×')}) for ${WHERE[x.format]}`).join('')}. Each shape is laid out on its own, not cropped.`] : []),
     `## What's in it`,
     ...o.what.map((w) => `- ${w}`),
     `- Your offer${spec.points.length ? `: ${spec.points.join('; ')}` : ''}${spec.prices.length ? `. Prices shown: ${spec.prices.join(', ')}` : ''}`,
@@ -302,7 +326,7 @@ async function finish(job: Job, o: { spec: Spec; file: string; size: [number, nu
     `- A vision model looked at a still of every scene${look.problems.length ? ' and its notes went back to the producer; ask for a revision if anything still looks off to you' : ': no problems found'}.`,
     `- The audio was checked by loudness normalisation, not by ear. Have a listen.`,
     `## Changes`,
-    `Ask for a revision with what to change: wording, colours, which product goes first, length, or vertical, square or landscape.`,
+    `Ask for a revision with what to change: wording, colours, which product goes first, or length.`,
   ].join('\n\n');
   job.qa = { verdict: look.problems.length ? 'revise' : 'pass', notes: look.problems.join(' | ') || `${look.stills.length} scenes reviewed; rendered ${r.frames} frames`, model: `rules + ${MODELS.vision}` };
   job.status = 'delivered';

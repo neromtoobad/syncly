@@ -73,9 +73,9 @@ export const CATALOG = [
     example: 'Ads for Tolu’s Small Chops party trays, ₦25,000 for 20 guests, orders on WhatsApp 0803 555 0142, ₦5,000 a day',
   },
   {
-    id: 'motion-ad', name: 'Promo Video', dept: 'Marketing', live: true, priceUsd: 1, listedCostUsd: 0.9, etaMin: 4,
+    id: 'motion-ad', name: 'Promo Video', dept: 'Marketing', live: true, priceUsd: 1, listedCostUsd: 0.9, etaMin: 6,
     tagline: 'A short, eye-catching video of your products and offer for Reels, TikTok and WhatsApp Status, with music.',
-    youGet: ['A 12–24 s motion video, vertical for Reels, TikTok and Status (square or landscape on request)', 'Full-frame scenes of your products, your selling points and your call to action, cut on the beat', 'Your own photos, plus product pictures from your website', 'Licensed music for social media and online ads, with every scene change on the beat', 'Every scene reviewed for legibility before rendering'],
+    youGet: ['A 12–24 s motion video in all three shapes from one storyboard: vertical for Reels, TikTok and Status, square for the feed, landscape for YouTube and your website', 'Full-frame scenes of your products, your selling points and your call to action, cut on the beat', 'Your own photos, plus product pictures from your website', 'Licensed music for social media and online ads, with every scene change on the beat', 'Every scene reviewed for legibility before rendering'],
     team: ['researcher', 'reader', 'producer', 'auditor', 'messenger'],
     example: 'A 16 second vertical ad for Tolu’s Small Chops: party trays, ₦25,000 for 20 guests, order on WhatsApp 0803 555 0142',
   },
