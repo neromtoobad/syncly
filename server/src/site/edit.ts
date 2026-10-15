@@ -133,11 +133,14 @@ const visible = (plan: Plan, hidden: string[]): Plan => ({ ...plan, sections: pl
 /** The page as it would look with this edit, for the editor's preview (photos resolve under the live site). */
 export function previewHtml(src: SiteSource, patch: SitePatch): string {
   const { plan, facts, hidden } = applyPatch(src, patch);
-  return renderSite(visible(plan, hidden), facts, src.photos, { url: src.url }).html.replace(/<head([^>]*)>/i, `<head$1><base href="/s/${src.slug}/" target="_blank">`);
+  return renderSite(visible(plan, hidden), facts, src.photos, { url: src.url, share: shareOf(src.slug) }).html.replace(/<head([^>]*)>/i, `<head$1><base href="/s/${src.slug}/" target="_blank">`);
 }
 
+/** The site's share card (made when it was built), used as its link preview. */
+const shareOf = (slug: string) => (existsSync(join(SITE(slug), 'share.png')) ? 'share.png' : undefined);
+
 function write(src: SiteSource) {
-  const r = renderSite(visible(src.plan, src.hidden), src.facts, src.photos, { url: src.url });
+  const r = renderSite(visible(src.plan, src.hidden), src.facts, src.photos, { url: src.url, share: shareOf(src.slug) });
   const dir = SITE(src.slug);
   mkdirSync(dir, { recursive: true }); // photos stay; only the page and the files about it are rewritten
   writeFileSync(join(dir, 'index.html'), r.html);

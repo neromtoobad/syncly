@@ -14,19 +14,19 @@ import { DATA_DIR, DRY, MODELS } from '../config.ts';
 import { HOSTS, llm, mapsSearch, parseJson, webRead, type Place } from '../tools.ts';
 import { AISA, aisa, dataforseo, ortho } from '../sellers.ts';
 import { download, ffmpeg, image } from '../media.ts';
-import { screenshots } from '../browser.ts';
+import { htmlToPng, screenshots } from '../browser.ts';
 import { zip } from '../zip.ts';
 import { MAIL_BUDGET_USD, MAIL_HOST, PUBLIC_URL } from '../mail.ts';
 import { norm, parseHours, parseMenu, type Facts, type Item, type Kind, type Photo, type Review } from '../site/facts.ts';
 import { prepPhoto } from '../site/photos.ts';
 import { brandCandidates } from '../site/color.ts';
-import { CATALOGUE, LIMITS, RECIPES, defaultPlan, validatePlan, type Plan } from '../site/plan.ts';
+import { matchItemPhotos, CATALOGUE, LIMITS, RECIPES, defaultPlan, validatePlan, type Plan } from '../site/plan.ts';
 import { copyIssues } from '../site/checks.ts';
 import { renderSite } from '../site/engine.ts';
 import { THEMES, themeMenu, type ThemeId } from '../site/themes.ts';
 import { readUpload } from '../uploads.ts';
 import type { BusinessDetails } from '../details.ts';
-import { e164 } from '../site/facts.ts';
+import { e164, usableNumber } from '../site/facts.ts';
 import { chowdeckHours, classify, cleanUrl, readChowdeck, type ChowdeckStore, type Links } from '../site/links.ts';
 import { keepSource } from '../site/edit.ts';
 import { posterHtml } from '../site/poster.ts';
@@ -251,14 +251,20 @@ Reply with JSON only: {"theme","brand","title","description","hero":{"variant","
         return out;
       };
       let { plan, notes } = validatePlan(rawPlan, facts, photos, candidates);
-      plan = prefer(plan);
+      plan = matchItemPhotos(prefer(plan), facts, photos);
       let issues = copyIssues(plan, facts);
 
       // 7. Render, publish, look at it
       const slug = `${slugify(spec.business)}-${randomBytes(2).toString('hex')}`;
       const url = `${PUBLIC_URL}/s/${slug}`;
       const dir = join(DATA_DIR, 'sites', slug);
-      let rendered = renderSite(plan, facts, photos, { url });
+      // the link preview: a 1200×630 card with the name, what they do and where, their best photo and their colour
+      try {
+        const heroFile = photos.find((x) => x.id === plan.hero.photo)?.file, heroBuf = heroFile ? files.find((x) => x.name === heroFile)?.buf : undefined;
+        files.push({ name: 'share.png', buf: await htmlToPng(shareCardHtml({ name: facts.name, line: [facts.category, facts.area ?? facts.city].filter(Boolean).join(' · ') || plan.description.slice(0, 60), colour: plan.brand, photo: heroBuf ? `data:image/jpeg;base64,${heroBuf.toString('base64')}` : undefined, chat: !!usableNumber(facts.country, facts.whatsapp, facts.phone) }), 1200, 630) });
+      } catch (e: any) { job.log('illustrator', 'skip', `share card failed (${String(e?.message ?? e).slice(0, 50)})`); }
+      const share = files.some((x) => x.name === 'share.png') ? 'share.png' : undefined;
+      let rendered = renderSite(plan, facts, photos, { url, share });
       const publish = () => {
         rmSync(dir, { recursive: true, force: true });
         mkdirSync(dir, { recursive: true });
@@ -287,9 +293,10 @@ Reply with JSON only: {"theme","brand","title","description","hero":{"variant","
           { role: 'user', content: `Fix every issue by changing the plan (theme, hero variant, photo choices, copy, section order or variants). Return the full corrected plan as JSON only.\n- ${[...issues, ...look.issues].join('\n- ')}` }], 'fix the plan');
         if (fixed) {
           ({ plan, notes } = validatePlan(fixed, facts, photos, candidates));
+          plan = matchItemPhotos(plan, facts, photos);
           plan = prefer(plan);
           issues = copyIssues(plan, facts);
-          rendered = renderSite(plan, facts, photos, { url });
+          rendered = renderSite(plan, facts, photos, { url, share });
           publish();
           look = await review();
         }
@@ -352,3 +359,17 @@ Reply with JSON only: {"theme","brand","title","description","hero":{"variant","
     return job;
   },
 };
+
+/** The card a chat app shows when the site's link is shared. */
+function shareCardHtml(o: { name: string; line: string; colour: string; photo?: string; chat: boolean }): string {
+  const esc = (x: string) => x.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const c = /^#[0-9a-f]{6}$/i.test(o.colour) ? o.colour : '#2E6B4F';
+  const n = parseInt(c.slice(1), 16), lum = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255, ink = lum > 0.6 ? '#141414' : '#ffffff';
+  return `<!doctype html><html><head><meta charset="utf-8"><link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Geist:wght@500;600&display=block" rel="stylesheet"><style>
+*{margin:0;box-sizing:border-box}html,body{width:1200px;height:630px;overflow:hidden}body{display:flex;background:${c};color:${ink};font-family:Geist,Arial,sans-serif}
+.l{flex:1;padding:64px;display:flex;flex-direction:column;justify-content:center;gap:22px;min-width:0}
+h1{font-family:'Bricolage Grotesque',Arial,sans-serif;font-weight:800;font-size:${o.name.length > 22 ? 64 : 84}px;line-height:.98;letter-spacing:-.035em}
+p{font-size:30px;font-weight:600;opacity:.85}.chip{align-self:flex-start;background:#25d366;color:#fff;font-weight:600;font-size:24px;padding:12px 22px;border-radius:999px}
+.r{width:${o.photo ? 520 : 0}px;background:#000 center/cover no-repeat ${o.photo ? `url('${o.photo}')` : ''}}
+</style></head><body><div class="l"><h1>${esc(o.name)}</h1>${o.line ? `<p>${esc(o.line)}</p>` : ''}${o.chat ? '<span class="chip">Order on WhatsApp</span>' : ''}</div>${o.photo ? '<div class="r"></div>' : ''}</body></html>`;
+}

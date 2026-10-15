@@ -32,7 +32,7 @@ const stars = (n: number) => `<span class="stars" aria-label="${n} out of 5">${A
 
 export type Rendered = { html: string; llms: string; robots: string };
 
-export function renderSite(plan: Plan, f: Facts, photos: Photo[], opts: { url: string; year?: number }): Rendered {
+export function renderSite(plan: Plan, f: Facts, photos: Photo[], opts: { url: string; year?: number; share?: string }): Rendered {
   const t = THEMES[plan.theme];
   const pal = palette(plan.brand, t.mode, t.action);
   const ph = new Map(photos.map((p) => [p.id, p]));
@@ -120,17 +120,20 @@ export function renderSite(plan: Plan, f: Facts, photos: Photo[], opts: { url: s
       case 'offer': {
         const rows = s.items.map((x) => ({ ...x, it: item.get(x.id)! })).filter((x) => x.it);
         const price = (p?: string) => (p ? `<span class="price">${esc(showPrice(p, f.country))}</span>` : '');
+        // every item can be ordered (or booked) in one tap: WhatsApp opens with the item and its price written
+        const verb = ['food', 'retail'].includes(f.kind) ? 'Order' : 'Book';
+        const ask = (it: { name: string; price?: string }) => chat ? `<a class="ask" href="${esc(wa(`Hello ${f.name}, I'd like to ${verb.toLowerCase()}: ${it.name}${it.price ? ` (${showPrice(it.price, f.country)})` : ''}`))}" target="_blank" rel="noopener" aria-label="${verb} ${esc(it.name)} on WhatsApp">${ICON.whatsapp}<span>${verb}</span></a>` : '';
         let body = '';
         if (s.variant === 'menu') {
           const cats = [...new Set(rows.map((r) => r.it.category ?? ''))];
-          body = `<div class="menu">${cats.map((c) => `<div class="menu-col rv">${c ? `<h3 class="menu-cat">${esc(c)}</h3>` : ''}<ul>${rows.filter((r) => (r.it.category ?? '') === c).map((r) => `<li><div class="mi"><span class="mi-name">${esc(r.it.name)}</span><span class="dots" aria-hidden="true"></span>${price(r.it.price)}</div>${r.desc || r.it.note ? `<p class="mi-desc">${esc(r.desc ?? r.it.note)}</p>` : ''}</li>`).join('')}</ul></div>`).join('')}</div>`;
+          body = `<div class="menu">${cats.map((c) => `<div class="menu-col rv">${c ? `<h3 class="menu-cat">${esc(c)}</h3>` : ''}<ul>${rows.filter((r) => (r.it.category ?? '') === c).map((r) => `<li><div class="mi"><span class="mi-name">${esc(r.it.name)}</span><span class="dots" aria-hidden="true"></span>${price(r.it.price)}${ask(r.it)}</div>${r.desc || r.it.note ? `<p class="mi-desc">${esc(r.desc ?? r.it.note)}</p>` : ''}</li>`).join('')}</ul></div>`).join('')}</div>`;
         } else if (s.variant === 'features') {
           body = `<div class="features">${rows.slice(0, 4).map((r, j) => `<article class="feature rv${j % 2 ? ' flip' : ''}">${r.photo ? `<div class="feature-img">${img(r.photo, '(min-width: 900px) 50vw, 100vw')}</div>` : ''}<div class="feature-text"><span class="num">${String(j + 1).padStart(2, '0')}</span><h3>${esc(r.it.name)}</h3>${r.desc || r.it.note ? `<p>${esc(r.desc ?? r.it.note)}</p>` : ''}${price(r.it.price)}</div></article>`).join('')}</div>`;
         } else if (cardPhotos) {
           const cols = [3, 4, 2].find((c) => rows.length % c === 0) ?? 3;
-          body = `<div class="cards cols-${cols}">${rows.map((r) => `<article class="card rv">${r.photo ? `<div class="card-img">${img(r.photo, '(min-width: 900px) 33vw, 100vw')}</div>` : ''}<div class="card-body"><h3>${esc(r.it.name)}</h3>${r.desc || r.it.note ? `<p>${esc(r.desc ?? r.it.note)}</p>` : ''}${price(r.it.price)}</div></article>`).join('')}</div>`;
+          body = `<div class="cards cols-${cols}">${rows.map((r) => `<article class="card rv">${r.photo ? `<div class="card-img">${img(r.photo, '(min-width: 900px) 33vw, 100vw')}</div>` : ''}<div class="card-body"><h3>${esc(r.it.name)}</h3>${r.desc || r.it.note ? `<p>${esc(r.desc ?? r.it.note)}</p>` : ''}<div class="card-foot">${price(r.it.price)}${ask(r.it)}</div></div></article>`).join('')}</div>`;
         } else {
-          body = `<ol class="svc-list">${rows.map((r) => `<li class="rv"><div class="svc-h"><h3>${esc(r.it.name)}</h3>${price(r.it.price)}</div>${r.desc || r.it.note ? `<p>${esc(r.desc ?? r.it.note)}</p>` : ''}</li>`).join('')}</ol>`;
+          body = `<ol class="svc-list">${rows.map((r) => `<li class="rv"><div class="svc-h"><h3>${esc(r.it.name)}</h3><span class="svc-end">${price(r.it.price)}${ask(r.it)}</span></div>${r.desc || r.it.note ? `<p>${esc(r.desc ?? r.it.note)}</p>` : ''}</li>`).join('')}</ol>`;
         }
         return `<section id="offer" class="sect offer offer-${s.variant}"><div class="wrap"><header class="sect-head rv">${h(2, s.title)}${s.intro ? `<p class="lede">${esc(s.intro)}</p>` : ''}</header>${body}${getBand || (chat ? `<p class="offer-cta rv">${btn('whatsapp', 'btn-ghost')}</p>` : '')}</div></section>`;
       }
@@ -233,7 +236,7 @@ if('IntersectionObserver'in window&&!matchMedia('(prefers-reduced-motion: reduce
 <meta name="description" content="${esc(plan.description)}">
 <link rel="canonical" href="${esc(opts.url)}">
 <meta name="theme-color" content="${pal.brand}">
-<meta property="og:type" content="website"><meta property="og:title" content="${esc(plan.title)}"><meta property="og:description" content="${esc(plan.description)}"><meta property="og:url" content="${esc(opts.url)}">${heroPhoto ? `<meta property="og:image" content="${esc(`${opts.url}/${heroPhoto.file}`)}">` : ''}<meta name="twitter:card" content="summary_large_image">
+<meta property="og:type" content="website"><meta property="og:title" content="${esc(plan.title)}"><meta property="og:description" content="${esc(plan.description)}"><meta property="og:url" content="${esc(opts.url)}">${opts.share || heroPhoto ? `<meta property="og:image" content="${esc(`${opts.url}/${opts.share ?? heroPhoto!.file}`)}">` : ''}<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="${favicon}">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?${t.fonts}&display=swap">
@@ -311,7 +314,11 @@ ${t.rule ? '.sect+.sect{border-top:1px solid var(--line)}' : ''}
 .btn-invert{background:var(--on-brand);color:var(--brand)}
 .btn-small{min-height:40px;padding:0 1em;font-size:.9rem;background:var(--brand);color:var(--on-brand)}
 .stars{display:inline-flex;gap:2px;color:#E0A100;vertical-align:-2px}.stars i{display:inline-flex;width:16px;height:16px;opacity:.28}.stars i.on{opacity:1}.stars svg{width:100%;height:100%}
-.price{font-variant-numeric:tabular-nums;font-weight:650;color:var(--brand-ink);white-space:nowrap}
+.price{font-variant-numeric:tabular-nums lining-nums;font-weight:650;color:var(--brand-ink);white-space:nowrap}
+.ask{display:inline-flex;align-items:center;gap:5px;margin-left:10px;padding:5px 11px;border-radius:999px;background:#25d366;color:#fff;font-size:.78em;font-weight:650;text-decoration:none;white-space:nowrap;vertical-align:middle;line-height:1.2}
+.ask svg{width:14px;height:14px;fill:currentColor}.ask:hover{filter:brightness(.95)}
+.card-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px}.card-foot .price{margin-top:0}.card-foot .ask{margin-left:auto}
+.svc-end{display:inline-flex;align-items:center;gap:4px}
 /* nav */
 .notice{position:relative;z-index:6;background:var(--deep);color:var(--on-deep);font-size:var(--s-1);line-height:1.4}
 .notice .wrap{display:flex;align-items:center;gap:.7em;padding-block:.7em;flex-wrap:wrap}

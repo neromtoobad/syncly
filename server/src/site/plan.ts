@@ -183,3 +183,35 @@ export function defaultPlan(f: Facts, photos: { id: string; kind: string; qualit
     whatsappText: `Hello ${f.name}, I found you online and I'd like to make an enquiry.`,
   };
 }
+
+/**
+ * Products with no photo get the photo that shows them: an item and a photo match when the item's name shares a
+ * word with what the vision model said the photo shows ("Beaded earrings" ↔ "beaded earrings on a gold stand").
+ * A photo goes to one item only and never one already used in the hero or the about section. When most of a
+ * shop's items end up with a photo, the price list becomes product cards (a catalogue sells better than a list).
+ */
+export function matchItemPhotos(plan: Plan, facts: Facts, photos: { id: string; kind: string; subject?: string; quality: number }[]): Plan {
+  const offer = plan.sections.find((s) => s.kind === 'offer') as Extract<Section, { kind: 'offer' }> | undefined;
+  if (!offer || !offer.items.length) return plan;
+  const about = plan.sections.find((s) => s.kind === 'about') as Extract<Section, { kind: 'about' }> | undefined;
+  const STOP = new Set(['and', 'the', 'for', 'with', 'our', 'your', 'from', 'set', 'pack', 'piece', 'pcs', 'size', 'small', 'large', 'big', 'new']);
+  const words = (t: string) => new Set(t.toLowerCase().replace(/[^a-z ]/g, ' ').split(/\s+/).filter((w) => w.length >= 3 && !STOP.has(w)).map((w) => w.replace(/(es|s)$/, '')));
+  const taken = new Set([plan.hero.photo, about?.photo, ...offer.items.map((i) => i.photo)].filter((x): x is string => !!x));
+  const usable = photos.filter((p) => !['flyer', 'logo'].includes(p.kind) && p.quality >= 3);
+  for (const it of offer.items) {
+    if (it.photo) continue;
+    const item = facts.items.find((x) => x.id === it.id);
+    if (!item) continue;
+    const iw = words(item.name);
+    let best: (typeof usable)[number] | undefined, score = 0;
+    for (const p of usable) {
+      if (taken.has(p.id)) continue;
+      const pw = words(p.subject ?? ''), sc = [...iw].filter((w) => pw.has(w)).length;
+      if (sc > score) { score = sc; best = p; }
+    }
+    if (best) { it.photo = best.id; taken.add(best.id); }
+  }
+  const pictured = offer.items.filter((i) => i.photo).length;
+  if (offer.variant === 'menu' && ['retail', 'creative', 'beauty'].includes(facts.kind) && offer.items.length <= 9 && pictured >= Math.ceil(offer.items.length * 0.7)) offer.variant = 'cards';
+  return plan;
+}
