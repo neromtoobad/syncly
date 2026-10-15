@@ -126,20 +126,31 @@ function TestEmail() {
   );
 }
 
-/** Owner tool: a free redo of an order, on the house (same brief, details, photos and email). Opens the new job. */
+/** Owner tool: a free redo of an order, on the house (same brief, details, photos and email), optionally correcting
+ *  what the customer mistyped: the business name, the Instagram handle, a website that doesn't exist. Opens the new job. */
 function RedoOnTheHouse() {
   const [id, setId] = useState('');
+  const [name, setName] = useState('');
+  const [ig, setIg] = useState('');
+  const [site, setSite] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   async function go(e: FormEvent) {
     e.preventDefault(); setBusy(true); setMsg(null);
-    try { const o = await api<{ id: string }>(`/api/orders/${encodeURIComponent(id.trim())}/redo`, { method: 'POST' }); window.location.href = `/job/${o.id}`; }
+    const fix: Record<string, string> = {};
+    if (name.trim()) fix.name = name.trim();
+    if (ig.trim()) fix.instagram = ig.trim();
+    if (site.trim()) fix.website = /^none$/i.test(site.trim()) ? '' : site.trim();
+    try { const o = await api<{ id: string }>(`/api/orders/${encodeURIComponent(id.trim())}/redo`, { method: 'POST', body: JSON.stringify({ fix }) }); window.location.href = `/job/${o.id}`; }
     catch (x: any) { setMsg(x.message); setBusy(false); }
   }
   return (
-    <form className="testmail" onSubmit={go}>
+    <form className="testmail" onSubmit={go} style={{ flexWrap: 'wrap' }}>
       <span className="mono">Redo on the house</span>
       <input value={id} onChange={(e) => setId(e.target.value)} placeholder="ord_…" aria-label="Order ID to redo for free" />
+      <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Fix the business name (optional)" aria-label="Corrected business name" />
+      <input value={ig} onChange={(e) => setIg(e.target.value)} placeholder="Fix the Instagram handle (optional)" aria-label="Corrected Instagram handle" />
+      <input value={site} onChange={(e) => setSite(e.target.value)} placeholder="Fix the website, or none (optional)" aria-label="Corrected website, or none to drop it" />
       <button className="btn secondary sm" disabled={busy || !/^ord_[a-z0-9_]+$/i.test(id.trim())}>{busy ? 'Starting…' : 'Redo it free'}</button>
       {msg && <span className="muted">{msg}</span>}
     </form>
