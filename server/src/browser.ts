@@ -246,3 +246,34 @@ export async function renderPages(pages: { html: string; w: number; h: number; k
     return out;
   } finally { await browser.close(); }
 }
+
+/** What a business's own website says about its brand: the logo file, the theme colour, the site's name, and the
+ *  WhatsApp and phone links on the page. Public pages only, fenced like every page here. */
+export async function siteBrand(url: string): Promise<{ name?: string; logo?: string; themeColour?: string; whatsapp?: string; phone?: string } | undefined> {
+  if (!/^https?:\/\//i.test(url) || !(await publicUrl(url))) return undefined;
+  const browser = await launch();
+  try {
+    const page = await guard(await browser.newPage(), { net: 'web' });
+    await page.setViewport({ width: 1366, height: 900 });
+    await page.goto(url, { waitUntil: 'load', timeout: 30_000 }).catch(() => undefined);
+    await page.waitForNetworkIdle({ idleTime: 500, timeout: 6000 }).catch(() => undefined);
+    return await page.evaluate(() => {
+      const abs = (u?: string | null) => { try { return u ? new URL(u, location.href).href : undefined; } catch { return undefined; } };
+      const meta = (sel: string) => document.querySelector<HTMLMetaElement>(sel)?.content || undefined;
+      // the logo: an image that says it is one (in the header first), then the large app icons
+      const imgs = [...document.querySelectorAll<HTMLImageElement>('header img, nav img, img')].filter((i) => /logo/i.test(`${i.src} ${i.alt} ${i.className} ${i.id} ${i.closest('[class*="logo" i],[id*="logo" i]') ? 'logo' : ''}`) && (i.naturalWidth || i.width) >= 48);
+      const icons = [...document.querySelectorAll<HTMLLinkElement>('link[rel~="apple-touch-icon"], link[rel~="icon"]')].map((l) => ({ href: l.href, size: parseInt(l.sizes?.value ?? '0') || (/apple/.test(l.rel) ? 180 : 32) })).filter((x) => x.size >= 96).sort((a, b) => b.size - a.size);
+      const logo = abs(imgs[0]?.currentSrc || imgs[0]?.src) ?? icons[0]?.href;
+      const links = [...document.querySelectorAll<HTMLAnchorElement>('a[href]')].map((a) => a.href);
+      const wa = links.find((h) => /wa\.me\/|api\.whatsapp\.com\/send/i.test(h));
+      const tel = links.find((h) => h.startsWith('tel:'));
+      return {
+        name: meta('meta[property="og:site_name"]') ?? (document.title.split(/[|–—-]/)[0].trim() || undefined),
+        logo: logo && !/\.svg(\?|$)/i.test(logo) ? logo : icons[0]?.href,
+        themeColour: meta('meta[name="theme-color"]'),
+        whatsapp: wa ? (wa.match(/wa\.me\/(\d+)/)?.[1] ?? new URL(wa).searchParams.get('phone') ?? undefined) : undefined,
+        phone: tel ? decodeURIComponent(tel.slice(4)) : undefined,
+      };
+    }).catch(() => undefined);
+  } finally { await browser.close(); }
+}

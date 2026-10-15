@@ -19,6 +19,8 @@ import { MUSIC_LICENSE, pickTrack, trackAudio, trackFile, trackGrid, type Track 
 import { MAIL_BUDGET_USD, MAIL_HOST } from '../mail.ts';
 import type { BusinessDetails } from '../details.ts';
 import { readUpload } from '../uploads.ts';
+import { brandKit } from '../brandkit.ts';
+import { AISA } from '../sellers.ts';
 import { prepPhoto } from '../site/photos.ts';
 import { parseMenu } from '../site/facts.ts';
 
@@ -32,7 +34,7 @@ export const motionAd = {
   id: 'motion-ad',
   name: 'Motion Ad',
   priceUsd: 2,
-  policy: { budgetUsd: 2.4 + MAIL_BUDGET_USD, allowHosts: [HOSTS.blockrun, HOSTS.blockrunArc, HOSTS.apex, ...(MAIL_HOST ? [MAIL_HOST] : [])] },
+  policy: { budgetUsd: 2.4 + MAIL_BUDGET_USD, allowHosts: [HOSTS.blockrun, HOSTS.blockrunArc, HOSTS.apex, AISA, ...(MAIL_HOST ? [MAIL_HOST] : [])] },
 
   async run(brief: string, opts: { orderId?: string; details?: BusinessDetails } = {}): Promise<Job> {
     const job = new Job(this.id, brief, this.policy, opts.orderId);
@@ -48,7 +50,21 @@ export const motionAd = {
         { business: brief.slice(0, 40), offer: brief, points: [], prices: [], cta: '', palette: '', format: 'vertical', seconds: 16, mood: 'warm' },
       );
       // The order form's values are exact: they override what was read from the brief.
-      const d = opts.details;
+      // a copy: what the business's own pages fill in belongs to this job, not to the order the owner wrote
+      const d = opts.details ? { ...opts.details } : undefined;
+      // Their Instagram and website fill in what they didn't: logo, product photos, WhatsApp, brand colour, prices.
+      // Anything they uploaded or typed comes first.
+      let pageText = '';
+      if (d && (d.instagram || d.website)) {
+        const kit = await brandKit(job, { instagram: d.instagram, website: d.website, photos: Math.max(0, 6 - (d.photos?.length ?? 0)) });
+        if (!d.logo && kit.logo) d.logo = kit.logo;
+        if (kit.photos.length) d.photos = [...(d.photos ?? []), ...kit.photos].slice(0, 6);
+        if (!d.colour && kit.colour) d.colour = kit.colour;
+        if (!d.whatsapp && !d.phone && (kit.whatsapp || kit.phone)) d.whatsapp = kit.whatsapp ?? kit.phone;
+        if (!d.website && kit.website) d.website = kit.website;
+        if (!d.cta && d.whatsapp) d.cta = 'whatsapp';
+        pageText = [kit.bio && `Their Instagram bio: ${kit.bio}`, kit.category && `Category: ${kit.category}`, kit.prices.length && `Prices in their posts: ${kit.prices.join(', ')}`, kit.captions.length && `Their recent posts say:\n${kit.captions.slice(0, 8).map((c) => `- ${c.replace(/\s+/g, ' ')}`).join('\n')}`].filter(Boolean).join('\n');
+      }
       if (d) {
         spec.business = d.name;
         spec.offer = d.promote ? `${d.promote} (${d.offer})` : d.offer;
@@ -67,11 +83,11 @@ export const motionAd = {
       const seconds = Math.max(12, Math.min(24, Math.round((spec.seconds || 16) / 2) * 2));
       const fps = 30;
 
-      let siteText = '';
+      let siteText = pageText;
       if (spec.website) {
         try {
           job.log('reader', 'read', `${spec.website} for real copy, prices and colours`);
-          siteText = (await webRead(job, 'reader', [spec.website.startsWith('http') ? spec.website : `https://${spec.website}`], 'read the business\'s site'))[0]?.text.slice(0, 3000) ?? '';
+          siteText = [siteText, (await webRead(job, 'reader', [spec.website.startsWith('http') ? spec.website : `https://${spec.website}`], 'read the business\'s site'))[0]?.text.slice(0, 3000) ?? ''].filter(Boolean).join('\n\n');
         } catch (e: any) { job.log('reader', 'skip', `site unreadable (${String(e?.message ?? e).slice(0, 50)})`); }
       }
 
@@ -192,7 +208,7 @@ async function promoScene(job: Job, o: { spec: Spec; brief: string; siteText: st
   const photos: Photo[] = [], files: { name: string; buf: Buffer }[] = [];
   let logo: string | undefined;
   if (o.logo) { const b = readUpload(o.logo); if (b) { const r = await preparePhoto(b, 'logo', 'their logo', 600); logo = r.photo.name; files.push(r.file); } }
-  for (const [i, id] of o.uploads.slice(0, 4).entries()) { const b = readUpload(id); if (b) { const r = await preparePhoto(b, `photo-${i + 1}`, `their own photo ${i + 1}`); photos.push(r.photo); files.push(r.file); } }
+  for (const [i, id] of o.uploads.slice(0, 6).entries()) { const b = readUpload(id); if (b) { const r = await preparePhoto(b, `photo-${i + 1}`, `their own photo ${i + 1}`); photos.push(r.photo); files.push(r.file); } }
   if (spec.website && photos.length < 5) {
     job.log('reader', 'photos', `looking for product pictures on ${spec.website}`);
     const found = await siteImages(spec.website.startsWith('http') ? spec.website : `https://${spec.website}`, 12).catch(() => []);
