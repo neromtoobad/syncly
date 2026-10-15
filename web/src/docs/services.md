@@ -54,7 +54,7 @@ Until you accept, you watch a watermarked preview; the full-quality video is ema
 
 ### Flyers & Price Lists
 
-Choose a promo flyer, a price list or menu, or an announcement (a move, new hours, a holiday closure). The Writer drafts the words from your form only; prices, dates and contact details appear exactly as you wrote them. Designed templates lay it out in your colour with your logo and photos, and fit every line to its space. You get each design in two styles (bold on your colour, clean on white) for WhatsApp Status and an Instagram post, plus an A4 print PDF and PNG. A separate AI looks at every design for cut-off text, typos and contrast, and the words are revised once if it finds anything.
+Choose a promo flyer, a price list or menu, or an announcement (a move, new hours, a holiday closure). The Writer drafts the words from your form only; prices, dates and contact details appear exactly as you wrote them. Designed templates lay it out in your colour with your logo and photos, and fit every line to its space. You get each design in two styles (bold on your colour, clean on white) for WhatsApp Status and an Instagram post, each style in a different layout (photo first, words first, the photo full-bleed behind the words, or the photo off the top edge, picked for your business), plus an A4 print PDF and PNG with a QR code that opens a WhatsApp chat with you. A separate AI looks at every design for cut-off text, typos and contrast, and the words are revised once if it finds anything.
 
 ### Product Photos
 

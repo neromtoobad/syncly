@@ -82,7 +82,7 @@ export const CATALOG = [
   {
     id: 'flyers', name: 'Flyers & Price Lists', dept: 'Marketing', live: true, priceUsd: 1, listedCostUsd: 0.12, etaMin: 3,
     tagline: 'A promo flyer, price list, menu or announcement in your colours, ready for WhatsApp Status, Instagram and print.',
-    youGet: ['Your flyer in two styles: bold on your brand colour, and clean on white', 'Sized for WhatsApp Status, an Instagram post, and A4 print (PDF)', 'Your logo, your photos, and your prices exactly as you wrote them', 'A button line with how to order: WhatsApp, call, DM or visit', 'Every design checked for cut-off text and typos before delivery'],
+    youGet: ['Your flyer in two styles and two different layouts: bold on your brand colour, and clean on white', 'Sized for WhatsApp Status, an Instagram post, and A4 print (PDF) with a WhatsApp QR code customers can scan', 'Your logo, your photos, and your prices exactly as you wrote them', 'A button line with how to order: WhatsApp, call, DM or visit', 'Every design checked for cut-off text and typos before delivery'],
     team: ['writer', 'illustrator', 'auditor', 'messenger'],
     example: 'A price list for Tolu’s Small Chops: party trays from ₦25,000, order on WhatsApp 0803 555 0142',
   },

@@ -1,7 +1,9 @@
 // Flyer templates for Flyers & Price Lists: a promo flyer, a price list or menu, and an announcement, each in a bold
 // (brand colour ground) and a clean (light ground) style, laid out for WhatsApp Status (1080×1920), an Instagram post
 // (1080×1350) and A4 print. The copy comes from the Designer as JSON; these templates own the layout and shrink any
-// text box until it fits, so nothing is cut off. Photos are embedded as data URIs; the page says POSTER_READY when
+// text box until it fits, so nothing is cut off. A promo flyer with a photo comes in four layouts (photo then words,
+// words then photo, the photo full-bleed behind the words, the photo bleeding off the top edge); the A4 carries a
+// WhatsApp QR code next to the call to action. Photos are embedded as data URIs; the page says POSTER_READY when
 // its fonts, photos and fitting are done (browser.ts renderPoster waits for it).
 
 export type FlyerKind = 'promo' | 'pricelist' | 'announcement';
@@ -11,7 +13,11 @@ export type FlyerInput = {
   kind: FlyerKind; variant: 'bold' | 'clean'; size: 'status' | 'post' | 'a4';
   business: string; copy: FlyerCopy; items?: FlyerItem[]; cta: string; ctaKind?: string; footer: string[];
   colour: string; logo?: { uri: string }; photos: { uri: string; cut: boolean }[];
+  layout?: FlyerLayout; qr?: string; // an SVG QR code for the WhatsApp chat, shown on A4
 };
+export type FlyerLayout = 'stack' | 'top' | 'poster' | 'split';
+/** The layouts that suit this photo: full-bleed only for a real photo (a cut-out on white would look empty). */
+export const layoutsFor = (photo?: { cut: boolean }): FlyerLayout[] => (!photo ? ['stack'] : photo.cut ? ['stack', 'top', 'split'] : ['stack', 'top', 'poster', 'split']);
 export const SIZES = { status: [1080, 1920], post: [1080, 1350], a4: [794, 1123] } as const;
 
 export const esc = (s: unknown) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -27,11 +33,16 @@ export function flyerHtml(f: FlyerInput): string {
   const accent = /^#[0-9a-f]{6}$/i.test(f.colour) ? f.colour : '#d4380d';
   const onAccent = lum(accent) > 0.4 ? '#141414' : '#ffffff';
   const bold = f.variant === 'bold';
-  const bg = bold ? accent : '#faf7f1', ink = bold ? onAccent : '#141414', soft = bold ? (onAccent === '#ffffff' ? 'rgba(255,255,255,.82)' : 'rgba(0,0,0,.7)') : '#555049';
-  const card = bold ? (onAccent === '#ffffff' ? 'rgba(0,0,0,.18)' : 'rgba(255,255,255,.55)') : '#ffffff';
-  const ctaBg = bold ? (onAccent === '#ffffff' ? '#ffffff' : '#141414') : accent, ctaInk = bold ? (onAccent === '#ffffff' ? shade(accent, -0.35) : '#ffffff') : onAccent;
   const tall = f.size === 'status';
   const photo = f.photos[0];
+  const layout: FlyerLayout = f.kind === 'promo' && f.layout && layoutsFor(photo).includes(f.layout) ? f.layout : 'stack';
+  const poster = layout === 'poster';
+  let bg = bold ? accent : '#faf7f1', ink = bold ? onAccent : '#141414', soft = bold ? (onAccent === '#ffffff' ? 'rgba(255,255,255,.82)' : 'rgba(0,0,0,.7)') : '#555049';
+  const card = bold ? (onAccent === '#ffffff' ? 'rgba(0,0,0,.18)' : 'rgba(255,255,255,.55)') : '#ffffff';
+  let ctaBg = bold ? (onAccent === '#ffffff' ? '#ffffff' : '#141414') : accent, ctaInk = bold ? (onAccent === '#ffffff' ? shade(accent, -0.35) : '#ffffff') : onAccent;
+  // the photo behind everything: white type, the brand colour on the badge, ticks and button
+  if (poster) { bg = '#111111'; ink = '#ffffff'; soft = 'rgba(255,255,255,.86)'; ctaBg = accent; ctaInk = onAccent; }
+  const mark = bold && !poster ? ink : accent, onMark = bold && !poster ? bg : onAccent;
   const hero = photo ? (photo.cut
     ? `<div class="hero cut"><div class="glow"></div><img src="${photo.uri}"></div>`
     : `<div class="hero"><img class="cover" src="${photo.uri}"></div>`) : '';
@@ -43,7 +54,9 @@ export function flyerHtml(f: FlyerInput): string {
     dm: '<path d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zm0 2a3 3 0 0 0-3 3v10a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V7a3 3 0 0 0-3-3zm5 3.5a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9zm0 2a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM17.3 5.6a1.1 1.1 0 1 1 0 2.2 1.1 1.1 0 0 1 0-2.2z"/>',
     website: '<path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm6.9 6h-2.95a15.6 15.6 0 0 0-1.38-3.56A8 8 0 0 1 18.9 8zM12 4.04c.83 1.2 1.48 2.53 1.91 3.96h-3.82c.43-1.43 1.08-2.76 1.91-3.96zM4.26 14a8.2 8.2 0 0 1 0-4h3.38a16.5 16.5 0 0 0 0 4zm.84 2h2.95c.32 1.25.78 2.45 1.38 3.56A8 8 0 0 1 5.1 16zM8.05 8H5.1a8 8 0 0 1 4.33-3.56A15.6 15.6 0 0 0 8.05 8zM12 19.96c-.83-1.2-1.48-2.53-1.91-3.96h3.82A13.5 13.5 0 0 1 12 19.96zM14.34 14H9.66a14.7 14.7 0 0 1 0-4h4.68a14.7 14.7 0 0 1 0 4zm.25 5.56c.6-1.11 1.06-2.31 1.38-3.56h2.95a8 8 0 0 1-4.33 3.56zM16.36 14a16.5 16.5 0 0 0 0-4h3.38a8.2 8.2 0 0 1 0 4z"/>',
   };
-  const cta = `<div class="cta"><svg viewBox="0 0 24 24">${ICON[f.ctaKind ?? 'whatsapp'] ?? ICON.whatsapp}</svg><span data-fit>${esc(spacedPhones(f.cta))}</span></div>`;
+  const button = `<div class="cta"><svg viewBox="0 0 24 24">${ICON[f.ctaKind ?? 'whatsapp'] ?? ICON.whatsapp}</svg><span data-fit>${esc(spacedPhones(f.cta))}</span></div>`;
+  // on paper nobody can tap, so the A4 gets a QR code that opens the WhatsApp chat
+  const cta = f.qr && f.size === 'a4' ? `<div class="ctarow"><div class="qr">${f.qr}</div><div class="ctacol">${button}<div class="qrnote">Scan with your phone camera to chat with us on WhatsApp</div></div></div>` : button;
   const foot = f.footer.length ? `<div class="foot" data-fit>${f.footer.map((x) => esc(spacedPhones(x))).join('<i>·</i>')}</div>` : '';
   // without a photo, the words take the middle of the page instead of leaving its bottom half empty
   const grow = photo ? '' : '<div class="grow"></div>';
@@ -51,12 +64,23 @@ export function flyerHtml(f: FlyerInput): string {
   let body = '';
   if (f.kind === 'promo') {
     // the price badge sits on the photo; with no photo it takes its own place above the headline
-    const badge = f.copy.badge ? `<div class="badge${photo ? '' : ' inline'}"><span>${esc(money(f.copy.badge))}</span></div>` : '';
-    body = `${head}${hero}${grow}
+    const price = f.copy.badge ? `<span>${esc(money(f.copy.badge))}</span>` : '';
+    const badge = price ? `<div class="badge${photo && layout === 'stack' ? '' : ' inline'}">${price}</div>` : '';
+    const onHero = price ? `<div class="badge onhero">${price}</div>` : '';
+    const hl = `<div class="hl${photo && !poster ? '' : ' big'}" data-fit><div>${esc(f.copy.headline)}</div></div>`;
+    const sub = f.copy.sub ? `<div class="sub" data-fit>${esc(f.copy.sub)}</div>` : '';
+    const pts = f.copy.points?.length ? `<div class="pts">${f.copy.points.slice(0, photo && !poster && f.size === 'post' ? 2 : 3).map((p) => `<div><i>✓</i><span data-fit>${esc(p)}</span></div>`).join('')}</div>` : '';
+    const heroWith = (cls: string) => photo ? (photo.cut
+      ? `<div class="hero cut ${cls}"><div class="glow"></div><img src="${photo.uri}">${onHero}</div>`
+      : `<div class="hero ${cls}"><img class="cover" src="${photo.uri}">${onHero}</div>`) : '';
+    body = layout === 'top' ? `${head}${hl}${sub}${heroWith('')}${pts}${cta}${foot}`
+      : layout === 'poster' ? `<div class="posterbg"><img src="${photo!.uri}"><div class="scrim"></div></div>${head}<div class="grow"></div>${badge}${hl}${sub}${pts}${cta}${foot}`
+      : layout === 'split' ? `${heroWith('bleed')}${head}${hl}${sub}${pts}<div class="grow"></div>${cta}${foot}`
+      : `${head}${hero}${grow}
       ${badge}
-      <div class="hl${photo ? '' : ' big'}" data-fit><div>${esc(f.copy.headline)}</div></div>
-      ${f.copy.sub ? `<div class="sub" data-fit>${esc(f.copy.sub)}</div>` : ''}
-      ${f.copy.points?.length ? `<div class="pts">${f.copy.points.slice(0, 3).map((p) => `<div><i>✓</i><span data-fit>${esc(p)}</span></div>`).join('')}</div>` : ''}
+      ${hl}
+      ${sub}
+      ${pts}
       ${grow}${cta}${foot}`;
   } else if (f.kind === 'pricelist') {
     const items = (f.items ?? []).slice(0, 30);
@@ -102,37 +126,46 @@ export function flyerHtml(f: FlyerInput): string {
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{width:${W}px;height:${H}px;overflow:hidden}
-body{--u:${Math.min(W, H) / 100}px;background:${bg};color:${ink};font-family:Geist,Arial,sans-serif;display:flex;flex-direction:column;gap:calc(var(--u)*${tall ? 3.2 : 2.4});padding:calc(var(--u)*${f.size === 'a4' ? 7 : 6});position:relative}
-body:before{content:"";position:absolute;inset:0;background:${bold ? `radial-gradient(circle at 85% 8%, rgba(255,255,255,.18), transparent 38%), radial-gradient(circle at 0% 100%, rgba(0,0,0,.14), transparent 40%)` : `radial-gradient(circle at 90% 0%, ${shade(accent, 0.75)}, transparent 42%)`};pointer-events:none}
+body{--u:${Math.min(W, H) / 100}px;--pad:calc(var(--u)*${f.size === 'a4' ? 7 : 6});background:${bg};color:${ink};font-family:Geist,Arial,sans-serif;display:flex;flex-direction:column;gap:calc(var(--u)*${tall ? 3.2 : 2.4});padding:var(--pad);position:relative}
+body:before{content:"";position:absolute;inset:0;background:${poster ? 'none' : bold ? `radial-gradient(circle at 85% 8%, rgba(255,255,255,.18), transparent 38%), radial-gradient(circle at 0% 100%, rgba(0,0,0,.14), transparent 40%)` : `radial-gradient(circle at 90% 0%, ${shade(accent, 0.75)}, transparent 42%)`};pointer-events:none}
 body>*{position:relative}
 .top{display:flex;align-items:center;gap:calc(var(--u)*2);font-size:calc(var(--u)*3.6);font-weight:700;flex:none}
 .top .logo{width:calc(var(--u)*10);height:calc(var(--u)*10);object-fit:contain;background:#fff;border-radius:calc(var(--u)*2.4);padding:calc(var(--u)*.8)}
-.top .mono{width:calc(var(--u)*10);height:calc(var(--u)*10);display:grid;place-items:center;border-radius:calc(var(--u)*2.4);background:${bold ? ink : accent};color:${bold ? bg : onAccent};font-family:'Bricolage Grotesque';font-size:calc(var(--u)*6)}
-.hero{flex:${tall ? '1 1 34%' : '1 1 30%'};min-height:0;border-radius:calc(var(--u)*3.4);overflow:hidden;position:relative;background:${card}}
+.top .mono{width:calc(var(--u)*10);height:calc(var(--u)*10);display:grid;place-items:center;border-radius:calc(var(--u)*2.4);background:${mark};color:${onMark};font-family:'Bricolage Grotesque';font-size:calc(var(--u)*6)}
+.hero{flex:${tall ? '1 1 34%' : '1 1 30%'};min-height:calc(var(--u)*${tall ? 34 : 24});border-radius:calc(var(--u)*3.4);overflow:hidden;position:relative;background:${card}}
 .hero .cover{width:100%;height:100%;object-fit:cover}
 .hero.cut{background:${bold ? 'rgba(255,255,255,.92)' : '#fff'}}
 .hero.cut .glow{position:absolute;left:50%;top:55%;width:110%;aspect-ratio:1;transform:translate(-50%,-50%);background:radial-gradient(circle, ${shade(accent, 0.55)} 0%, transparent 60%)}
 .hero.cut img{position:absolute;inset:6%;width:88%;height:88%;object-fit:contain;filter:drop-shadow(0 calc(var(--u)*1.6) calc(var(--u)*2) rgba(0,0,0,.25))}
-.hl,.ttl{font-family:'Bricolage Grotesque',Arial,sans-serif;font-weight:800;letter-spacing:-.03em;line-height:.98;font-size:calc(var(--u)*${tall ? 14 : 11});height:calc(var(--u)*${tall ? 34 : 23});display:flex;align-items:flex-end;overflow:hidden;flex:none}
-.hl.big{font-size:calc(var(--u)*${tall ? 17 : 13});height:calc(var(--u)*${tall ? 48 : 30})}
-.ttl{font-size:calc(var(--u)*12);height:calc(var(--u)*14)}
+.hl,.ttl{font-family:'Bricolage Grotesque',Arial,sans-serif;font-weight:800;letter-spacing:-.03em;line-height:.98;font-size:calc(var(--u)*${tall ? 14 : 11});max-height:calc(var(--u)*${tall ? 34 : 23});display:flex;align-items:flex-end;overflow:hidden;flex:none}
+.hl.big{font-size:calc(var(--u)*${tall ? 17 : 13});max-height:calc(var(--u)*${tall ? 48 : 30})}
+.ttl{font-size:calc(var(--u)*12);max-height:calc(var(--u)*14)}
 .hl>div,.ttl>div{width:100%}
 .sub{font-size:calc(var(--u)*4.6);line-height:1.25;color:${soft};font-weight:600;max-height:calc(var(--u)*13);overflow:hidden;flex:none}
 .sub.small{font-size:calc(var(--u)*3.8);max-height:calc(var(--u)*6)}
-.badge{position:absolute;right:calc(var(--u)*5);top:calc(var(--u)*${tall ? 20 : 17});width:calc(var(--u)*28);height:calc(var(--u)*28);border-radius:50%;background:${bold ? ink : accent};color:${bold ? bg : onAccent};display:grid;place-items:center;transform:rotate(-8deg);box-shadow:0 calc(var(--u)*1.4) calc(var(--u)*3) rgba(0,0,0,.25);z-index:3}
+.badge{position:absolute;right:calc(var(--u)*5);top:calc(var(--u)*${tall ? 20 : 17});width:calc(var(--u)*28);height:calc(var(--u)*28);border-radius:50%;background:${mark};color:${onMark};display:grid;place-items:center;transform:rotate(-8deg);box-shadow:0 calc(var(--u)*1.4) calc(var(--u)*3) rgba(0,0,0,.25);z-index:3}
 .badge span{display:block;width:78%;text-align:center;font-family:'Bricolage Grotesque';font-weight:800;font-size:calc(var(--u)*7.5);line-height:1.02;overflow-wrap:normal;word-break:keep-all}
 .badge.inline{position:relative;right:auto;top:auto;align-self:flex-end;width:calc(var(--u)*${tall ? 30 : 24});height:calc(var(--u)*${tall ? 30 : 24});margin:calc(var(--u)*-2) calc(var(--u)*1) calc(var(--u)*-4) 0;flex:none}
 .grow{flex:1 1 0;min-height:0}
+.posterbg{position:absolute!important;inset:0;z-index:0}.posterbg img{width:100%;height:100%;object-fit:cover}
+.posterbg .scrim{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.55) 0%,rgba(0,0,0,0) 22%,rgba(0,0,0,0) 34%,rgba(0,0,0,.62) 58%,rgba(0,0,0,.9) 100%)}
+${poster ? '.top b,.hl{text-shadow:0 calc(var(--u)*.4) calc(var(--u)*3) rgba(0,0,0,.45)}' : ''}
+.hero.bleed{margin:calc(var(--pad)*-1) calc(var(--pad)*-1) 0;border-radius:0 0 calc(var(--u)*6) calc(var(--u)*6);flex:1 1 44%}
+.badge.onhero{position:absolute;right:calc(var(--u)*3);top:auto;bottom:calc(var(--u)*3);width:calc(var(--u)*24);height:calc(var(--u)*24)}
+.ctarow{flex:none;display:flex;align-items:center;gap:calc(var(--u)*3.4)}
+.ctacol{flex:1;min-width:0;display:flex;flex-direction:column;gap:calc(var(--u)*1.6)}
+.qr{flex:none;width:calc(var(--u)*21);height:calc(var(--u)*21);background:#fff;padding:calc(var(--u)*1.6);border-radius:calc(var(--u)*2.4);box-shadow:0 calc(var(--u)*.6) calc(var(--u)*2) rgba(0,0,0,.15)}.qr svg{width:100%;height:100%;display:block}
+.qrnote{font-size:calc(var(--u)*2.9);font-weight:700;color:${soft};text-align:center}
 .pts{display:grid;gap:calc(var(--u)*1.6);flex:none}
 .pts div{display:flex;align-items:center;gap:calc(var(--u)*2);font-size:calc(var(--u)*4.4);font-weight:600}
-.pts i{flex:none;width:calc(var(--u)*6);height:calc(var(--u)*6);border-radius:50%;display:grid;place-items:center;background:${bold ? ink : accent};color:${bold ? bg : onAccent};font-style:normal;font-size:calc(var(--u)*3.4)}
+.pts i{flex:none;width:calc(var(--u)*6);height:calc(var(--u)*6);border-radius:50%;display:grid;place-items:center;background:${mark};color:${onMark};font-style:normal;font-size:calc(var(--u)*3.4)}
 .pts span{white-space:nowrap;overflow:hidden;flex:1;min-width:0}
 .cta{flex:none;display:flex;align-items:center;justify-content:center;gap:calc(var(--u)*2);background:${ctaBg};color:${ctaInk};border-radius:999px;padding:calc(var(--u)*2.6) calc(var(--u)*4);font-weight:800;font-size:calc(var(--u)*5)}
 .cta svg{width:calc(var(--u)*6);height:calc(var(--u)*6);fill:currentColor;flex:none}
 .cta span{white-space:nowrap;overflow:hidden;min-width:0}
 .foot{flex:none;font-size:calc(var(--u)*3.2);color:${soft};text-align:center;white-space:nowrap;overflow:hidden;font-weight:600}
 .foot i{font-style:normal;margin:0 .6em}
-.date{align-self:flex-start;background:${bold ? ink : accent};color:${bold ? bg : onAccent};border-radius:999px;padding:calc(var(--u)*1.4) calc(var(--u)*3.4);font-weight:800;font-size:calc(var(--u)*4.4);max-width:100%}
+.date{align-self:flex-start;background:${mark};color:${onMark};border-radius:999px;padding:calc(var(--u)*1.4) calc(var(--u)*3.4);font-weight:800;font-size:calc(var(--u)*4.4);max-width:100%}
 .date span{display:block;white-space:nowrap;overflow:hidden}
 .strip{display:grid;gap:calc(var(--u)*1.6);height:calc(var(--u)*${tall ? 30 : 22});flex:none}.strip.n1{grid-template-columns:1fr}.strip.n2{grid-template-columns:1fr 1fr}.strip.n3{grid-template-columns:1fr 1fr 1fr}
 .strip div{border-radius:calc(var(--u)*2.4);overflow:hidden;background:${card}}.strip img{width:100%;height:100%;object-fit:cover}.strip .cut{background:#fff}.strip .cut img{object-fit:contain;padding:8%}

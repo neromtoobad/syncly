@@ -12,9 +12,10 @@ import { MAIL_BUDGET_USD, MAIL_HOST } from '../mail.ts';
 import { ffmpeg } from '../media.ts';
 import { renderPages } from '../browser.ts';
 import { readUpload } from '../uploads.ts';
-import { parseMenu } from '../site/facts.ts';
+import QRCode from 'qrcode';
+import { parseMenu, waLink } from '../site/facts.ts';
 import { preparePhoto } from '../promo.ts';
-import { flyerHtml, SIZES, type FlyerCopy, type FlyerInput, type FlyerKind } from '../flyer.ts';
+import { flyerHtml, layoutsFor, SIZES, type FlyerCopy, type FlyerInput, type FlyerKind } from '../flyer.ts';
 import { zip } from '../zip.ts';
 import type { BusinessDetails } from '../details.ts';
 
@@ -48,6 +49,13 @@ export const flyers = {
       const lb = d.logo ? readUpload(d.logo) : undefined;
       const logo = lb ? { uri: `data:image/jpeg;base64,${lb.toString('base64')}` } : undefined;
       const colour = d.colour ?? '#d4380d';
+      // two different layouts for the two styles, picked from the business's name so no two businesses look alike
+      const opts2 = layoutsFor(photos[0]);
+      const seed = [...d.name].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
+      const layouts = { bold: opts2[seed % opts2.length], clean: opts2[(seed + 1) % opts2.length] };
+      // the printed A4 can't be tapped: a QR code opens the WhatsApp chat
+      const wa = d.whatsapp ? waLink(d.whatsapp, `Hi ${d.name}, I saw your flyer`) : undefined;
+      const qr = wa ? await QRCode.toString(wa, { type: 'svg', errorCorrectionLevel: 'M', margin: 0, color: { dark: '#141414', light: '#0000' } }).catch(() => undefined) : undefined;
 
       // 1. The copy
       const SYS = `You write the words for a ${kind === 'pricelist' ? 'price list / menu' : kind === 'announcement' ? 'announcement flyer' : 'promo flyer'} for ${d.name} (${d.offer}${d.city ? `, ${d.city}` : ''}). Use ONLY facts given; never invent prices, discounts, dates or claims. Short, punchy, plain English a Nigerian customer would say. Reply JSON only:
@@ -62,16 +70,16 @@ export const flyers = {
 
       // 2. Lay out and render: two styles × Status and post, plus A4 print of the bold one
       const make = async (c: FlyerCopy) => {
-        const base = { kind, business: d.name, copy: c, items, cta, ctaKind: d.cta ?? (n ? 'whatsapp' : d.instagram ? 'dm' : d.website ? 'website' : 'visit'), footer, colour, logo, photos };
+        const base = { kind, business: d.name, copy: c, items, cta, ctaKind: d.cta ?? (n ? 'whatsapp' : d.instagram ? 'dm' : d.website ? 'website' : 'visit'), footer, colour, logo, photos, qr };
         const plan: { name: string; f: FlyerInput; kind: 'png' | 'pdf'; scale?: number }[] = [
-          { name: 'flyer-status-bold.png', f: { ...base, variant: 'bold', size: 'status' }, kind: 'png' },
-          { name: 'flyer-post-bold.png', f: { ...base, variant: 'bold', size: 'post' }, kind: 'png' },
-          { name: 'flyer-status-clean.png', f: { ...base, variant: 'clean', size: 'status' }, kind: 'png' },
-          { name: 'flyer-post-clean.png', f: { ...base, variant: 'clean', size: 'post' }, kind: 'png' },
-          { name: 'flyer-a4.png', f: { ...base, variant: 'bold', size: 'a4' }, kind: 'png', scale: 2 },
-          { name: 'flyer-a4.pdf', f: { ...base, variant: 'bold', size: 'a4' }, kind: 'pdf' },
+          { name: 'flyer-status-bold.png', f: { ...base, variant: 'bold', size: 'status', layout: layouts.bold }, kind: 'png' },
+          { name: 'flyer-post-bold.png', f: { ...base, variant: 'bold', size: 'post', layout: layouts.bold }, kind: 'png' },
+          { name: 'flyer-status-clean.png', f: { ...base, variant: 'clean', size: 'status', layout: layouts.clean }, kind: 'png' },
+          { name: 'flyer-post-clean.png', f: { ...base, variant: 'clean', size: 'post', layout: layouts.clean }, kind: 'png' },
+          { name: 'flyer-a4.png', f: { ...base, variant: 'bold', size: 'a4', layout: layouts.bold }, kind: 'png', scale: 2 },
+          { name: 'flyer-a4.pdf', f: { ...base, variant: 'bold', size: 'a4', layout: layouts.bold }, kind: 'pdf' },
         ];
-        job.log('illustrator', 'design', `${plan.length - 1} designs: bold and clean, for Status, Instagram and A4 print`);
+        job.log('illustrator', 'design', `${plan.length - 1} designs: bold (${layouts.bold} layout) and clean (${layouts.clean} layout), for Status, Instagram and A4 print${qr ? ' with a WhatsApp QR code' : ''}`);
         const bufs = await renderPages(plan.map((p) => ({ html: flyerHtml(p.f), w: SIZES[p.f.size][0], h: SIZES[p.f.size][1], kind: p.kind, scale: p.scale })));
         return plan.map((p, i) => ({ name: p.name, buf: bufs[i] }));
       };
@@ -103,7 +111,7 @@ export const flyers = {
         `**${copy.headline}**${copy.sub ? `: ${copy.sub}` : ''}`,
         `## What you get`,
         `- **WhatsApp Status** (1080×1920) and **Instagram post** (1080×1350), each in a bold style on your colour and a clean light style`,
-        `- **A4 for printing**: a print-ready PDF and a high-resolution PNG`,
+        `- **A4 for printing**: a print-ready PDF and a high-resolution PNG${qr ? ', with a QR code that opens a WhatsApp chat with you when scanned' : ''}`,
         `- All of them in \`flyers.zip\``,
         `## Checks`,
         `- Every line is fitted to its space by the layout, so nothing is cut off; ${kind === 'pricelist' ? `all ${items.length} items and prices are exactly as you wrote them` : 'prices and contact details are exactly as you gave them'}`,
