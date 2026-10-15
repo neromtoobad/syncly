@@ -632,6 +632,12 @@ export const getFound = {
       const top3All = grid.reduce((s, x) => s + stats(x).top3, 0);
       const L: string[] = [`# ${spec.name}: market & Google report`, '', `${spec.name} · ${spec.category} · ${where} · checked ${today()}`, '',
         `**Google Maps: ${total ? `top 3 at ${top3All} of ${total} searches` : 'no searches came back'} · Google profile: ${nOf(gapCount, 'thing')} to fix · AI assistants: named in ${r.named.length} of ${r.disc.length} recommendation answers, ${nOf(r.wrong.length, 'wrong fact')}**`, '', summary, ''];
+      // The owner reads this first, on a phone: the three fixes that matter most this week, with how long each takes.
+      // Everything after it is the evidence.
+      const minutes = (t: string) => (/claim your|verify|create (a|your)|add your business|get on google/i.test(t) ? 20 : /review|repl/i.test(t) ? 15 : /photo|picture/i.test(t) ? 10 : /hours|phone|website|category|description|address/i.test(t) ? 5 : 10);
+      const week = fixes.slice(0, 3);
+      L.push('## This week: your 3 fixes', '', ...(week.length ? week.map((f, i) => `${i + 1}. ${f.text} *(about ${minutes(f.text)} minutes)*`) : ['Nothing urgent: you show up well and the assistants got your facts right. Re-check in a month; both change.']), '',
+        week.length ? `About ${week.reduce((t, f) => t + minutes(f.text), 0)} minutes in all. The texts you need are ready to paste in section 5; the rest of this report is the evidence behind each fix.` : '', '');
 
       L.push('## 1. Where you show on Google Maps', '');
       if (!truth.listing) L.push(`We found no Google listing for ${spec.name}, so you can't appear in these results yet. Here is what customers see instead.`, '');
@@ -704,14 +710,17 @@ export const getFound = {
       L.push('## 7. Your market', '', ...(market
         ? [market.markdown.replace(/^#\s+[^\n]*\n+/, '').replace(/^(#{1,4})\s/gm, (_, h: string) => `${h}#${h.length === 1 ? '#' : ''} `), '', `*Every claim is cited to a source you can open, and an independent model (${MODELS.auditor}) checked each one against its source${market.qa.verdict === 'revise' ? '; it found issues and the section was revised once' : ''}.*`]
         : ['The market research could not be finished this time. The rest of the report stands; ask for a revision to get this section.']), '');
-      L.push(...r.md.detail('##'), ...r.md.record('##'));
-      L.push('## How this was done', '',
+      // the evidence a curious owner can open: every answer, the record we checked against, and the method
+      const D: string[] = [`# How we checked: ${spec.name}`, '', ...r.md.detail('##'), ...r.md.record('##')];
+      D.push('## How this was done', '',
         `- **Google Maps:** ${searches.length} search${searches.length === 1 ? '' : 'es'} (${searches.map((q) => `“${q}”`).join(', ')}${d?.searches ? ', as you gave them' : ', from your category, area and what customers look for'}) ${pinned ? `from 9 spots ${STEP_KM} km apart around your listing's map pin` : 'once each for your area, because we had no map pin for your listing'}, through Serper's Google Maps results on ${today()}. Your listing was matched by its Google ID${truth.cid ? '' : ' (we had none, so by its name and website)'}; a similar name is never counted as you.${failedCells ? ` ${failedCells} search${failedCells === 1 ? '' : 'es'} failed and show as “?”.` : ''} Results also depend on time, device and the customer's own history: this is a snapshot.`,
         `- **Google profile:** fixed rules run on your Business Profile as Google returned it (through DataForSEO), compared with the details you gave us, your website and the businesses above you. No model decides what's a gap.`,
         `- **Texts to paste:** written from your record only. Code checked the description's length (Google allows ${MAX_DESC} characters), that it has no links, phone numbers or prices, and that every number in it and in the replies is in your record or the review. ${paste.audited ? `An independent model (${MODELS.auditor}) then checked them for promises (refunds, discounts, free items) and invented facts.` : 'The independent check did not answer this time, so they were checked by code only: read them carefully.'}${paste.drafts.some((x) => x.rewritten) || paste.descFrom === 'rewrite' ? ` ${nOf(paste.drafts.filter((x) => x.rewritten).length + (paste.descFrom === 'rewrite' ? 1 : 0), 'text')} failed a check and ${paste.drafts.filter((x) => x.rewritten).length + (paste.descFrom === 'rewrite' ? 1 : 0) === 1 ? 'was' : 'were'} rewritten once.` : ''}`,
         ...r.md.method.map((x) => x.replace(/^- (\d+ questions)/, '- **AI assistants:** $1')),
         '', `Files: ${png ? '`maps-grid.png` (the grid picture), ' : ''}\`maps-grid.csv\` (every Maps search and who showed above you), \`answers.csv\` (one row per AI answer), \`ai-answers.md\` (every AI answer in full, with its sources).`);
-      if (issues.length) L.push('', `> QA notes: ${issues.join('; ')}.`);
+      if (issues.length) D.push('', `> QA notes: ${issues.join('; ')}.`);
+      L.push('---', '', '*Every answer from the AI assistants, the record we checked them against and how each check was done are in `how-we-checked.md`, attached.*');
+      job.files.push({ name: 'how-we-checked.md', content: D.join('\n') + '\n' });
       job.deliverable = L.join('\n');
 
       if (png) job.files.unshift({ name: 'maps-grid.png', content: png });
