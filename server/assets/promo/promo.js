@@ -47,8 +47,8 @@
   const tag = (t) => (t ? `<div class="tag fit1" data-fit>${esc(t)}</div>` : '');
 
   const T = {
-    hook: (s) => `<div class="L hook ${s.tone || 'accent'}">
-        <div class="blob b1"></div><div class="blob b2"></div>
+    hook: (s) => `<div class="L hook ${s.tone || 'accent'}${s.photo ? ' withphoto' : ''}">
+        ${s.photo ? `${photo(s.photo, 'punch')}<div class="shade"></div>` : '<div class="blob b1"></div><div class="blob b2"></div>'}
         <div class="hook-in">
           ${s.eyebrow ? `<div class="eyebrow fit1" data-fit>${esc(s.eyebrow)}</div>` : ''}
           <div class="hl" data-fit>${(s.lines || [s.text]).map((l) => `<div class="ln">${words(l)}</div>`).join('')}</div>
@@ -132,10 +132,17 @@
 
   /* ---------- per-frame animation ---------- */
   const q = (L, sel) => [...L.querySelectorAll(sel)];
+  // the grammar for this video: a text style and a set of transitions, chosen from the business's seed
+  const SEED = Math.abs(Math.floor(P.seed || 0));
+  const TEXT = ['rise', 'pop', 'slide'][SEED % 3];
+  const TRANS = [['wipe', 'zoom', 'slide'], ['zoom', 'flash', 'slide'], ['slide', 'wipe', 'zoom'], ['flash', 'zoom', 'wipe']][Math.floor(SEED / 4) % 4];
+  const BEAT = 60 / BPM;
   function revealWords(L, lt, start = 0.1, stagger = 0.07) {
     q(L, '.w > span').forEach((w, k) => {
       const p = outQuint(prog(lt, start + k * stagger, 0.6));
-      w.style.transform = `translateY(${(1 - p) * 105}%)`;
+      if (TEXT === 'pop') { const b = outBack(prog(lt, start + k * stagger, 0.5)); w.style.transform = `translateY(${(1 - p) * 40}%) scale(${0.6 + 0.4 * b})`; }
+      else if (TEXT === 'slide') w.style.transform = `translateX(${(1 - p) * -60}%)`;
+      else w.style.transform = `translateY(${(1 - p) * 105}%)`;
       w.style.opacity = String(clamp(p * 1.6));
     });
   }
@@ -159,7 +166,12 @@
   }
 
   const A = {
-    hook(L, lt, s) { blobs(L, lt); rise(L.querySelector('.eyebrow'), lt, 0.05, 0.5, 3); revealWords(L, lt, 0.18, 0.09); },
+    hook(L, lt, s) {
+      blobs(L, lt);
+      // the product punches in on the first beat and settles; the words are already readable on frame 0
+      q(L, '.punch .ph-fg, .punch .ph-bg').forEach((im) => { const p = outCubic(prog(lt, 0, BEAT)); im.style.transform = `scale(${lerp(1.18, 1.04, p) - 0.04 * inOut(lt / (s.dur + TR))})`; });
+      rise(L.querySelector('.eyebrow'), lt, -0.2, 0.4, 3); revealWords(L, lt, -0.3, 0.05);
+    },
     product(L, lt, s) { kenBurns(L, lt, s.dur); rise(L.querySelector('.tag'), lt, 0.2, 0.5, 3); revealWords(L, lt, 0.3, 0.07); pop(L.querySelector('.price'), lt, 0.75, -4); },
     showcase(L, lt, s) {
       kenBurns(L, lt, s.dur);
@@ -196,18 +208,25 @@
     const t = f / FPS;
     const i = stateAt(t), s = scenes[i];
     const lt = t - s.t0;
-    layers.forEach((L, k) => { L.style.display = k === i || (k === i - 1 && lt < TR) ? 'block' : 'none'; L.style.clipPath = ''; L.style.zIndex = k === i ? 2 : 1; });
-    // the scene coming in wipes over the one going out, an accent bar riding the edge
+    layers.forEach((L, k) => { L.style.display = k === i || (k === i - 1 && lt < TR) ? 'block' : 'none'; L.style.clipPath = ''; L.style.transform = ''; L.style.opacity = ''; L.style.zIndex = k === i ? 2 : 1; });
+    wipe.style.display = 'none'; wipe.classList.remove('flash');
+    // the scene coming in replaces the one going out with this video's transitions, taken in turn
     if (i > 0 && lt < TR) {
-      const p = inOut(lt / TR), dir = i % 2 ? 1 : -1;
-      layers[i].style.clipPath = dir > 0 ? `inset(0 0 0 ${(1 - p) * 100}%)` : `inset(0 ${(1 - p) * 100}% 0 0)`;
-      wipe.style.display = 'block';
-      wipe.style.left = dir > 0 ? `${(1 - p) * 100}%` : '';
-      wipe.style.right = dir > 0 ? '' : `${(1 - p) * 100}%`;
-      wipe.style.opacity = String(1 - Math.pow(p, 3));
+      const p = inOut(lt / TR), dir = i % 2 ? 1 : -1, kind = TRANS[(i - 1) % TRANS.length];
+      const cur = layers[i], prevL = layers[i - 1];
+      if (kind === 'zoom') { cur.style.opacity = String(clamp(p * 1.4)); cur.style.transform = `scale(${1.14 - 0.14 * p})`; prevL.style.transform = `scale(${1 + 0.08 * p})`; }
+      else if (kind === 'slide') { cur.style.transform = `translateY(${(1 - p) * 100}%)`; prevL.style.transform = `translateY(${-p * 22}%)`; }
+      else if (kind === 'flash') { cur.style.opacity = p < 0.5 ? '0' : '1'; wipe.style.display = 'block'; wipe.classList.add('flash'); wipe.style.left = '0'; wipe.style.right = '0'; wipe.style.opacity = String(1 - Math.abs(p - 0.5) * 2); }
+      else {
+        cur.style.clipPath = dir > 0 ? `inset(0 0 0 ${(1 - p) * 100}%)` : `inset(0 ${(1 - p) * 100}% 0 0)`;
+        wipe.style.display = 'block';
+        wipe.style.left = dir > 0 ? `${(1 - p) * 100}%` : '';
+        wipe.style.right = dir > 0 ? '' : `${(1 - p) * 100}%`;
+        wipe.style.opacity = String(1 - Math.pow(p, 3));
+      }
       const prev = scenes[i - 1];
-      (A[prev.type] || A.statement)(layers[i - 1], t - prev.t0, prev);
-    } else wipe.style.display = 'none';
+      (A[prev.type] || A.statement)(prevL, t - prev.t0, prev);
+    }
     (A[s.type] || A.statement)(layers[i], lt, s);
   }
 

@@ -157,7 +157,7 @@ ${kit('template.html')}`;
     } catch (e: any) {
       job.status = 'failed';
       job.error = String(e?.message ?? e);
-      console.error('  ✗', job.error);
+      console.error('  ✗', job.error, e?.stack?.split('\n').slice(1, 4).join(' | '));
     } finally {
       rmSync(work, { recursive: true, force: true });
     }

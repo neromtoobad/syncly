@@ -20,7 +20,7 @@ export const FONTS = {
 export type FontKey = keyof typeof FONTS;
 
 export type Scene =
-  | { type: 'hook'; eyebrow?: string; lines: string[]; tone?: 'accent' | 'dark' }
+  | { type: 'hook'; eyebrow?: string; lines: string[]; tone?: 'accent' | 'dark'; photo?: string }
   | { type: 'product'; photo: string; tag?: string; title: string; price?: string }
   | { type: 'showcase'; photo: string; tag?: string; title: string; note?: string; price?: string }
   | { type: 'grid'; photos: string[]; title: string; items?: string[] }
@@ -125,6 +125,8 @@ export function cleanStoryboard(sb: Storyboard, o: { seconds: number; photos: Ph
   // product or showcase scene shows their best photo instead
   const firstOwn = ranked.find(own);
   if (firstOwn && !used().has(firstOwn.name)) { const sc = out.find((x: any) => (x.type === 'product' || x.type === 'showcase') && x.photo) as any; if (sc) sc.photo = firstOwn.name; }
+  // the opening shows the product: the best photo (theirs first) sits behind the hook from frame 0
+  if (out[0]?.type === 'hook' && ranked.length) (out[0] as any).photo = ranked[0].name;
   // still short (every scene was points or a price): add product scenes before the call to action
   while (photoScenes() < wantPhotos) {
     const free = ranked.find((p) => !used().has(p.name));
@@ -197,6 +199,8 @@ export function writePromo(dir: string, sb: ReturnType<typeof cleanStoryboard>, 
   const PROMO = {
     size: o.size, fps: o.fps, bpm: o.bpm ?? 120, palette: sb.palette, font: { display: font.display, body: font.body },
     brand: { name: o.business, logo: o.logo ?? null }, cutouts: o.photos.filter((p) => p.cut).map((p) => p.name),
+    // the motion grammar is picked per business (a hash of its name), so no two customers' videos move alike
+    seed: [...o.business].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7),
     scenes: sb.scenes.map((s, i) => ({ ...s, id: ids[i] })),
     score: (() => {
       const m = MUSIC[o.music?.id ?? 'bounce'], seconds = sb.scenes.reduce((a, x) => a + x.dur, 0), bars = Math.round(seconds / ((4 * 60) / (o.bpm ?? 120)));

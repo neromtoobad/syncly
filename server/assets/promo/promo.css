@@ -129,3 +129,19 @@ body { font-family: var(--body); color: var(--ink); -webkit-font-smoothing: anti
 .points .pt-photo { display: none; }
 .landscape .points.withphoto .pt-photo { display: block; position: relative; height: 84%; grid-row: 1 / span 2; grid-column: 2; border-radius: calc(var(--u) * 3); overflow: hidden; }
 .landscape .points.withphoto > .title, .landscape .points.withphoto > .rows { grid-column: 1; }
+
+/* ---- the hook over the product (opening shot), the flash cut, and safe zones for Reels/TikTok/Status ---- */
+.hook.withphoto { color: #fff; }
+.hook.withphoto .shade { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0, 0, 0, .78) 0%, rgba(0, 0, 0, .35) 45%, rgba(0, 0, 0, .15) 100%); }
+.hook.withphoto .hook-in { position: absolute; left: 7%; right: 7%; bottom: 10%; width: auto; }
+.hook.withphoto .hl { height: calc(var(--u) * 40); justify-content: flex-end; padding-bottom: .14em; text-shadow: 0 calc(var(--u) * .4) calc(var(--u) * 3) rgba(0, 0, 0, .35); }
+.vertical .hook.withphoto .hook-in { bottom: 24%; }
+.vertical .hook.withphoto .hl { height: calc(var(--u) * 56); }
+.landscape .hook.withphoto .hook-in { right: 40%; bottom: 12%; }
+.wipe.flash { width: auto; background: #fff; }
+/* vertical: Reels, TikTok and Status cover the bottom fifth with captions and buttons, so the words sit above it */
+.vertical .product .prod-copy { bottom: 22%; }
+.vertical .product .shade { background: linear-gradient(to top, rgba(0, 0, 0, .25) 0%, rgba(0, 0, 0, .8) 22%, rgba(0, 0, 0, .5) 45%, rgba(0, 0, 0, 0) 66%); }
+.vertical .cta-in { transform: translateY(-6%); }
+.vertical .points.withphoto { grid-template-rows: auto auto auto; align-content: center; }
+.vertical .points.withphoto .pt-photo { display: block; position: relative; height: calc(var(--u) * 62); border-radius: calc(var(--u) * 3); overflow: hidden; order: -1; margin-bottom: calc(var(--u) * 3); }
