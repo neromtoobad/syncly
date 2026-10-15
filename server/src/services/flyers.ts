@@ -4,7 +4,7 @@
 // every line → headless Chrome renders each size → Auditor looks at every design with a vision model; the copy is
 // revised once if anything is wrong → the PNGs, an A4 PDF, and a zip.
 import { Job } from '../job.ts';
-import { withBrandKit } from '../brandkit.ts';
+import { headsUp, withBrandKit } from '../brandkit.ts';
 import { AISA } from '../sellers.ts';
 import { MODELS } from '../config.ts';
 import { HOSTS, llm, parseJson, type Msg } from '../tools.ts';
@@ -32,7 +32,7 @@ export const flyers = {
     try {
       if (!opts.details) throw new Error('This service needs the order form.');
       // their Instagram or website fills in the logo, photos, colour and WhatsApp they didn't give
-      const { d: filled, text: pageText } = await withBrandKit(job, opts.details, { photos: 3 });
+      const { d: filled, text: pageText, notes: brandNotes } = await withBrandKit(job, opts.details, { photos: 3 });
       const d = filled!;
       const kind: FlyerKind = d.flyerKind ?? (d.menu ? 'pricelist' : 'promo');
       const items = kind === 'pricelist' ? parseMenu(d.menu).map((m) => ({ name: m.name, price: m.price, group: m.category })) : [];
@@ -120,6 +120,7 @@ export const flyers = {
         `Ask for a revision with what to change: the words, the colour, a different photo, more or fewer items.`,
       ].join('\n\n');
       job.qa = { verdict: issues.length ? 'revise' : 'pass', notes: issues.join(' | ') || `${out.length} files reviewed`, model: `layout rules + ${MODELS.vision}` };
+      job.deliverable += headsUp(brandNotes);
       job.status = 'delivered';
     } catch (e: any) {
       job.status = 'failed';

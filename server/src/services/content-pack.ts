@@ -6,7 +6,7 @@
 // Illustrator makes 3 images → QA: code checks every cited example is one we actually pulled and
 // every post has a hook, caption and CTA; an auditor on another model family checks for invented claims.
 import { Job } from '../job.ts';
-import { withBrandKit } from '../brandkit.ts';
+import { headsUp, withBrandKit } from '../brandkit.ts';
 import { MODELS } from '../config.ts';
 import { HOSTS, llm, parseJson, webRead, type Page } from '../tools.ts';
 import { AISA, aisa } from '../sellers.ts';
@@ -62,7 +62,7 @@ export const contentPack = {
       );
       // The order form's values are exact: they override what was read from the brief. Their Instagram or website
       // fills in the logo, photos, colour and WhatsApp they didn't give (for the post designs).
-      const { d, text: pageText } = await withBrandKit(job, opts.details, { photos: 3 });
+      const { d, text: pageText, notes: brandNotes } = await withBrandKit(job, opts.details, { photos: 3 });
       if (d) {
         spec.business = d.name; spec.offer = d.offer;
         spec.location = [d.area, d.city].filter(Boolean).join(', ') || spec.location;
@@ -233,6 +233,7 @@ export const contentPack = {
       job.files.push({ name: 'posts.csv', content: ['day,platform,format,hook,caption,cta,hashtags,shots,image', ...posts.map((p) => [p.day, p.platform, p.format, p.hook, p.caption, p.cta, (p.hashtags ?? []).join(' '), (p.shots ?? []).join(' | '), images.find((x) => x.post === p)?.name ?? ''].map(csvCell).join(','))].join('\n') });
       job.files.push({ name: 'examples.csv', content: ['n,platform,format,who,views,likes,comments,audio,url,caption', ...examples.map((e) => [e.n, e.platform, e.format, e.who, e.views, e.likes, e.comments, e.audio, e.url, e.caption.replace(/\s+/g, ' ')].map(csvCell).join(','))].join('\n') });
       job.qa = { verdict: issues.length ? 'revise' : 'pass', notes: issues.join(' | ') || `${examples.length} real posts cited, ${posts.length} posts, ${images.length} images`, model: `rules + ${MODELS.auditor}` };
+      job.deliverable += headsUp(brandNotes);
       job.status = 'delivered';
     } catch (e: any) {
       job.status = 'failed';

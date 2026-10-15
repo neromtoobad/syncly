@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { api, useApi, usd, ngn, Avatar, ROLE_NAME, SERVICE_NAME, timeAgo, useStored, type Order, type Receipt, type Service, type Step } from '@/lib.tsx';
+import { upload } from '@/views/BusinessForm.tsx';
 import { connect, decideOnChain, hasWallet, short, txUrl, walletError, type EscrowCfg } from '@/wallet.ts';
 import type { Address } from 'viem';
 import type { ReactNode } from 'react';
@@ -92,6 +93,39 @@ function PaperReceipt({ o, receipt }: { o: Order; receipt: Receipt[] }) {
       {bond > 0 && <div className="tot"><span>Bond paid to you</span><span>−{bond.toFixed(2)}</span></div>}
       {owner && <><hr /><div className="tot"><span>Tools (owner view)</span><span>{spent.toFixed(4)}</span></div><div className="tot big"><span>Margin</span><span>{(price - spent - bond).toFixed(4)}</span></div></>}
       <div className="foot">USDC · {o.demo ? 'demo receipt, no money moved' : 'paid per call via x402 on Arc'}</div>
+    </div>
+  );
+}
+
+// Services that use a logo and photos: before asking for a revision, the customer can add theirs
+const FILE_SERVICES = ['motion-ad', 'video-ad', 'ad-launch', 'flyers', 'content-pack', 'website', 'product-photos'];
+function AddFiles({ id, service, email }: { id: string; service: string; email?: string }) {
+  const [logo, setLogo] = useState(false);
+  const [photos, setPhotos] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  if (!FILE_SERVICES.includes(service)) return null;
+  const pick = (kind: 'logo' | 'photos') => async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = [...(e.target.files ?? [])];
+    e.target.value = '';
+    if (!files.length) return;
+    setBusy(true); setMsg('');
+    try {
+      const ids = await upload(kind === 'logo' ? files.slice(0, 1) : files.slice(0, 6));
+      const r = await fetch(withK(`/api/orders/${id}/additions`), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(kind === 'logo' ? { logo: ids[0], email } : { photos: ids, email }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error ?? 'Could not add it');
+      setLogo(j.logo); setPhotos(j.photos);
+      setMsg('Added. Say what to change above and press Revise: the team remakes it with these.');
+    } catch (x: any) { setMsg(x?.message ?? 'Upload failed'); } finally { setBusy(false); }
+  };
+  return (
+    <div className="field">{service === 'product-photos' ? 'Add better photos' : 'Add your logo or photos'} <span className="hint">Optional. Your revision uses them.</span>
+      <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
+        {service !== 'product-photos' && <label className="btn ghost" style={{ cursor: busy ? 'wait' : 'pointer' }}>{logo ? 'Logo added ✓' : busy ? 'Uploading…' : 'Add logo'}<input type="file" accept="image/*" hidden disabled={busy} onChange={pick('logo')} /></label>}
+        <label className="btn ghost" style={{ cursor: busy ? 'wait' : 'pointer' }}>{photos ? `${photos} photo${photos === 1 ? '' : 's'} ✓ · add more` : busy ? 'Uploading…' : 'Add photos'}<input type="file" accept="image/*" multiple hidden disabled={busy} onChange={pick('photos')} /></label>
+      </div>
+      {msg && <small className="muted">{msg}</small>}
     </div>
   );
 }
@@ -210,6 +244,7 @@ function EscrowDecision({ o, cfg, onUpdate }: { o: Order; cfg: EscrowCfg; onUpda
           <label className="field">Want changes? <span className="hint">One free revision. The team re-runs the job with your note.</span>
             <textarea style={{ minHeight: 76 }} value={note} onChange={(ev) => setNote(ev.target.value)} placeholder="e.g. focus on Ikoyi too, and add opening hours" />
           </label>
+          <AddFiles id={o.id} service={o.service} email={email} />
           {note.trim() && !o.keyed && (
             <label className="field">Your email <span className="hint">the one on this order, so only you can add the note</span>
               <input type="email" value={email} onChange={(ev) => setEmail(ev.target.value)} placeholder="you@business.com" />
@@ -320,6 +355,7 @@ export default function Job({ id }: { id: string }) {
             <textarea style={{ minHeight: 76 }} value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. bigger text, show the fridges first, end on our WhatsApp number" />
           </label>
         )}
+        {o.revisionNote === undefined && <AddFiles id={o.id} service={o.service} email={email} />}
         <div className="decide">
           <button className="btn primary block" disabled={busy || !canAct} onClick={() => decide('accept')}>{locked ? 'Accept & unlock the files' : 'Accept the work'}</button>
           <div className="row">

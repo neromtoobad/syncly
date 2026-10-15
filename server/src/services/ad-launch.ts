@@ -10,7 +10,7 @@
 // is computed in code from their budget → QA: code checks every number in the copy against the order; an
 // auditor on another model family checks for invented claims; a vision model looks at every creative.
 import { Job } from '../job.ts';
-import { withBrandKit } from '../brandkit.ts';
+import { headsUp, withBrandKit } from '../brandkit.ts';
 import { MODELS } from '../config.ts';
 import { HOSTS, llm, parseJson } from '../tools.ts';
 import { AISA, aisa } from '../sellers.ts';
@@ -144,7 +144,7 @@ export const adLaunch = {
       ], 'parse the ad brief', { model: MODELS.fast, maxTokens: 500, json: true,
         dry: () => JSON.stringify({ business: 'Tolu’s Small Chops', product: 'party trays of small chops', offer: 'Trays for 20 guests, delivered hot', price: '₦25,000', cta: 'Order on WhatsApp 0803 555 0142', niche: 'small chops catering', location: 'Surulere, Lagos', city: 'Lagos', audience: 'Lagos party hosts, office admins and brides, 25–45 (guess)', mood: 'warm and appetising', scene: 'a festive party table at golden hour', instagram: '@tolussmallchops', website: null, whatsapp: '0803 555 0142', goal: 'messages', budget: '₦5,000 a day' }) }), {});
       // their Instagram or website fills in the logo, photos, colour and WhatsApp they didn't give
-      const { d, text: pageText } = await withBrandKit(job, opts.details, { photos: 3 });
+      const { d, text: pageText, notes: brandNotes } = await withBrandKit(job, opts.details, { photos: 3 });
       const goals: Goal[] = ['messages', 'sales', 'calls', 'visits', 'followers'];
       const spec: Spec = {
         business: d?.name ?? p.business ?? brief.slice(0, 40), product: d?.promote ?? p.product ?? d?.offer ?? brief.slice(0, 80), offer: d?.offer ?? p.offer ?? '',
@@ -384,6 +384,7 @@ export const adLaunch = {
       if (issues.length) L.push(`> QA notes: ${issues.join('; ')}.`, '');
       L.push('Files: the creatives, the videos, `ad-copy.csv` (every line, ready to paste), `ad-tracker.csv` (a 7-day log), and `ad-launch.zip` with everything.');
       job.deliverable = L.join('\n');
+      job.deliverable += headsUp(brandNotes);
 
       const copyRows = [['angle', 'platform', 'placement', 'creative', 'primary_text', 'headline', 'button', 'link'].join(',')];
       for (const [i, an] of angles.entries()) for (const [k, pt] of copy[i].primary.entries()) {

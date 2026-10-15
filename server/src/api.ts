@@ -24,7 +24,7 @@ import { LINKS, chowdeckHours, readChowdeck, samePhone } from './site/links.ts';
 import { FORMATS, countScan, posterHtml, posterTargets, scanStats, type PosterOpts } from './site/poster.ts';
 import { renderPoster } from './browser.ts';
 import { nairaDecide, nairaFollowUp, nairaQuote, nairaStatus, onBachsEvent, startNaira, verifyBachs } from './naira.ts';
-import { autoAcceptDue, createQuote, decide, isCustomer, NOT_CUSTOMER, publicBrief, sameSecret, redoOnTheHouse, escrowPending, getOrder, noteForRevision, openEscrow, readJob, replay, resumeInterrupted, retry, start, syncEscrow, type Order } from './orders.ts';
+import { autoAcceptDue, createQuote, decide, isCustomer, saveOrder, NOT_CUSTOMER, publicBrief, sameSecret, redoOnTheHouse, escrowPending, getOrder, noteForRevision, openEscrow, readJob, replay, resumeInterrupted, retry, start, syncEscrow, type Order } from './orders.ts';
 import { escrowConfig, refreshBondFree } from './escrow.ts';
 import { MODE as CFO_MODE, POLICY as CFO_POLICY, freshSnapshot, reclaimSurplus, startTreasury, teamShortfall, tick as cfoTick } from './cfo/treasury.ts';
 import { decisions as cfoDecisions, verifyLog } from './cfo/log.ts';
@@ -312,6 +312,22 @@ app.post('/api/orders/:id/retry', async (c) => {
   }
 });
 
+// Before a revision, the customer can add their logo and photos (uploaded via /api/uploads): they go into the order's
+// details, so the re-run (simulated, escrow or naira) uses them like any order-form upload.
+app.post('/api/orders/:id/additions', async (c) => {
+  const o = getOrder(c.req.param('id'));
+  if (!o) return c.json({ error: 'not found' }, 404);
+  const { logo, photos, email } = await c.req.json().catch(() => ({}));
+  if (!isCustomer(o, { key: keyOf(c), email: email ? String(email) : undefined })) return c.json({ error: NOT_CUSTOMER }, 403);
+  if (o.status !== 'delivered' || o.revisionNote !== undefined) return c.json({ error: 'You can add files before asking for your revision.' }, 400);
+  const ok = (id: unknown) => typeof id === 'string' && /^up_[a-f0-9]{8,40}$/.test(id) && !!readUpload(id);
+  const d = (o.details ??= {} as BusinessDetails);
+  if (logo !== undefined) { if (!ok(logo)) return c.json({ error: 'That logo upload was not found.' }, 400); d.logo = logo; }
+  if (Array.isArray(photos)) { const add = photos.filter(ok).slice(0, 6); d.photos = [...new Set([...add, ...(d.photos ?? [])])].slice(0, 6); }
+  saveOrder(o);
+  return c.json({ logo: !!d.logo, photos: d.photos?.length ?? 0 });
+});
+
 app.post('/api/orders/:id/:action{accept|reject|revise}', async (c) => {
   const o = getOrder(c.req.param('id'));
   if (!o) return c.json({ error: 'not found' }, 404);
@@ -364,7 +380,20 @@ app.get('/api/orders/:id/files/:name', async (c) => {
   // Generated files never run as our site: no scripts, no same-origin access.
   c.header('content-security-policy', "sandbox; default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'");
   c.header('x-content-type-options', 'nosniff');
-  return c.body(readFileSync(f));
+  // video and audio stream in ranges: iPhone Safari won't play a video whose server can't answer a range request
+  const body = readFileSync(f);
+  if (media) c.header('accept-ranges', 'bytes');
+  const range = media && c.req.header('range')?.match(/^bytes=(\d*)-(\d*)$/);
+  if (range && (range[1] || range[2])) {
+    const size = body.length;
+    let start = range[1] ? Number(range[1]) : Math.max(0, size - Number(range[2]));
+    let end = range[1] && range[2] ? Math.min(Number(range[2]), size - 1) : size - 1;
+    if (start >= size || start > end) { c.header('content-range', `bytes */${size}`); return c.body(null, 416); }
+    c.header('content-range', `bytes ${start}-${end}/${size}`);
+    c.header('content-length', String(end - start + 1));
+    return c.body(body.subarray(start, end + 1), 206);
+  }
+  return c.body(body);
 });
 
 // Customer sites built by the web designer: static files, isolated from our own origin by a CSP sandbox.

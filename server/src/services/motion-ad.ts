@@ -19,7 +19,7 @@ import { MUSIC_LICENSE, pickTrack, trackAudio, trackFile, trackGrid, type Track 
 import { MAIL_BUDGET_USD, MAIL_HOST } from '../mail.ts';
 import type { BusinessDetails } from '../details.ts';
 import { readUpload } from '../uploads.ts';
-import { withBrandKit } from '../brandkit.ts';
+import { headsUp, withBrandKit } from '../brandkit.ts';
 import { AISA } from '../sellers.ts';
 import { prepPhoto } from '../site/photos.ts';
 import { parseMenu } from '../site/facts.ts';
@@ -52,7 +52,7 @@ export const motionAd = {
       // The order form's values are exact: they override what was read from the brief.
       // Their Instagram and website fill in what they didn't (logo, photos, WhatsApp, colour, prices); a copy, so the
       // order keeps what the owner wrote, and what they gave always comes first
-      const { d, text: pageText } = await withBrandKit(job, opts.details);
+      const { d, text: pageText, notes: brandNotes } = await withBrandKit(job, opts.details);
       if (d) {
         spec.business = d.name;
         spec.offer = d.promote ? `${d.promote} (${d.offer})` : d.offer;
@@ -88,7 +88,7 @@ export const motionAd = {
       // Apps and software keep the UI reel below (one shape, a cursor driving it).
       if (spec.kind !== 'app') {
         const made = await promoScene(job, { spec, brief, siteText, format, size: [W, H], seconds, fps, work, logo: d?.logo, uploads: d?.photos ?? [] });
-        return await finish(job, { spec, file: made.file, size: [W, H], seconds: made.seconds, fps, work, look: made.look, scene: readFileSync(made.file, 'utf8'), what: made.what, track: made.track, format, rewrite: made.rewrite });
+        return await finish(job, { notes: brandNotes, spec, file: made.file, size: [W, H], seconds: made.seconds, fps, work, look: made.look, scene: readFileSync(made.file, 'utf8'), what: made.what, track: made.track, format, rewrite: made.rewrite });
       }
 
       // 1. Storyboard + scene, written against the engine's real API and craft rules
@@ -157,7 +157,7 @@ ${kit('template.html')}`;
       // a licensed track near the reel's 120 BPM, nudged onto it; the synthesised score if Mixkit can't be reached
       let track: Track | undefined = pickTrack(spec.mood, 120);
       try { await trackFile(track); } catch (e: any) { job.log('producer', 'music', `the track didn't download (${String(e?.message ?? e).slice(0, 60)}); composing one instead`); track = undefined; }
-      return await finish(job, { spec, file, size, seconds, fps, work, look, scene, track, tempo: 120, what: [`${look.stills.length} moments, one shape that never cuts, every change caused by a tap, a drag or a press-and-hold`] });
+      return await finish(job, { notes: brandNotes, spec, file, size, seconds, fps, work, look, scene, track, tempo: 120, what: [`${look.stills.length} moments, one shape that never cuts, every change caused by a tap, a drag or a press-and-hold`] });
     } catch (e: any) {
       job.status = 'failed';
       job.error = String(e?.message ?? e);
@@ -273,7 +273,7 @@ Rules: use ONLY facts in the brief and the site text; never invent prices, disco
 }
 
 /** Score, render, package. */
-async function finish(job: Job, o: { spec: Spec; file: string; size: [number, number]; seconds: number; fps: number; work: string; look: Look; scene: string; what: string[]; track?: Track; tempo?: number; format?: Format; rewrite?: (size: [number, number], dir: string) => string }): Promise<Job> {
+async function finish(job: Job, o: { notes?: string[]; spec: Spec; file: string; size: [number, number]; seconds: number; fps: number; work: string; look: Look; scene: string; what: string[]; track?: Track; tempo?: number; format?: Format; rewrite?: (size: [number, number], dir: string) => string }): Promise<Job> {
   const { spec, size, seconds, fps, look } = o;
   let wav: Buffer | undefined;
   if (o.track) {
@@ -329,6 +329,7 @@ async function finish(job: Job, o: { spec: Spec; file: string; size: [number, nu
     `Ask for a revision with what to change: wording, colours, which product goes first, or length.`,
   ].join('\n\n');
   job.qa = { verdict: look.problems.length ? 'revise' : 'pass', notes: look.problems.join(' | ') || `${look.stills.length} scenes reviewed; rendered ${r.frames} frames`, model: `rules + ${MODELS.vision}` };
+  job.deliverable += headsUp(o.notes ?? []);
   job.status = 'delivered';
   job.save();
   return job;
