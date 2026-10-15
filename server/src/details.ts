@@ -165,7 +165,9 @@ export function cleanDetails(raw: any, service = 'website'): BusinessDetails {
     if (d.flyerKind === 'pricelist' && !d.menu) throw new Error('Add your items and prices, one per line.');
     if (d.flyerKind !== 'pricelist' && !d.promote) throw new Error(d.flyerKind === 'announcement' ? 'Say what you are announcing.' : 'Say what the flyer is for.');
     if (!d.whatsapp && !d.phone && !d.instagram && !d.website && !d.address) throw new Error('Add how customers should reach you: WhatsApp, phone, Instagram, website or address.');
-    d.cta ??= d.whatsapp ? 'whatsapp' : d.phone ? 'call' : d.instagram ? 'dm' : d.website ? 'website' : 'visit';
+    // with only their Instagram or website, the call to action waits for the brand kit: a WhatsApp number on their
+    // page beats "DM us"; the flyer falls back to DM or the website when there's none
+    d.cta ??= d.whatsapp ? 'whatsapp' : d.phone ? 'call' : !d.instagram && !d.website ? 'visit' : undefined;
   }
   if (service === 'money-report' && !d.statements?.length) throw new Error('Upload your bank statement (PDF, CSV or screenshots).');
   if (service === 'ad-launch' && !d.adPlatforms?.length) d.adPlatforms = ['meta'];

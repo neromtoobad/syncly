@@ -99,3 +99,25 @@ async function getImage(url: string): Promise<Buffer | undefined> {
 function dryProfile(handle: string) {
   return { success: true, data: { user: { username: handle, full_name: 'Tolu’s Small Chops', biography: 'Party trays & small chops in Surulere, Lagos 🍢 Trays from ₦25,000 | WhatsApp 0803 555 0142 | Order a day ahead', category_name: 'Caterer', external_url: '', business_phone_number: '', profile_pic_url: '', edge_owner_to_timeline_media: { edges: [] } } } };
 }
+
+/**
+ * The order's details with the gaps filled from the business's own pages: logo, photos, brand colour, WhatsApp or
+ * phone, website, and a WhatsApp call to action when none was chosen. What the owner gave always stays. Skips the
+ * paid profile call when nothing is missing. Returns a copy (the order keeps what the owner wrote) and the page
+ * text (bio, category, prices, captions) for the writers.
+ */
+export async function withBrandKit<T extends { instagram?: string; website?: string; logo?: string; photos?: string[]; colour?: string; whatsapp?: string; phone?: string; cta?: string }>(job: Job, details: T | undefined, o: { photos?: number } = {}): Promise<{ d: T | undefined; text: string }> {
+  if (!details || (!details.instagram && !details.website)) return { d: details, text: '' };
+  const d = { ...details };
+  const wantPhotos = Math.max(0, (o.photos ?? 6) - (d.photos?.length ?? 0));
+  if (d.logo && !wantPhotos && d.colour && (d.whatsapp || d.phone)) return { d, text: '' };
+  const kit = await brandKit(job, { instagram: d.instagram, website: d.website, photos: wantPhotos });
+  if (!d.logo && kit.logo) d.logo = kit.logo;
+  if (kit.photos.length) d.photos = [...(d.photos ?? []), ...kit.photos].slice(0, o.photos ?? 6);
+  if (!d.colour && kit.colour) d.colour = kit.colour;
+  if (!d.whatsapp && !d.phone && (kit.whatsapp || kit.phone)) d.whatsapp = kit.whatsapp ?? kit.phone;
+  if (!d.website && kit.website) d.website = kit.website;
+  if (!d.cta && d.whatsapp) d.cta = 'whatsapp';
+  const text = [kit.bio && `Their Instagram bio: ${kit.bio}`, kit.category && `Category: ${kit.category}`, kit.prices.length && `Prices in their posts: ${kit.prices.join(', ')}`, kit.captions.length && `Their recent posts say:\n${kit.captions.slice(0, 8).map((c) => `- ${c.replace(/\s+/g, ' ')}`).join('\n')}`].filter(Boolean).join('\n');
+  return { d, text };
+}

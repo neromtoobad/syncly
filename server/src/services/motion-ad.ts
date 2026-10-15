@@ -19,7 +19,7 @@ import { MUSIC_LICENSE, pickTrack, trackAudio, trackFile, trackGrid, type Track 
 import { MAIL_BUDGET_USD, MAIL_HOST } from '../mail.ts';
 import type { BusinessDetails } from '../details.ts';
 import { readUpload } from '../uploads.ts';
-import { brandKit } from '../brandkit.ts';
+import { withBrandKit } from '../brandkit.ts';
 import { AISA } from '../sellers.ts';
 import { prepPhoto } from '../site/photos.ts';
 import { parseMenu } from '../site/facts.ts';
@@ -50,21 +50,9 @@ export const motionAd = {
         { business: brief.slice(0, 40), offer: brief, points: [], prices: [], cta: '', palette: '', format: 'vertical', seconds: 16, mood: 'warm' },
       );
       // The order form's values are exact: they override what was read from the brief.
-      // a copy: what the business's own pages fill in belongs to this job, not to the order the owner wrote
-      const d = opts.details ? { ...opts.details } : undefined;
-      // Their Instagram and website fill in what they didn't: logo, product photos, WhatsApp, brand colour, prices.
-      // Anything they uploaded or typed comes first.
-      let pageText = '';
-      if (d && (d.instagram || d.website)) {
-        const kit = await brandKit(job, { instagram: d.instagram, website: d.website, photos: Math.max(0, 6 - (d.photos?.length ?? 0)) });
-        if (!d.logo && kit.logo) d.logo = kit.logo;
-        if (kit.photos.length) d.photos = [...(d.photos ?? []), ...kit.photos].slice(0, 6);
-        if (!d.colour && kit.colour) d.colour = kit.colour;
-        if (!d.whatsapp && !d.phone && (kit.whatsapp || kit.phone)) d.whatsapp = kit.whatsapp ?? kit.phone;
-        if (!d.website && kit.website) d.website = kit.website;
-        if (!d.cta && d.whatsapp) d.cta = 'whatsapp';
-        pageText = [kit.bio && `Their Instagram bio: ${kit.bio}`, kit.category && `Category: ${kit.category}`, kit.prices.length && `Prices in their posts: ${kit.prices.join(', ')}`, kit.captions.length && `Their recent posts say:\n${kit.captions.slice(0, 8).map((c) => `- ${c.replace(/\s+/g, ' ')}`).join('\n')}`].filter(Boolean).join('\n');
-      }
+      // Their Instagram and website fill in what they didn't (logo, photos, WhatsApp, colour, prices); a copy, so the
+      // order keeps what the owner wrote, and what they gave always comes first
+      const { d, text: pageText } = await withBrandKit(job, opts.details);
       if (d) {
         spec.business = d.name;
         spec.offer = d.promote ? `${d.promote} (${d.offer})` : d.offer;

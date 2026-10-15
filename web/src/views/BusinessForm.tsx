@@ -135,7 +135,7 @@ export default function BusinessForm({ service, onSubmit, busy, email, setEmail,
   const ctaReady = d.cta === 'whatsapp' || d.cta === 'call' ? !!(d.whatsapp.trim() || d.phone.trim()) : d.cta === 'dm' ? !!d.instagram.trim() : d.cta === 'website' ? !!d.website.trim() : d.cta === 'visit' ? !!d.address.trim() : true;
   const valid: Record<StepId, boolean> = {
     business: !!(d.name.trim() && d.offer.trim() && (service !== 'get-found' || d.city.trim() || d.area.trim())),
-    contact: reach, links: true, offer: true, look: true, content: d.platforms.length > 0, ad: service === 'motion-ad' && !!(d.instagram.trim() || d.website.trim()) ? true : !!(d.promote.trim() && ctaReady), audit: true,
+    contact: reach, links: true, offer: true, look: true, content: d.platforms.length > 0, ad: ['motion-ad', 'ad-launch'].includes(service) && !!(d.instagram.trim() || d.website.trim()) ? !!(service === 'motion-ad' || d.promote.trim()) : !!(d.promote.trim() && ctaReady), audit: true,
     plan: d.adPlatforms.length > 0, shots: d.photos.length > 0, buy: !!(d.items.trim() && (d.deliverTo.trim() || d.city.trim() || d.area.trim())),
     flyer: (d.flyerKind === 'pricelist' ? !!d.menu.trim() : !!d.promote.trim()) && !!(d.whatsapp.trim() || d.phone.trim() || d.instagram.trim() || d.website.trim() || d.address.trim()),
     statement: d.statements.length > 0,
@@ -143,7 +143,7 @@ export default function BusinessForm({ service, onSubmit, busy, email, setEmail,
   const why: Partial<Record<StepId, string>> = {
     business: service === 'get-found' ? 'Add the business name, what you sell, and the area or city.' : 'Add the business name and what you sell.',
     contact: 'Add at least one way customers can reach you.', content: 'Pick at least one platform.',
-    ad: !d.promote.trim() ? (service === 'motion-ad' ? 'Add your Instagram or website, or say what the ad is for.' : 'Say what the ad is for.') : 'Add the contact detail for your call to action.',
+    ad: !d.promote.trim() ? (['motion-ad', 'ad-launch'].includes(service) && service === 'motion-ad' ? 'Add your Instagram or website, or say what the ad is for.' : 'Say what the ad is for.') : 'Add the contact detail for your call to action.',
     flyer: d.flyerKind === 'pricelist' && !d.menu.trim() ? 'Add your items and prices.' : !d.promote.trim() && d.flyerKind !== 'pricelist' ? 'Say what the flyer is for.' : 'Add how customers reach you.',
     statement: 'Upload your bank statement.',
     plan: 'Pick where the ads should run.', shots: 'Add at least one photo of the product.', buy: !d.items.trim() ? 'List what you want to buy.' : 'Add where it should be delivered.',
@@ -232,7 +232,7 @@ export default function BusinessForm({ service, onSubmit, busy, email, setEmail,
 
       {cur === 'links' && (
         <div className="form">
-          <div className="two-up">{text('instagram', 'Instagram', '@yourbusiness', 'We study what your posts get.')}{text('tiktok', 'TikTok', '@yourbusiness')}</div>
+          <div className="two-up">{text('instagram', 'Instagram', '@yourbusiness', 'We study what your posts get, and take your logo, photos and WhatsApp for the post designs.')}{text('tiktok', 'TikTok', '@yourbusiness')}</div>
           <div className="two-up">{text('website', 'Website', 'yourbusiness.com')}{text('whatsapp', 'WhatsApp number', '0803 555 0142', 'For the calls to action.', 'tel')}</div>
           <label className="field">Competitors to learn from <span className="hint">Optional: up to 3 Instagram handles of businesses you compete with.</span>
             <input type="text" value={d.competitors} onChange={(e) => set('competitors', e.target.value)} placeholder="@chopsbyada @lagosbites" />
@@ -291,9 +291,9 @@ export default function BusinessForm({ service, onSubmit, busy, email, setEmail,
 
       {cur === 'ad' && (
         <div className="form">
-          {service === 'motion-ad' && (
+          {['motion-ad', 'ad-launch'].includes(service) && (
             <>
-              <div className="note">Add your Instagram or website and we take your logo, best product photos, prices and WhatsApp number from it. Then everything below is optional.</div>
+              <div className="note">Add your Instagram or website and we take your logo, best product photos, prices and WhatsApp number from it.{service === 'motion-ad' ? ' Then everything below is optional.' : ' Then only what the ad is for is needed.'}</div>
               <div className="two-up">{text('instagram', 'Instagram', '@yourbusiness')}{text('website', 'Website', 'yourbusiness.com')}</div>
             </>
           )}
@@ -301,8 +301,8 @@ export default function BusinessForm({ service, onSubmit, busy, email, setEmail,
           {text('price', 'Price to show', '₦12,000', 'Optional. Shown exactly as you write it.')}
           <div className="field">What should people do? {pick('cta', CTAS)}</div>
           {(d.cta === 'whatsapp' || d.cta === 'call') && text('whatsapp', d.cta === 'call' ? 'Phone number' : 'WhatsApp number', '0812 345 6789', undefined, 'tel')}
-          {d.cta === 'dm' && service !== 'motion-ad' && text('instagram', 'Instagram', '@yourbusiness')}
-          {d.cta === 'website' && service !== 'motion-ad' && text('website', 'Website', 'yourbusiness.com')}
+          {d.cta === 'dm' && !['motion-ad', 'ad-launch'].includes(service) && text('instagram', 'Instagram', '@yourbusiness')}
+          {d.cta === 'website' && !['motion-ad', 'ad-launch'].includes(service) && text('website', 'Website', 'yourbusiness.com')}
           {d.cta === 'visit' && text('address', 'Address', '5 Admiralty Way, Lekki Phase 1')}
           {service === 'motion-ad' && <div className="field">Format {pick('format', [['vertical', 'Vertical · Reels, TikTok, Status'], ['square', 'Square · feed'], ['landscape', 'Landscape · X, YouTube, website']])}</div>}
           {service === 'motion-ad' && <div className="field">Length <div className="checks">{[12, 16, 20, 24].map((n) => <button type="button" key={n} className={`chip click${d.length === n ? ' on' : ''}`} onClick={() => set('length', n)}>{n} s</button>)}</div></div>}
@@ -386,6 +386,7 @@ export default function BusinessForm({ service, onSubmit, busy, email, setEmail,
             </>
           )}
           <div className="field">How should people respond? {pick('cta', CTAS)}</div>
+          <div className="note">Add your Instagram or website and we take your logo, product photos, colour and WhatsApp number from it, so you can skip those below.</div>
           <div className="two-up">{text('whatsapp', 'WhatsApp number', '0803 555 0142', undefined, 'tel')}{text('instagram', 'Instagram', '@yourbusiness')}</div>
           <div className="two-up">{text('address', 'Address', '14 Adelabu Street, Surulere', 'Optional, shown at the bottom.')}{text('website', 'Website', 'yourbusiness.com', 'Optional.')}</div>
           {photosField('Optional, up to 3: your product, food or shop. Product photos on a plain background look best.', 3)}

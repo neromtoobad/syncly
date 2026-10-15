@@ -4,6 +4,8 @@
 // every line → headless Chrome renders each size → Auditor looks at every design with a vision model; the copy is
 // revised once if anything is wrong → the PNGs, an A4 PDF, and a zip.
 import { Job } from '../job.ts';
+import { withBrandKit } from '../brandkit.ts';
+import { AISA } from '../sellers.ts';
 import { MODELS } from '../config.ts';
 import { HOSTS, llm, parseJson, type Msg } from '../tools.ts';
 import { MAIL_BUDGET_USD, MAIL_HOST } from '../mail.ts';
@@ -22,13 +24,15 @@ export const flyers = {
   id: 'flyers',
   name: 'Flyers & Price Lists',
   priceUsd: 1,
-  policy: { budgetUsd: 0.4 + MAIL_BUDGET_USD, allowHosts: [HOSTS.blockrun, ...(MAIL_HOST ? [MAIL_HOST] : [])] },
+  policy: { budgetUsd: 0.55 + MAIL_BUDGET_USD, allowHosts: [HOSTS.blockrun, AISA, ...(MAIL_HOST ? [MAIL_HOST] : [])] },
 
   async run(brief: string, opts: { orderId?: string; details?: BusinessDetails } = {}): Promise<Job> {
     const job = new Job(this.id, brief, this.policy, opts.orderId);
     try {
-      const d = opts.details;
-      if (!d) throw new Error('This service needs the order form.');
+      if (!opts.details) throw new Error('This service needs the order form.');
+      // their Instagram or website fills in the logo, photos, colour and WhatsApp they didn't give
+      const { d: filled, text: pageText } = await withBrandKit(job, opts.details, { photos: 3 });
+      const d = filled!;
       const kind: FlyerKind = d.flyerKind ?? (d.menu ? 'pricelist' : 'promo');
       const items = kind === 'pricelist' ? parseMenu(d.menu).map((m) => ({ name: m.name, price: m.price, group: m.category })) : [];
       if (kind === 'pricelist' && !items.length) throw new Error('The price list is empty: add your items and prices, one per line.');
@@ -48,7 +52,7 @@ export const flyers = {
       // 1. The copy
       const SYS = `You write the words for a ${kind === 'pricelist' ? 'price list / menu' : kind === 'announcement' ? 'announcement flyer' : 'promo flyer'} for ${d.name} (${d.offer}${d.city ? `, ${d.city}` : ''}). Use ONLY facts given; never invent prices, discounts, dates or claims. Short, punchy, plain English a Nigerian customer would say. Reply JSON only:
 {"headline": ${kind === 'announcement' ? 'the news in 2-6 words, e.g. "We\'ve moved!", "Open this Sunday"' : 'the offer in 2-6 words'} (max 34 characters), "sub": one line of supporting detail (max 70), ${kind === 'promo' ? '"badge": the price or deal exactly as given, else "" (max 14), "points": [up to 3 reasons to buy from the facts, max 30 each],' : ''}${kind === 'pricelist' ? '"title": e.g. "Price list", "Our menu", "Party trays" (max 24), "note": one short line like how to order or delivery info, only from the facts, else "",' : ''}${kind === 'announcement' ? '"date": the date or time exactly as given, else "", "points": [up to 3 details, max 30 each],' : ''} }`;
-      const facts = [`Business: ${d.name}`, `Sells: ${d.offer}`, d.promote && `${kind === 'announcement' ? 'Announcement' : 'Promote'}: ${d.promote}`, d.price && `Price/deal: ${d.price}`, d.menu && kind !== 'pricelist' && `Prices: ${d.menu}`, kind === 'pricelist' && `Items: ${items.length}${items.some((x) => x.group) ? ` in groups: ${[...new Set(items.map((x) => x.group).filter(Boolean))].join(', ')}` : ''}`, d.notes && `Notes: ${d.notes}`, `Call to action (shown on a button): ${cta}`].filter(Boolean).join('\n');
+      const facts = [`Business: ${d.name}`, `Sells: ${d.offer}`, d.promote && `${kind === 'announcement' ? 'Announcement' : 'Promote'}: ${d.promote}`, d.price && `Price/deal: ${d.price}`, d.menu && kind !== 'pricelist' && `Prices: ${d.menu}`, kind === 'pricelist' && `Items: ${items.length}${items.some((x) => x.group) ? ` in groups: ${[...new Set(items.map((x) => x.group).filter(Boolean))].join(', ')}` : ''}`, d.notes && `Notes: ${d.notes}`, pageText && `From their own pages (use only facts stated here):\n${pageText}`, `Call to action (shown on a button): ${cta}`].filter(Boolean).join('\n');
       const write = (msgs: Msg[]) => llm(job, 'writer', msgs, 'write the flyer copy', { model: MODELS.maker, maxTokens: 600, json: true, maxUsd: 0.04,
         dry: () => JSON.stringify({ headline: kind === 'announcement' ? "We've moved!" : kind === 'pricelist' ? 'Price list' : `${d.promote ?? d.offer}`.slice(0, 30), sub: d.offer, badge: d.price ?? '', points: ['Fresh every day', 'Delivered across the city'], title: 'Price list', note: 'Order a day ahead', date: '' }) });
       const clean = (c: any): FlyerCopy => ({ headline: cap(c?.headline || d.promote || d.name, 34), sub: cap(c?.sub, 70) || undefined, badge: kind === 'promo' ? cap(c?.badge || d.price, 14) || undefined : undefined, points: (Array.isArray(c?.points) ? c.points : []).map((p: unknown) => cap(p, 30)).filter(Boolean).slice(0, 3), title: cap(c?.title, 24) || undefined, note: cap(c?.note, 80) || undefined, date: cap(c?.date, 30) || undefined });

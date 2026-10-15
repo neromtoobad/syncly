@@ -9,6 +9,7 @@
 // is computed in code from their budget → QA: code checks every number in the copy against the order; an
 // auditor on another model family checks for invented claims; a vision model looks at every creative.
 import { Job } from '../job.ts';
+import { withBrandKit } from '../brandkit.ts';
 import { MODELS } from '../config.ts';
 import { HOSTS, llm, parseJson } from '../tools.ts';
 import { AISA, aisa } from '../sellers.ts';
@@ -123,7 +124,8 @@ export const adLaunch = {
         { role: 'user', content: brief },
       ], 'parse the ad brief', { model: MODELS.fast, maxTokens: 500, json: true,
         dry: () => JSON.stringify({ business: 'Tolu’s Small Chops', product: 'party trays of small chops', offer: 'Trays for 20 guests, delivered hot', price: '₦25,000', cta: 'Order on WhatsApp 0803 555 0142', niche: 'small chops catering', location: 'Surulere, Lagos', city: 'Lagos', audience: 'Lagos party hosts, office admins and brides, 25–45 (guess)', mood: 'warm and appetising', scene: 'a festive party table at golden hour', instagram: '@tolussmallchops', website: null, whatsapp: '0803 555 0142', goal: 'messages', budget: '₦5,000 a day' }) }), {});
-      const d = opts.details;
+      // their Instagram or website fills in the logo, photos, colour and WhatsApp they didn't give
+      const { d, text: pageText } = await withBrandKit(job, opts.details, { photos: 3 });
       const goals: Goal[] = ['messages', 'sales', 'calls', 'visits', 'followers'];
       const spec: Spec = {
         business: d?.name ?? p.business ?? brief.slice(0, 40), product: d?.promote ?? p.product ?? d?.offer ?? brief.slice(0, 80), offer: d?.offer ?? p.offer ?? '',
@@ -176,7 +178,7 @@ export const adLaunch = {
       // 3. Three angles, each backed by ads that kept running
       const table = ads.map((a) => `[${a.n}] ${a.brand} · ${a.platform} ${a.format}${a.days ? ` · running ${a.days} days` : ''}${a.cta ? ` · button: ${a.cta}` : ''}\n    "${a.text.slice(0, 220)}"`).join('\n');
       job.log('analyst', 'angles', ads.length ? `3 angles from ${ads.length} long-running ads` : 'no long-running ads in the library for this niche; 3 angles from the offer');
-      const facts = [`Business: ${spec.business}`, `Sells: ${spec.offer}`, `Advertise: ${spec.product}`, spec.price && `Price: ${spec.price}`, `Call to action: ${spec.cta}`, spec.location && `Where: ${spec.location}`, spec.audience && `Who buys: ${spec.audience}`, d?.notes && `Owner's notes: ${d.notes}`].filter(Boolean).join('\n');
+      const facts = [`Business: ${spec.business}`, `Sells: ${spec.offer}`, `Advertise: ${spec.product}`, spec.price && `Price: ${spec.price}`, `Call to action: ${spec.cta}`, spec.location && `Where: ${spec.location}`, spec.audience && `Who buys: ${spec.audience}`, d?.notes && `Owner's notes: ${d.notes}`].filter(Boolean).join('\n') + (pageText ? `\nFrom their own pages (facts you may use):\n${pageText}` : '');
       const planned = parseJson<{ angles: Angle[] }>(await llm(job, 'analyst', [
         { role: 'system', content: `You plan paid social ads for a small business. Give exactly 3 different angles (different reasons to buy, not 3 versions of one line). ${ads.length ? 'Base each on the numbered ads that have kept running (an ad that runs for months is one that pays) and cite them as numbers.' : 'There are no example ads; base them on the offer.'} Use only facts given; never invent discounts, awards, reviews or numbers. Reply JSON only: {"angles":[{"name": 2-4 words, "idea": one sentence on why it sells, "hook": the first line a viewer reads, max 8 words, "scene": a one-line setting for the product photo that fits this angle, "cites": [ad numbers]}]}` },
         { role: 'user', content: `${facts}\n\n${table || '(no example ads)'}` },
@@ -199,7 +201,7 @@ export const adLaunch = {
           { overlay: 'They land hot.', primary: ['Small chops that are still hot when your guests arrive. Order on WhatsApp 0803 555 0142.', 'No cold puff-puff at your party. Order your tray on WhatsApp 0803 555 0142.'], headline: ['Delivered hot', 'Hot small chops, your party'], tiktok: 'POV: the small chops are still hot when guests arrive. Order on WhatsApp.' },
           { overlay: 'Everyone reaches first.', primary: ['The tray your guests finish before the cake comes out. Order on WhatsApp 0803 555 0142.', 'Make your tray the first thing gone. Party trays from Tolu’s Small Chops. Order on WhatsApp 0803 555 0142.'], headline: ['The tray that goes first', 'Party trays in Lagos'], tiktok: 'The tray that goes first at every owambe. Order on WhatsApp.' },
         ] }) }), { copy: [] });
-      const sources = [brief, facts, spec.cta, d?.notes ?? ''].join('\n');
+      const sources = [brief, facts, spec.cta, d?.notes ?? '', pageText].join('\n');
       const allowed = new Set(digits(sources));
       const unsourced = (s: string) => digits(s).filter((x) => !allowed.has(x) && ![...allowed].some((a) => a.includes(x) && x.length >= 3));
       const issues: string[] = [];
