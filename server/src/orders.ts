@@ -187,8 +187,16 @@ export function createQuote(input: { service: string; brief: string; email: stri
 
 /** On the house: the owner gives a customer a free redo of one of their orders. Same service, brief, details,
  *  uploads and email; run free, so the result is the customer's straight away. */
-export function redoOnTheHouse(from: Order): Order {
-  const o = createQuote({ service: from.service, brief: from.brief, email: from.email, details: from.details as BusinessDetails | undefined });
+export function redoOnTheHouse(from: Order, fix: { name?: string; instagram?: string; website?: string } = {}): Order {
+  // the owner can correct what the customer mistyped (a business name, an Instagram handle, a website that doesn't exist)
+  const details = from.details ? { ...(from.details as BusinessDetails) } : undefined;
+  let brief = from.brief;
+  if (details) {
+    if (fix.name?.trim()) { if (details.name) brief = brief.split(details.name).join(fix.name.trim()); details.name = fix.name.trim(); }
+    if (fix.instagram !== undefined) details.instagram = fix.instagram.replace(/^@/, '').trim() || undefined;
+    if (fix.website !== undefined) details.website = fix.website.trim() || undefined;
+  }
+  const o = createQuote({ service: from.service, brief, email: from.email, details });
   if (o.status !== 'quoted') throw new Error("The CFO can't take it right now: the team isn't funded for this service.");
   o.quote = { ...o.quote, promo: true, reasons: [...o.quote.reasons, `On the house: a free redo of ${from.id}, given by the owner`] };
   saveOrder(o);

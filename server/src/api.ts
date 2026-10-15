@@ -296,7 +296,9 @@ app.post('/api/orders/:id/redo', async (c) => {
   const o = getOrder(c.req.param('id'));
   if (!o) return c.json({ error: 'No order with that ID.' }, 404);
   if (!DRY && !hasSeed()) return c.json({ error: 'The team is still clocking in. Try again in a few minutes.' }, 503);
-  try { const n = redoOnTheHouse(o); return c.json(shown(c, view(n.id, c))); } catch (e: any) { return c.json({ error: e.message }, 400); }
+  const { fix } = await c.req.json().catch(() => ({}));
+  const str = (v: unknown, n: number) => (typeof v === 'string' ? v.slice(0, n) : undefined);
+  try { const n = redoOnTheHouse(o, { name: str(fix?.name, 80), instagram: str(fix?.instagram, 40), website: str(fix?.website, 200) }); return c.json(shown(c, view(n.id, c))); } catch (e: any) { return c.json({ error: e.message }, 400); }
 });
 
 app.post('/api/orders/:id/retry', async (c) => {
