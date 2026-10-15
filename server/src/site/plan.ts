@@ -155,6 +155,17 @@ export function validatePlan(raw: any, facts: Facts, photos: { id: string; kind:
   }
   if (!plan.sections.some((s) => s.kind === 'offer') && facts.items.length) plan.sections.unshift({ kind: 'offer', variant: facts.items.some((i) => i.price) ? 'menu' : 'cards', title: 'What we offer', items: facts.items.slice(0, 8).map((x) => ({ id: x.id })) });
   if (!plan.sections.some((s) => s.kind === 'cta')) plan.sections.push({ kind: 'cta', variant: 'band', headline: 'Ready when you are', action: canChat ? 'whatsapp' : 'call' });
+  // messages the owner pasted from their customers always make it on: up to two beside the Google reviews, or a
+  // section of their own before the questions and the call to action
+  const msgs = facts.reviews.filter((r) => r.source === 'message').map((r) => r.id);
+  if (msgs.length) {
+    const rs = plan.sections.find((s) => s.kind === 'reviews') as Extract<Section, { kind: 'reviews' }> | undefined;
+    if (rs && !rs.ids.some((id) => msgs.includes(id))) { const take = Math.min(2, msgs.length); rs.ids = [...rs.ids.slice(0, Math.max(1, 3 - take)), ...msgs.slice(0, take)]; }
+    else if (!rs) {
+      const at = plan.sections.findIndex((s) => s.kind === 'faq' || s.kind === 'cta' || s.kind === 'location');
+      plan.sections.splice(at < 0 ? plan.sections.length : at, 0, { kind: 'reviews', variant: 'quotes', title: 'What customers say', ids: msgs.slice(0, 3) });
+    }
+  }
   return { plan, notes };
 }
 

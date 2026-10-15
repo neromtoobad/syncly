@@ -9,7 +9,7 @@ export type Details = {
   whatsapp: string; phone: string; email: string; address: string; maps: string;
   instagram: string; tiktok: string; facebook: string; website: string;
   links: string; bankName: string; bankNumber: string; bankAccountName: string;
-  menu: string; story: string; style: string; colour: string; sections: string[]; notes: string;
+  menu: string; story: string; testimonials: string; style: string; colour: string; sections: string[]; notes: string;
   logo?: string; photos: string[];
   platforms: string[]; goal: string; competitors: string; tone: string;
   promote: string; price: string; cta: string; format: string; length: number; questions: string; searches: string;
@@ -32,7 +32,7 @@ const THEMES: { id: string; name: string; mood: string; font: string; bg: string
 ];
 const SECTIONS: [string, string][] = [['offer', 'Menu / prices'], ['gallery', 'Photo gallery'], ['reviews', 'Google reviews'], ['about', 'About us'], ['steps', 'How to order or book'], ['location', 'Map & opening hours'], ['faq', 'Questions & answers']];
 const SWATCHES = ['#C0392B', '#D4380D', '#E67E22', '#D4A017', '#2E7D32', '#0F766E', '#1D4ED8', '#6D28D9', '#BE185D', '#111827'];
-const EMPTY: Details = { name: '', kind: 'food', offer: '', area: '', city: 'Lagos', whatsapp: '', phone: '', email: '', address: '', maps: '', instagram: '', tiktok: '', facebook: '', website: '', links: '', bankName: '', bankNumber: '', bankAccountName: '', menu: '', story: '', style: 'auto', colour: '', sections: SECTIONS.map(([k]) => k), notes: '', photos: [], platforms: ['instagram', 'tiktok'], goal: '', competitors: '', tone: '', promote: '', price: '', cta: 'whatsapp', format: 'vertical', length: 16, questions: '', searches: '', adGoal: 'messages', adBudget: '', adPlatforms: ['meta'], audience: '', adResults: [], product: '', uses: ['instagram', 'whatsapp'], look: 'clean', items: '', deliverTo: '', budget: '', condition: 'new', sellers: '' , flyerKind: 'promo', statements: [] , research: '' };
+const EMPTY: Details = { name: '', kind: 'food', offer: '', area: '', city: 'Lagos', whatsapp: '', phone: '', email: '', address: '', maps: '', instagram: '', tiktok: '', facebook: '', website: '', links: '', bankName: '', bankNumber: '', bankAccountName: '', menu: '', story: '', testimonials: '', style: 'auto', colour: '', sections: SECTIONS.map(([k]) => k), notes: '', photos: [], platforms: ['instagram', 'tiktok'], goal: '', competitors: '', tone: '', promote: '', price: '', cta: 'whatsapp', format: 'vertical', length: 16, questions: '', searches: '', adGoal: 'messages', adBudget: '', adPlatforms: ['meta'], audience: '', adResults: [], product: '', uses: ['instagram', 'whatsapp'], look: 'clean', items: '', deliverTo: '', budget: '', condition: 'new', sellers: '' , flyerKind: 'promo', statements: [] , research: '' };
 const PLATFORMS: [string, string][] = [['instagram', 'Instagram'], ['tiktok', 'TikTok'], ['whatsapp-status', 'WhatsApp Status'], ['facebook', 'Facebook'], ['x', 'X'], ['linkedin', 'LinkedIn']];
 const GOALS = ['More orders this month', 'More bookings', 'More followers who buy', 'Launch a new product', 'Fill quiet weekdays'];
 const TONES = ['Warm and friendly', 'Playful, Lagos street', 'Premium and calm', 'Bold and loud', 'Expert and trustworthy'];
@@ -247,6 +247,9 @@ export default function BusinessForm({ service, onSubmit, busy, email, setEmail,
           </label>
           <label className="field">Your story <span className="hint">Optional. A few lines in your own words: how you started, what you’re known for.</span>
             <textarea style={{ minHeight: 90 }} value={d.story} onChange={(e) => set('story', e.target.value)} />
+          </label>
+          <label className="field">What customers have said <span className="hint">Optional. Paste kind messages customers sent you on WhatsApp or Instagram, one per line, their first name after a dash. Shown on your site word for word.</span>
+            <textarea style={{ minHeight: 90 }} value={d.testimonials} onChange={(e) => set('testimonials', e.target.value)} placeholder={'The small chops were still hot when they arrived! – Ada\nBest jollof in Yaba, my guests asked for your number – Tunde'} />
           </label>
           {photosField('Up to 10. Your real food, work, shop or team; we never use flyers as photos. If you skip this, we use your Instagram.')}
           {logoField('Optional. It goes in the header and sets the colours.')}

@@ -17,7 +17,7 @@ import { download, ffmpeg, image } from '../media.ts';
 import { htmlToPng, screenshots } from '../browser.ts';
 import { zip } from '../zip.ts';
 import { MAIL_BUDGET_USD, MAIL_HOST, PUBLIC_URL } from '../mail.ts';
-import { norm, parseHours, parseMenu, type Facts, type Item, type Kind, type Photo, type Review } from '../site/facts.ts';
+import { norm, parseHours, parseMenu, parseTestimonials, type Facts, type Item, type Kind, type Photo, type Review } from '../site/facts.ts';
 import { prepPhoto } from '../site/photos.ts';
 import { brandCandidates } from '../site/color.ts';
 import { matchItemPhotos, CATALOGUE, LIMITS, RECIPES, defaultPlan, validatePlan, type Plan } from '../site/plan.ts';
@@ -96,6 +96,9 @@ export const website = {
           }
         } catch (e: any) { job.log('scout', 'skip', `reviews unavailable (${String(e?.message ?? e).slice(0, 50)})`); }
       }
+      // messages their customers sent them, pasted by the owner: proof for the many businesses with no Google reviews
+      for (const t of parseTestimonials(d?.testimonials)) reviews.push({ id: `m${reviews.length + 1}`, text: t.text, who: t.who, rating: 0, source: 'message' });
+      if (d?.testimonials && reviews.some((r) => r.source === 'message')) job.log('reader', 'testimonials', `${reviews.filter((r) => r.source === 'message').length} customer messages from the owner`);
 
       // 3. Their own words and photos
       if (spec.website) {
@@ -233,7 +236,7 @@ Reply with JSON only: {"theme","brand","title","description","hero":{"variant","
         name: facts.name, kind: facts.kind, category: facts.category, offer: facts.offer, area: facts.area, city: facts.city, address: facts.address, landmark: facts.landmark,
         hasPhone: !!(facts.phone ?? facts.whatsapp), hours: facts.hoursText, rating: facts.rating, ratingCount: facts.ratingCount, delivery: facts.delivery, payments: facts.payments,
         items: items.map((i) => ({ id: i.id, name: i.name, price: i.price ?? null, note: i.note ?? null, category: i.category ?? null })),
-        reviews: reviews.map((r) => ({ id: r.id, text: r.text, rating: r.rating })),
+        reviews: reviews.map((r) => ({ id: r.id, text: r.text, ...(r.source === 'message' ? { from: 'a message a customer sent them' } : { rating: r.rating }) })),
       };
       const prefs = d ? [d.style && d.style !== 'auto' ? `Theme: the owner chose "${d.style}"; use it.` : '', d.colour ? `Brand colour: the owner chose ${d.colour}; use it.` : '', d.sections?.length ? `Sections: the owner wants ${d.sections.join(', ')} (plus strip and cta). Include each one the facts can support and no others.` : '', d.notes ? `Owner's notes: ${d.notes}` : '', d.story ? `About the business, in the owner's words: ${d.story}` : ''].filter(Boolean).join('\n') : '';
       const user = `${prefs ? `The owner's preferences (follow them):\n${prefs}\n\n` : ''}Facts:\n${JSON.stringify(factsForModel, null, 1)}\n\nPhotos:\n${usable.map((p) => `- ${p.id}: ${p.kind}, ${p.subject}, quality ${p.quality}, ${p.w}x${p.h}`).join('\n') || '(none usable: use the "type" hero and no gallery)'}\n\nBrand colour candidates (from their photos): ${candidates.join(', ') || 'none'}\n${spec.look ? `\nThe owner asked for: ${spec.look}` : ''}\nOwner's brief: ${brief}\n\nSource text, for tone and details:\n${sourceText.slice(0, 5000)}`;
@@ -335,7 +338,7 @@ Reply with JSON only: {"theme","brand","title","description","hero":{"variant","
         `- **Look:** the ${theme.id} theme (${theme.mood.split(':')[0]}), in a colour taken from your own photos`,
         `- **Sections:** ${['hero', ...plan.sections.map((s) => s.kind)].join(' → ')}`,
         `- **WhatsApp everywhere:** a button on the first screen, a contact bar fixed to the bottom of every phone screen${facts.address ? ', directions to your address' : ''}${facts.hours ? ', and a live "open now" from your Google hours' : ''}`,
-        `- **${items.length} items${items.some((i) => i.price) ? ` with ${items.filter((i) => i.price).length} published prices` : ''}**, ${reviews.length ? `${reviews.length} real Google reviews quoted word for word` : 'no testimonials (we only show real reviews)'}, and ${used.size} of your own photos`,
+        `- **${items.length} items${items.some((i) => i.price) ? ` with ${items.filter((i) => i.price).length} published prices` : ''}**, ${reviews.length ? [reviews.filter((r) => r.source !== 'message').length && `${reviews.filter((r) => r.source !== 'message').length} real Google reviews`, reviews.filter((r) => r.source === 'message').length && `${reviews.filter((r) => r.source === 'message').length} of your customers' messages`].filter(Boolean).join(' and ') + ' quoted word for word' : 'no testimonials (we only show real reviews; paste messages from happy customers in a revision and we add them)'}, and ${used.size} of your own photos`,
         `- **Found on Google and by AI assistants:** your business details marked up for search, plus an \`llms.txt\` summary`,
         posters ? `- **A QR poster for your shop:** \`qr-poster.pdf\` prints on A4 for your wall or counter, and \`qr-status.png\` is sized for your WhatsApp Status. Every scan is counted in your site editor, where you can make more (counter cards, WhatsApp, Chowdeck, Google review or pay-by-transfer codes)` : '',
         Object.keys(links).length || facts.bank ? `- **Where you already sell:** ${[...Object.keys(links).map((k) => k[0].toUpperCase() + k.slice(1)), ...(facts.bank ? ['pay-by-transfer details with a copy button'] : [])].join(', ')}${chow?.items.length ? ` (your Chowdeck menu and prices were read straight from your store)` : ''}` : '',

@@ -28,6 +28,7 @@ export type BusinessDetails = {
   bank?: Bank; // "pay by transfer" details for the site
   menu?: string; // "one per line: item – price"
   story?: string;
+  testimonials?: string; // messages from happy customers, one per line, "text – name"
   style?: string; // a theme id, or "auto"
   colour?: string; // #rrggbb, or empty to take it from their photos
   sections?: string[];
@@ -84,7 +85,7 @@ const url = (v: unknown) => {
 const handle = (v: unknown) => { const t = s(v, 120); if (!t) return undefined; const h = t.replace(/^https?:\/\/(www\.)?(instagram|tiktok|facebook)\.com\/@?/i, '').replace(/^@/, '').replace(/[/?#].*$/, ''); return /^[\w.]{1,60}$/.test(h) ? h : undefined; };
 
 const RELEVANT: Record<string, (keyof BusinessDetails)[]> = {
-  website: ['whatsapp', 'phone', 'email', 'address', 'maps', 'instagram', 'tiktok', 'facebook', 'website', 'links', 'bank', 'menu', 'story', 'style', 'colour', 'sections', 'notes', 'logo', 'photos'],
+  website: ['whatsapp', 'phone', 'email', 'address', 'maps', 'instagram', 'tiktok', 'facebook', 'website', 'links', 'bank', 'menu', 'story', 'testimonials', 'style', 'colour', 'sections', 'notes', 'logo', 'photos'],
   'content-pack': ['whatsapp', 'instagram', 'tiktok', 'website', 'competitors', 'platforms', 'goal', 'tone', 'colour', 'notes', 'photos', 'logo', 'price'],
   'motion-ad': ['promote', 'price', 'cta', 'whatsapp', 'phone', 'instagram', 'website', 'address', 'format', 'length', 'colour', 'notes', 'logo', 'photos'],
   'video-ad': ['promote', 'price', 'cta', 'whatsapp', 'phone', 'instagram', 'website', 'address', 'colour', 'notes', 'logo', 'photos'],
@@ -120,7 +121,7 @@ export function cleanDetails(raw: any, service = 'website'): BusinessDetails {
     whatsapp: s(raw?.whatsapp, 30), phone: s(raw?.phone, 30), email: s(raw?.email, 120), address: s(raw?.address, 200),
     instagram: handle(raw?.instagram), tiktok: handle(raw?.tiktok), facebook: handle(raw?.facebook), maps: url(raw?.maps), website: url(raw?.website),
     links: linkList(raw?.links), bank: sanitizeBank(raw?.bank ?? { bank: raw?.bankName, accountNumber: raw?.bankNumber, accountName: raw?.bankAccountName }),
-    menu: multiline(raw?.menu, 2500), story: multiline(raw?.story, 800), style, colour, sections, notes: multiline(raw?.notes, 600),
+    menu: multiline(raw?.menu, 2500), story: multiline(raw?.story, 800), testimonials: multiline(raw?.testimonials, 2000), style, colour, sections, notes: multiline(raw?.notes, 600),
     logo: typeof raw?.logo === 'string' && uploadExists(raw.logo) ? raw.logo : undefined, photos,
     platforms: Array.isArray(raw?.platforms) ? raw.platforms.filter((x: unknown) => (PLATFORM_CHOICES as readonly string[]).includes(x as string)) : undefined,
     goal: s(raw?.goal, 160), tone: s(raw?.tone, 120),

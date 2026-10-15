@@ -5,7 +5,17 @@
 export type Kind = 'food' | 'beauty' | 'creative' | 'health' | 'retail' | 'professional' | 'events' | 'other';
 
 export type Item = { id: string; name: string; price?: string; note?: string; category?: string; source: string };
-export type Review = { id: string; text: string; who: string; rating: number };
+/** A Google review, or a message a customer sent the owner (pasted by the owner, shown word for word, no stars). */
+export type Review = { id: string; text: string; who: string; rating: number; source?: 'google' | 'message' };
+
+/** Customer messages the owner pasted, one per line, the name after a dash: "Best jollof in Yaba! – Tunde". */
+export function parseTestimonials(raw?: string): { text: string; who: string }[] {
+  return String(raw ?? '').split(/\n+/).map((l) => l.trim().replace(/^[-•*\d.)\s]+/, '').trim()).filter((l) => l.length >= 12).slice(0, 6).map((l) => {
+    const m = l.match(/^(.*\S)\s+[–—-]\s*([^–—-]{1,30})$/);
+    const text = (m ? m[1] : l).replace(/^["“”']+|["“”']+$/g, '').trim();
+    return { text: text.slice(0, 260), who: m ? m[2].trim() : 'A customer' };
+  });
+}
 export type Photo = {
   id: string; file: string; w: number; h: number;
   kind: 'food' | 'people' | 'premises' | 'product' | 'work' | 'flyer' | 'logo' | 'other';
