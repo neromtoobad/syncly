@@ -89,7 +89,7 @@ export const CATALOG = [
   {
     id: 'product-photos', name: 'Product Photos', dept: 'Marketing', live: true, priceUsd: 1, listedCostUsd: 1.1, etaMin: 3,
     tagline: 'Your phone photos turned into about 8 professional product shots, sized for Instagram, WhatsApp and online stores.',
-    youGet: ['About 8 shots from your own 1–3 photos, at exact sizes for Instagram, WhatsApp Status, Jumia, Jiji and Konga, and your website', 'Your product kept as it is: the label words, colours and shape are written down first, and every shot is held to them', 'Every shot checked beside your photo by a separate AI; one that changes your product is remade once, then left out', 'A before-and-after sheet, plus copies of your social shots with your own logo in the corner', 'All photos in one zip, with where to post each one'],
+    youGet: ['About 8 shots from your own 1–3 photos, each in a different setting Nigerian buyers know, at exact sizes for Instagram, WhatsApp Status, Jumia, Jiji and Konga, and your website', 'Ready-to-sell copies with your price and WhatsApp number on them', 'Your product kept as it is: the label words, colours and shape are written down first, and every shot is held to them', 'Every shot checked beside your photo by a separate AI; one that changes your product is remade once, then left out', 'A before-and-after sheet, plus copies of your social shots with your own logo in the corner', 'All photos in one zip, with where to post each one'],
     team: ['analyst', 'illustrator', 'auditor', 'messenger'],
     example: 'Product photos of Adunni Naturals’ 250 g whipped shea body butter jar for Instagram, WhatsApp and Jumia, clean look',
   },

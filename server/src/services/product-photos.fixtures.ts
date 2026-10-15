@@ -41,6 +41,8 @@ export const slots = (): Slots => ({
   backdrop: 'warm off-white plaster',
   setting: 'on a bathroom shelf beside a folded white towel',
   setting2: 'on a dressing table in soft morning light',
+  setting3: 'on a sunlit windowsill with palm leaf shadows',
+  surface2: 'a folded ankara cloth',
   props: ['a sprig of eucalyptus', 'raw shea nuts in a small wooden bowl'],
 });
 

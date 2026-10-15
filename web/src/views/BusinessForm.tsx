@@ -335,6 +335,8 @@ export default function BusinessForm({ service, onSubmit, busy, email, setEmail,
           {text('product', 'What is in the photos?', 'Shea butter body cream, 250 ml jar', 'So the team knows exactly what must not change.')}
           <div className="field">Where you'll use them {chips('uses', USES)}</div>
           <div className="field">The look {pick('look', LOOKS)}</div>
+          <div className="two-up">{text('price', 'Price', '₦12,000', 'Optional.')}{text('whatsapp', 'WhatsApp number', '0803 555 0142', 'Optional.')}</div>
+          <p className="hint">Add either and we also send ready-to-sell copies with them on the photos, typed exactly as you write them.</p>
           {colourField('No preference')}
           {notes('Optional: a setting you like, props to use, anything to avoid.')}
         </div>

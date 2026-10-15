@@ -24,14 +24,17 @@ import type { Role } from '../wallets.ts';
 import { readUpload } from '../uploads.ts';
 import { brandCandidates, fromHex, palette, rgbToOklch } from '../site/color.ts';
 import * as fx from './product-photos.fixtures.ts';
+import { e164, prettyPhone } from '../site/facts.ts';
+import { lum, money } from '../flyer.ts';
 
 type Use = 'instagram' | 'whatsapp' | 'marketplace' | 'website';
 type Look = 'clean' | 'lifestyle' | 'bold';
 type Format = 'white' | 'square' | 'portrait' | 'story' | 'wide';
-type Scene = 'white' | 'catalogue' | 'A' | 'B' | 'C';
+type Scene = 'white' | 'catalogue' | 'A' | 'B' | 'C' | 'D' | 'E';
+const SCENES = ['A', 'B', 'C', 'D', 'E'] as const;
 type YesNo = 'yes' | 'no';
 export type Fingerprint = { product: string; count: number; text: string[]; colours: string[]; shape: string; material: string; angle: string; category: string; sharp: YesNo; whole: YesNo; single: YesNo; big: YesNo; lit: YesNo; notes: string };
-export type Slots = { surface: string; backdrop: string; setting: string; setting2: string; props: string[] };
+export type Slots = { surface: string; backdrop: string; setting: string; setting2: string; setting3?: string; surface2?: string; props: string[] };
 export type Answers = { same_product: string; text_same: string; colours_same: string; shape_same: string; whole: string; added_marks: string; distorted: string; scene_ok: string; notes: string };
 type Photo = { n: number; src: Buffer; small: Buffer; fp?: Fingerprint; why?: string };
 type Shot = { n: number; use: Use; format: Format; scene: Scene; photo: Photo; tries: number; ok?: boolean; out?: Buffer; error?: boolean; firstError?: boolean; fails: string[]; first: string[]; notes: string[] };
@@ -84,19 +87,25 @@ function scene(s: Shot, look: Look, sl: Slots, c: Colours): { text: string; chec
       A: `Soft studio scene: the product standing on ${sl.surface}, in front of a seamless ${sl.backdrop} backdrop. Large soft window light from the left, a gentle shadow, calm and minimal.`,
       B: `Minimal studio scene: the product on ${sl.surface}${sl.props[0] ? `, with ${sl.props[0]} to one side, well clear of it` : ''}. Soft daylight casting gentle window shadows across a ${sl.backdrop} backdrop.`,
       C: `The product on a simple round plinth in a soft ${c.tintName} (close to ${c.tint}), with a matching seamless backdrop, soft light from above and a gentle shadow.`,
+      D: `The product on ${sl.surface} against a warm ${sl.backdrop} wall, with the soft shadow of palm fronds falling across the wall from a sunny window. Calm and minimal.`,
+      E: `Top-down flat lay: the product lying on ${sl.surface2 ?? sl.surface}${sl.props[0] ? `, with ${sl.props[0]} placed neatly near one corner` : ''}. Soft, even daylight from above, a gentle shadow.`,
     },
     lifestyle: {
       A: `Real-life scene: the product ${sl.setting}. Natural daylight; the background softly out of focus so the product stands out sharp.`,
       B: `Real-life scene: the product ${sl.setting2}. Natural light, soft depth of field.`,
       C: `Close, styled scene: the product on ${sl.surface}${props ? `, with ${props} nearby, not touching it` : ''}. Soft daylight, shallow depth of field.`,
+      D: `Real-life scene: the product ${sl.setting3 ?? sl.setting2}. Warm natural light, the background softly out of focus.`,
+      E: `Top-down flat lay: the product on ${sl.surface2 ?? sl.surface}${props ? `, with ${props} arranged around it, none touching it` : ''}. Bright, even daylight from above.`,
     },
     bold: {
       A: `Bold, graphic scene: a solid ${c.brandName} backdrop (close to ${c.brand}) and a plinth in a slightly darker shade of the same colour. Crisp directional light with a clean, defined shadow. No props.`,
       B: `Bold colour-block scene: the back wall split into ${c.brandName} (close to ${c.brand}) and ${c.deepName} (close to ${c.deep}); the product on a ${c.deepName} surface. Crisp light, a defined shadow. No props.`,
       C: `Bold scene: a solid ${c.brandName} backdrop (close to ${c.brand}) with one large circle in a lighter shade of it behind the product. Crisp light, a defined shadow. No props.`,
+      D: `Bold scene: the product on a tall ${c.deepName} pedestal (close to ${c.deep}) against a solid ${c.brandName} backdrop (close to ${c.brand}), lit from one side with a bright rim of light. No props.`,
+      E: `Bold top-down shot: the product lying on a solid ${c.brandName} surface (close to ${c.brand}), crisp light from one side casting a long, hard shadow. No props.`,
     },
-  }[look][s.scene as 'A' | 'B' | 'C'];
-  const check = look === 'bold' ? `a bold ${c.brandName} backdrop` : look === 'clean' ? 'a soft, minimal studio scene' : s.scene === 'A' ? `the product ${sl.setting}` : s.scene === 'B' ? `the product ${sl.setting2}` : `the product on ${sl.surface}`;
+  }[look][s.scene as (typeof SCENES)[number]];
+  const check = look === 'bold' ? `a bold ${c.brandName} backdrop` : look === 'clean' ? 'a soft, minimal studio scene' : s.scene === 'A' ? `the product ${sl.setting}` : s.scene === 'B' ? `the product ${sl.setting2}` : s.scene === 'D' ? `the product ${sl.setting3 ?? sl.setting2}` : s.scene === 'E' ? 'a top-down flat lay' : `the product on ${sl.surface}`;
   return { text, check };
 }
 
@@ -117,15 +126,17 @@ function pin(fp: Fingerprint): string {
 }
 
 // Settings and props when the stylist is unavailable, or its answer fails the checks.
+// Settings Nigerian customers know (owambe tables, Lagos kitchens and balconies, ankara, adire and aso-oke, calabash,
+// raffia, clay pots, rattan), not stock-photo cafés.
 const DEFAULT_SLOTS: Record<string, Slots> = {
-  food: { surface: 'a warm wooden table', backdrop: 'soft cream wall', setting: 'on a family dining table with a woven placemat', setting2: 'on a kitchen counter in soft morning light', props: ['fresh herbs', 'a linen napkin'] },
-  drink: { surface: 'a light stone counter', backdrop: 'soft warm grey wall', setting: 'on a café table by a sunny window', setting2: 'on an outdoor table in late afternoon light', props: ['ice cubes in a small glass', 'a slice of lime'] },
-  skincare: { surface: 'a pale stone slab', backdrop: 'warm off-white plaster', setting: 'on a bathroom shelf beside a folded white towel', setting2: 'on a dressing table in soft morning light', props: ['a sprig of eucalyptus', 'a smooth pebble'] },
-  fashion: { surface: 'a linen-covered table', backdrop: 'soft beige wall', setting: 'on a wooden dresser by a bright window', setting2: 'on a neatly made bed in soft daylight', props: ['dried flowers in a small vase', 'a woven tray'] },
-  jewellery: { surface: 'a soft taupe velvet plinth', backdrop: 'warm taupe', setting: 'on a dressing table beside a small ceramic dish', setting2: 'on folded silk fabric in soft light', props: ['a small ceramic dish', 'a fold of silk'] },
-  electronics: { surface: 'a matte grey desk', backdrop: 'cool light grey wall', setting: 'on a tidy wooden work desk in daylight', setting2: 'on a living-room side table', props: ['a small potted plant', 'a ceramic mug'] },
-  home: { surface: 'a light oak sideboard', backdrop: 'warm white wall', setting: 'in a bright, tidy living room', setting2: 'on a kitchen shelf in morning light', props: ['a small potted plant', 'a folded throw'] },
-  other: { surface: 'a light wooden surface', backdrop: 'soft neutral grey', setting: 'on a clean shelf in a bright room', setting2: 'on a wooden table by a window', props: ['a small potted plant'] },
+  food: { surface: 'a dark wooden table with a woven raffia mat', backdrop: 'warm terracotta wall', setting: 'on an owambe party table beside gold-rimmed trays', setting2: 'on a Lagos kitchen counter in morning light', setting3: 'on a canopy party table at an outdoor celebration', surface2: 'a woven raffia mat', props: ['a small calabash bowl', 'a folded ankara napkin', 'fresh scotch bonnet peppers'] },
+  drink: { surface: 'a light stone counter', backdrop: 'soft warm grey wall', setting: 'on a party table under a white canopy', setting2: 'on a sunny balcony table in the afternoon', setting3: 'in a bowl of ice at an outdoor party', surface2: 'a woven raffia mat', props: ['ice cubes in a small glass', 'a slice of lime', 'a red hibiscus flower'] },
+  skincare: { surface: 'a pale stone slab', backdrop: 'warm off-white plaster', setting: 'on a dressing table beside a folded ankara headwrap', setting2: 'on a bathroom shelf beside a folded white towel', setting3: 'on a sunlit windowsill with palm leaf shadows', surface2: 'a folded linen cloth', props: ['raw shea butter in a small calabash', 'a sprig of aloe vera', 'a smooth pebble'] },
+  fashion: { surface: 'a linen-covered table', backdrop: 'soft beige wall', setting: 'on a wooden dresser beside folded ankara fabric', setting2: 'on a neatly made bed with an aso-oke throw', setting3: 'on a rattan chair in a bright room', surface2: 'folded adire fabric', props: ['folded ankara fabric', 'a woven raffia hand fan'] },
+  jewellery: { surface: 'a soft taupe velvet plinth', backdrop: 'warm taupe', setting: 'on folded aso-oke fabric in soft light', setting2: 'on a dressing table beside a small ceramic dish', setting3: 'on a smooth river stone in warm light', surface2: 'a fold of cream silk', props: ['a small ceramic dish', 'a fold of aso-oke'] },
+  electronics: { surface: 'a matte grey desk', backdrop: 'cool light grey wall', setting: 'on a tidy work desk in a bright Lagos apartment', setting2: 'on a living-room side table beside a rattan lamp', setting3: 'on a desk by a large sunny window', surface2: 'a light oak desk', props: ['a small potted snake plant', 'a ceramic mug'] },
+  home: { surface: 'a light oak sideboard', backdrop: 'warm white wall', setting: 'in a bright living room with rattan furniture', setting2: 'on a kitchen shelf beside clay pots', setting3: 'on a sideboard beside a woven basket', surface2: 'a woven raffia mat', props: ['a potted snake plant', 'a woven basket', 'a folded adire throw'] },
+  other: { surface: 'a light wooden surface', backdrop: 'soft neutral grey', setting: 'on a clean shelf in a bright Lagos room', setting2: 'on a wooden table by a window', setting3: 'on a rattan side table in daylight', surface2: 'a woven raffia mat', props: ['a small potted snake plant'] },
 };
 const slotKey = (category: string, kind?: string) =>
   ({ food: 'food', drink: 'drink', skincare: 'skincare', haircare: 'skincare', beauty: 'skincare', fashion: 'fashion', jewellery: 'jewellery', electronics: 'electronics', home: 'home' } as Record<string, string>)[category]
@@ -137,7 +148,7 @@ function cleanSlots(raw: Partial<Slots>, base: Slots): Slots {
   const ok = (v: unknown) => (typeof v === 'string' && v.trim().length >= 3 && v.length <= 80 && !BANNED.test(v) ? v.trim().replace(/[."]+$/, '') : undefined);
   const place = (v: unknown) => { const s = ok(v); return s && /^(on|in|at|beside|by|against|inside|under|near|among)\b/i.test(s) ? s : undefined; };
   const props = (Array.isArray(raw?.props) ? raw.props : []).map(ok).filter((p): p is string => !!p).slice(0, 3);
-  return { surface: ok(raw?.surface) ?? base.surface, backdrop: ok(raw?.backdrop) ?? base.backdrop, setting: place(raw?.setting) ?? base.setting, setting2: place(raw?.setting2) ?? base.setting2, props: props.length ? props : base.props };
+  return { surface: ok(raw?.surface) ?? base.surface, backdrop: ok(raw?.backdrop) ?? base.backdrop, setting: place(raw?.setting) ?? base.setting, setting2: place(raw?.setting2) ?? base.setting2, setting3: place(raw?.setting3) ?? base.setting3, surface2: ok(raw?.surface2) ?? base.surface2, props: props.length ? props : base.props };
 }
 
 /** A plain colour name for prompts ("deep green"), from OKLCH lightness, chroma and hue. */
@@ -171,6 +182,9 @@ function plan(uses: Use[], photos: Photo[]): Shot[] {
       if (out.length >= TARGET_SHOTS) break;
     }
   }
+  // one scene per shot: the styled shots take A to E in turn, so a set of 8 never repeats a setting until it must
+  let k = 0;
+  for (const s of out) if ((SCENES as readonly string[]).includes(s.scene)) s.scene = SCENES[k++ % SCENES.length];
   return out;
 }
 
@@ -313,6 +327,29 @@ async function stamp(img: Buffer, tile: Buffer, f: Format): Promise<Buffer> {
   return ffmpeg({ in: img, 'tile.png': tile }, (x, o) => ['-i', x.in, '-i', x['tile.png'], '-filter_complex', `[0:v]format=rgb24[m];[1:v]scale=${s}:${s},format=rgba[t];[m][t]overlay=W-w-${m}:H-h-${bottom}:format=rgb,format=yuvj420p`, ...JPEG, o], 'jpg');
 }
 
+/** A "ready to sell" copy: the shot with their price and WhatsApp number set on it by code (never drawn by AI), the
+ *  logo if they have one. Feed shapes get a bar at the foot; a Status or Story gets it in the calm space at the top. */
+async function sellCopy(img: Buffer, f: Format, o: { price?: string; phone?: string; logo?: Buffer; business: string; colour: string }): Promise<Buffer> {
+  const { w, h } = FORMATS[f], tall = f === 'story', u = w / 100;
+  const on = lum(o.colour) > 0.45 ? '#141414' : '#ffffff';
+  const logo = o.logo ? `<img class="logo" src="${dataUri(await fit(o.logo, 300), 'image/jpeg')}" alt="">` : '';
+  const wa = o.phone ? `<div class="wa"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm5.2 13.9c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .2-3.3-.7-2.8-1.1-4.6-4-4.7-4.2-.1-.2-1.1-1.5-1.1-2.9s.7-2.1 1-2.4c.3-.3.6-.3.8-.3h.6c.2 0 .4 0 .6.5l.8 2c.1.2.1.4 0 .6l-.4.6-.4.4c-.1.2-.3.3-.1.6.2.3.8 1.4 1.8 2.2 1.2 1.1 2.3 1.4 2.6 1.6.3.1.5.1.7-.1l.9-1.1c.2-.3.4-.2.7-.1l1.9.9c.3.1.5.2.5.3.1.2.1.6-.1 1.2z"/></svg><span>Order: ${esc(o.phone)}</span></div>` : '';
+  const html = `<!doctype html><html><head><link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Geist:wght@600;700&display=block" rel="stylesheet"><style>
+*{box-sizing:border-box;margin:0}html,body{width:${w}px;height:${h}px;overflow:hidden;font-family:Geist,Arial,sans-serif}
+.bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.scrim{position:absolute;inset:0;background:${tall ? 'linear-gradient(180deg,rgba(0,0,0,.55) 0%,rgba(0,0,0,0) 34%)' : 'linear-gradient(180deg,rgba(0,0,0,0) 58%,rgba(0,0,0,.6) 100%)'}}
+.box{position:absolute;left:${5 * u}px;right:${5 * u}px;${tall ? `top:${12 * u}px` : `bottom:${5 * u}px`};display:flex;flex-direction:column;align-items:flex-start;gap:${2.2 * u}px}
+.who{display:flex;align-items:center;gap:${2 * u}px;color:#fff;font-weight:700;font-size:${3.4 * u}px;text-shadow:0 2px 12px rgba(0,0,0,.4)}
+.logo{width:${9 * u}px;height:${9 * u}px;border-radius:${2.4 * u}px;object-fit:contain;background:#fff;padding:${0.7 * u}px}
+.price{background:${o.colour};color:${on};font-family:'Bricolage Grotesque',Arial,sans-serif;font-weight:800;font-size:${(tall ? 9 : 7.5) * u}px;line-height:1;padding:${1.6 * u}px ${3.2 * u}px;border-radius:${2.4 * u}px;box-shadow:0 ${u}px ${3 * u}px rgba(0,0,0,.3);max-width:100%;white-space:nowrap;overflow:hidden}
+.wa{display:flex;align-items:center;gap:${1.4 * u}px;background:#25d366;color:#fff;font-weight:700;font-size:${3.8 * u}px;padding:${1.8 * u}px ${3 * u}px;border-radius:999px;box-shadow:0 ${u}px ${3 * u}px rgba(0,0,0,.25)}
+.wa svg{width:${4.8 * u}px;height:${4.8 * u}px;fill:currentColor}
+</style></head><body><img class="bg" src="${dataUri(img, 'image/jpeg')}" alt=""><div class="scrim"></div>
+<div class="box"><div class="who">${logo}<span>${esc(o.business)}</span></div>${o.price ? `<div class="price">${esc(o.price)}</div>` : ''}${wa}</div></body></html>`;
+  const png = await htmlToPng(html, w, h);
+  return ffmpeg({ 'in.png': png }, (x, out) => ['-i', x['in.png'], '-vf', 'format=yuvj420p', ...JPEG, out], 'jpg');
+}
+
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 
 /** Before and after on one image, so the job page opens on it. */
@@ -391,7 +428,7 @@ export const productPhotos = {
         job.log('illustrator', 'style', `surface, backdrop, settings and props that suit ${main.product}`);
         try {
           slots = cleanSlots(parseJson(await llm(job, 'illustrator', [
-            { role: 'system', content: `You are a product photo stylist for small businesses in Nigeria. Pick where to photograph the product for a ${look} look. Keep every answer a short phrase (at most 8 words). Choose real, everyday things that suit the product and its customers. Never anything with writing on it (books, menus, packaging, signs, screens), no other products or brands, no people, hands or animals, and nothing that could be mistaken for the product. Reply JSON only: {"surface": what the product stands on, "backdrop": the wall or background behind it, "setting": a real place where it is used, starting with "on" or "in" (e.g. "on a bathroom shelf beside a folded towel"), "setting2": a second, different real place, starting with "on" or "in", "props": [up to 3 small props that suit it]}` },
+            { role: 'system', content: `You are a product photo stylist for small businesses in Nigeria. Pick where to photograph the product for a ${look} look. Keep every answer a short phrase (at most 8 words). Choose real, everyday Nigerian settings and things that suit the product and its customers: owambe and party tables, Lagos kitchens, living rooms and balconies, market stalls, ankara, adire and aso-oke fabric, calabash, raffia, clay pots, rattan, palm fronds. No western stock-photo clichés. Never anything with writing on it (books, menus, packaging, signs, screens), no other products or brands, no people, hands or animals, and nothing that could be mistaken for the product. Reply JSON only: {"surface": what the product stands on, "backdrop": the wall or background behind it, "setting": a real place where it is used, starting with "on" or "in" (e.g. "on a bathroom shelf beside a folded towel"), "setting2": a second, different real place, starting with "on" or "in", "setting3": a third, different real place, starting with "on" or "in", "surface2": a surface for a top-down flat lay, "props": [up to 3 small props that suit it]}` },
             { role: 'user', content: `Product: ${main.product}\nBusiness: ${d?.kind ?? 'other'}, sells ${d?.offer ?? 'this product'}${owner ? `\n${owner}` : ''}` },
           ], 'pick a setting and props that suit the product', { model: MODELS.fast, maxTokens: 300, json: true, dry: () => JSON.stringify(fx.slots()) }), {}), base);
         } catch (e: any) {
@@ -467,13 +504,23 @@ export const productPhotos = {
           for (const x of named.filter((x) => (x.s.use === 'instagram' || x.s.use === 'whatsapp') && x.s.format !== 'white')) withLogo.push({ name: `with-logo/${x.name}`, data: await stamp(x.s.out!, tile, x.s.format) });
         } catch (e: any) { job.log('illustrator', 'skip', `logo copies (${msg(e)})`); }
       }
-      job.log('illustrator', 'finish', `${named.length} shots at exact sizes, the before/after sheet${withLogo.length ? `, ${withLogo.length} copies with their logo` : ''} and photos.zip`);
+      // ready to sell: the price and WhatsApp number on the social shots, set by code so they're exactly as given
+      const sell: { name: string; data: Buffer }[] = [];
+      const price = d?.price ? money(d.price) : undefined;
+      const phone = d?.whatsapp && e164(d.whatsapp) ? prettyPhone(d.whatsapp) : undefined;
+      if (price || phone) {
+        try {
+          for (const x of named.filter((x) => (x.s.use === 'instagram' || x.s.use === 'whatsapp') && x.s.format !== 'white' && x.s.format !== 'wide')) sell.push({ name: `ready-to-sell-${x.name.replace(/^shot-/, '')}`, data: await sellCopy(x.s.out!, x.s.format, { price, phone, logo, business: d?.name ?? '', colour: col.brand }) });
+        } catch (e: any) { job.log('illustrator', 'skip', `ready-to-sell copies (${msg(e)})`); }
+      }
+      job.log('illustrator', 'finish', `${named.length} shots at exact sizes, the before/after sheet${sell.length ? `, ${sell.length} ready-to-sell copies with ${[price && 'the price', phone && 'WhatsApp'].filter(Boolean).join(' and ')}` : ''}${withLogo.length ? `, ${withLogo.length} copies with their logo` : ''} and photos.zip`);
       let sheet: Buffer | undefined;
       try { sheet = await contactSheet(d?.name ?? 'Your product', photos, done); }
       catch (e: any) { job.log('illustrator', 'skip', `before/after sheet (${msg(e)})`); }
       if (sheet) job.files.push({ name: 'before-after.jpg', content: sheet });
       for (const x of named) job.files.push({ name: x.name, content: x.s.out! });
-      job.files.push({ name: 'photos.zip', content: zip([...named.map((x) => ({ name: x.name, data: x.s.out! })), ...withLogo]) });
+      for (const x of sell) job.files.push({ name: x.name, content: x.data });
+      job.files.push({ name: 'photos.zip', content: zip([...named.map((x) => ({ name: x.name, data: x.s.out! })), ...sell, ...withLogo]) });
 
       // 7. For the owner
       const redone = done.filter(({ s }) => s.tries > 1 && !s.firstError);
@@ -488,6 +535,7 @@ export const productPhotos = {
         `**${done.length} photo${done.length === 1 ? '' : 's'} of your ${what}, sized for where you'll use them.** Each one was made from your own photo and checked against it before we sent it. \`before-after.jpg\` shows your photo next to the new ones, and \`photos.zip\` has them all.`,
         `## Your photos`,
         ['| # | File | Use it for | Size (pixels) |', '|---|---|---|---|', ...named.map((x, i) => `| ${i + 1} | \`${x.name}\` | ${x.a.where} | ${FORMATS[x.s.format].w} × ${FORMATS[x.s.format].h} |`)].join('\n'),
+        sell.length ? `**Ready to sell:** the \`ready-to-sell-…\` copies have ${[price && `your price (${price})`, phone && `your WhatsApp number (${phone})`].filter(Boolean).join(' and ')} set on them, so a customer who sees the post knows what it costs and where to order. Typed by our code, exactly as you gave it; the AI never wrote on your photos.` : `**Tip:** add your price and WhatsApp number to the order next time and we also send ready-to-sell copies with them on.`,
         withLogo.length ? `\`photos.zip\` also has a \`with-logo\` folder: the Instagram and WhatsApp photos with your logo in the corner. We placed your own logo file there; the AI never drew it.` : '',
         `**Tip:** WhatsApp shrinks photos. To send a customer a sharp one, attach it as a document instead of a photo.`,
         `## How we kept your product the same`,

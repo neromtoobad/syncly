@@ -91,7 +91,7 @@ const RELEVANT: Record<string, (keyof BusinessDetails)[]> = {
   'ai-answer-audit': ['website', 'instagram', 'maps', 'menu', 'questions'],
   'get-found': ['website', 'instagram', 'maps', 'menu', 'questions', 'searches', 'whatsapp', 'phone', 'address', 'competitors', 'research'],
   'ad-launch': ['promote', 'price', 'cta', 'whatsapp', 'phone', 'instagram', 'website', 'address', 'colour', 'notes', 'logo', 'photos', 'competitors', 'adGoal', 'adBudget', 'adPlatforms', 'audience', 'adResults'],
-  'product-photos': ['product', 'uses', 'look', 'colour', 'notes', 'logo', 'photos'],
+  'product-photos': ['product', 'uses', 'look', 'colour', 'notes', 'logo', 'photos', 'price', 'whatsapp'],
   'buy-smart': ['items', 'deliverTo', 'budget', 'condition', 'sellers', 'notes'],
   flyers: ['flyerKind', 'promote', 'price', 'menu', 'cta', 'whatsapp', 'phone', 'instagram', 'website', 'address', 'colour', 'notes', 'logo', 'photos'],
   'money-report': ['statements', 'notes'],

@@ -58,7 +58,7 @@ Choose a promo flyer, a price list or menu, or an announcement (a move, new hour
 
 ### Product Photos
 
-Upload one to three phone photos of a product. The Analyst first writes down exactly what must not change: the label text, the colours, the shape. The Designer makes about eight shots from fixed recipes, picked by where you sell (pure white for Jumia, Jiji and Konga; styled scenes for Instagram; a catalogue square and a Status hero for WhatsApp; a wide hero for a website). A vision model compares every shot with your original, label by label. A shot that changed the product is redone once, and left out if it fails again. Our server cuts each one to the exact size its platform wants.
+Upload one to three phone photos of a product. The Analyst first writes down exactly what must not change: the label text, the colours, the shape. The Designer makes about eight shots from fixed recipes, picked by where you sell (pure white for Jumia, Jiji and Konga; styled scenes for Instagram; a catalogue square and a Status hero for WhatsApp; a wide hero for a website), each styled shot in a different setting Nigerian buyers know (an owambe table, a Lagos kitchen, ankara, calabash, raffia). Add a price or WhatsApp number and you also get ready-to-sell copies with them typed on by our code. A vision model compares every shot with your original, label by label. A shot that changed the product is redone once, and left out if it fails again. Our server cuts each one to the exact size its platform wants.
 
 ## Being found
 
