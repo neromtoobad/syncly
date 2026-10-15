@@ -24,8 +24,21 @@ type Cat = (typeof CATS)[number];
 const OWN = new Set<Cat>(['Transfers from own accounts', 'Transfers to own accounts']);
 
 const num = (v: unknown): number => { if (typeof v === 'number') return Number.isFinite(v) ? Math.abs(v) : 0; const s = String(v ?? '').replace(/[₦,\s]|NGN/gi, '').replace(/^\((.*)\)$/, '$1'); const n = parseFloat(s); return Number.isFinite(n) ? Math.abs(n) : 0; };
-const money = (n: number, cur = '₦') => `${cur}${Math.round(n).toLocaleString('en-NG')}`;
-const csvCell = (v: unknown) => { const s = v === undefined || v === null ? '' : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+/** A balance keeps its sign: "-236,199", "(236,199)" and "236,199 DR" are all overdrawn. */
+const signed = (v: unknown): number | undefined => {
+  if (v === null || v === undefined || v === '') return undefined;
+  if (typeof v === 'number') return Number.isFinite(v) ? v : undefined;
+  const t = String(v).trim(), neg = /^-|^\(.*\)$|\bDR\b|\bOD\b/i.test(t);
+  const n = parseFloat(t.replace(/[₦,\s()]|NGN|DR|CR|OD/gi, '').replace(/^-/, ''));
+  return Number.isFinite(n) ? (neg ? -n : n) : undefined;
+};
+const money = (n: number, cur = '₦') => `${n < 0 ? '−' : ''}${cur}${Math.round(Math.abs(n)).toLocaleString('en-NG')}`;
+// a narration is written by whoever sent the money, so text that a spreadsheet would run as a formula is defused
+const csvCell = (v: unknown) => { let s = v === undefined || v === null ? '' : String(v); if (/^[=+\-@\t\r]/.test(s) && !/^-?\d+(\.\d+)?$/.test(s)) s = `'${s}`; return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const monthName = (m: string) => { const x = m.match(/^(\d{4})-(\d{2})$/); return x ? `${MONTHS[Number(x[2]) - 1]} ${x[1]}` : m; };
+/** About-figures for prose: ₦63,133 reads as about ₦63,000. */
+const about = (n: number, cur = '₦') => money(n >= 10000 ? Math.round(n / 1000) * 1000 : n >= 1000 ? Math.round(n / 100) * 100 : n, cur);
 /** A description stripped of references and numbers, so the same kind of payment groups together. */
 const norm = (d: string) => d.toUpperCase().replace(/\b(REF|TRF|TRANSFER|NIP|FT|FIP|WEB|MOB|USSD|POS)[:#]?\s*\S*\d\S*/g, '$1').replace(/[0-9]{3,}/g, '#').replace(/[^A-Z# ]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 70);
 const monthOf = (d: string) => { const m = d.match(/(\d{4})-(\d{2})/); return m ? `${m[1]}-${m[2]}` : 'unknown'; };
@@ -52,7 +65,7 @@ export const moneyReport = {
 Copy amounts exactly as numbers (no currency signs or commas). One row per transaction, in the order shown. Skip page headers, totals and summaries. Never invent rows. Never include account numbers, BVN or card numbers in "desc": replace them with ****.`;
       const parts: { kind: 'text'; text: string }[] | { kind: 'image'; buf: Buffer }[] = [] as any;
       for (const id of ids) { const s = readStatement(id); if (s) (parts as any[]).push(s); }
-      if (!parts.length) throw new Error('The statement files are gone (they are deleted a day after upload). Please order again with the statement.');
+      if (!parts.length) throw new Error('The statement files are gone (they are deleted 3 days after upload). Please order again with the statement.');
       let chunks = 0;
       for (const p of parts as any[]) {
         if (p.kind === 'text') {
@@ -67,7 +80,7 @@ Copy amounts exactly as numbers (no currency signs or commas). One row per trans
             ], 'read transactions from the statement', { model: MODELS.fast, maxTokens: 6000, json: true, maxUsd: 0.06,
               dry: () => JSON.stringify(dryChunk(i)) }), {});
             if (r.header) header = { ...header, ...Object.fromEntries(Object.entries(r.header).filter(([k, v]) => v !== null && v !== undefined && !(k in header && header[k as keyof Header] !== undefined))) };
-            for (const x of r.rows ?? []) rows.push({ date: String(x.date ?? ''), desc: String(x.desc ?? '').slice(0, 160), out: num(x.out), in: num(x.in), balance: x.balance === null || x.balance === undefined ? undefined : num(x.balance) });
+            for (const x of r.rows ?? []) rows.push({ date: String(x.date ?? ''), desc: String(x.desc ?? '').slice(0, 160), out: num(x.out), in: num(x.in), balance: signed(x.balance) });
           }
         } else {
           if (chunks >= 22) break;
@@ -78,14 +91,19 @@ Copy amounts exactly as numbers (no currency signs or commas). One row per trans
             { role: 'user', content: [{ type: 'text', text: 'One page of the statement.' }, { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${p.buf.toString('base64')}` } }] },
           ], 'read transactions from a screenshot', { model: MODELS.vision, maxTokens: 6000, json: true, maxUsd: 0.08, dry: () => JSON.stringify(dryChunk(0)) }), {});
           if (r.header) header = { ...header, ...Object.fromEntries(Object.entries(r.header).filter(([, v]) => v !== null && v !== undefined)) };
-          for (const x of r.rows ?? []) rows.push({ date: String(x.date ?? ''), desc: String(x.desc ?? '').slice(0, 160), out: num(x.out), in: num(x.in), balance: x.balance === null || x.balance === undefined ? undefined : num(x.balance) });
+          for (const x of r.rows ?? []) rows.push({ date: String(x.date ?? ''), desc: String(x.desc ?? '').slice(0, 160), out: num(x.out), in: num(x.in), balance: signed(x.balance) });
         }
       }
+      if (header.opening !== undefined) header.opening = signed(header.opening);
+      if (header.closing !== undefined) header.closing = signed(header.closing);
       const tx = rows.filter((r) => /^\d{4}-\d{2}-\d{2}$/.test(r.date) && (r.in > 0 || r.out > 0) && !(r.in > 0 && r.out > 0))
         .map((r) => ({ ...r, desc: r.desc.replace(/\b\d{10,}\b/g, '****') }));
-      // a chunk boundary can repeat a row: drop exact repeats that sit next to each other
-      const clean = tx.filter((r, i) => !(i > 0 && r.date === tx[i - 1].date && r.desc === tx[i - 1].desc && r.in === tx[i - 1].in && r.out === tx[i - 1].out && r.balance === tx[i - 1].balance));
+      // a chunk boundary can repeat a row: drop a row only when it repeats the one before it balance and all (two
+      // ₦50 levies on the same day with no balance column are both real)
+      const clean = tx.filter((r, i) => !(i > 0 && r.balance !== undefined && r.date === tx[i - 1].date && r.desc === tx[i - 1].desc && r.in === tx[i - 1].in && r.out === tx[i - 1].out && r.balance === tx[i - 1].balance));
       if (clean.length < 3) throw new Error('We could not find transactions in that statement. Send the PDF straight from your bank, a CSV export, or clear screenshots of every page.');
+      // many apps list the newest first: turn it round so the same day's rows keep their real order
+      if (clean[0].date > clean.at(-1)!.date) clean.reverse();
       clean.sort((a, b) => a.date.localeCompare(b.date));
       // the currency is read off the statement, so only a plain 3-letter code gets through (it goes into HTML below)
       const code = String(header.currency ?? 'NGN').trim().toUpperCase();
@@ -114,7 +132,7 @@ Copy amounts exactly as numbers (no currency signs or commas). One row per trans
       for (let i = 0; i < keys.length; i += 120) {
         job.log('analyst', 'label', `${Math.min(i + 120, keys.length)} of ${keys.length} kinds of transaction`);
         const r = parseJson<{ labels?: { i: number; cat: string; who: string }[] }>(await llm(job, 'analyst', [
-          { role: 'system', content: `Label bank transactions for ${biz} (${opts.details?.offer ?? 'a small business'}). For each, pick ONE category from this list exactly: ${CATS.join(' | ')}; and "who": the other party's name as it appears (a person or business), or "" if none. Money in from customers or sales is "Sales & customer payments"; transfers between the owner's own accounts are "Transfers from/to own accounts" (use the account holder name ${header.account ? `"${header.account}"` : ''} as a hint). Bank charges include SMS alerts, stamp duty, VAT on fees, transfer fees, card maintenance. Reply JSON only: {"labels": [{"i": index, "cat": category, "who": name}]}` },
+          { role: 'system', content: `Label bank transactions for ${biz} (${opts.details?.offer ?? 'a small business'}). For each, pick ONE category from this list exactly: ${CATS.join(' | ')}; and "who": the other party's name as it appears (a person or business), or "" if none. Money in from customers or sales is "Sales & customer payments"; transfers between the owner's own accounts are "Transfers from/to own accounts" (use the account holder name ${header.account ? `"${header.account}"` : ''} as a hint). "Bank charges & fees" are the avoidable ones: SMS alerts, transfer fees, card or account maintenance, ATM fees. Government levies go in "Taxes & levies": stamp duty, the ₦50 electronic money transfer levy (EMTL), VAT on fees, withholding tax. Reply JSON only: {"labels": [{"i": index, "cat": category, "who": name}]}` },
           { role: 'user', content: JSON.stringify(keys.slice(i, i + 120).map((k, j) => { const g = groups.get(k)!; return { i: i + j, desc: g.desc, direction: g.in > 0 && g.out === 0 ? 'in' : g.out > 0 && g.in === 0 ? 'out' : 'both', times: g.n }; })) },
         ], 'label the kinds of transaction', { model: MODELS.fast, maxTokens: 6000, json: true, maxUsd: 0.05,
           dry: () => JSON.stringify({ labels: keys.slice(i, i + 120).map((k, j) => ({ i: i + j, cat: dryCat(groups.get(k)!.desc, groups.get(k)!.in > 0), who: groups.get(k)!.desc.split(' ').slice(-2).join(' ') })) }) }), {});
@@ -133,7 +151,10 @@ Copy amounts exactly as numbers (no currency signs or commas). One row per trans
       const customers = sumBy(rowsL.filter((r) => r.cat === 'Sales & customer payments' && r.who), (r) => r.who, (r) => r.in).slice(0, 5);
       const suppliers = sumBy(rowsL.filter((r) => r.out > 0 && r.who && !OWN.has(r.cat) && !['Bank charges & fees', 'Cash withdrawals', 'Personal & family'].includes(r.cat)), (r) => r.who, (r) => r.out).slice(0, 5);
       const charges = rowsL.filter((r) => r.cat === 'Bank charges & fees').reduce((s, r) => s + r.out, 0);
-      const days = Math.max(1, (Date.parse(clean.at(-1)!.date) - Date.parse(clean[0].date)) / 86400_000 + 1);
+      // the statement's own period when it states one (a quiet last week still counts as part of the period)
+      const from = /^\d{4}-\d{2}-\d{2}$/.test(header.from ?? '') && header.from! <= clean[0].date ? header.from! : clean[0].date;
+      const to = /^\d{4}-\d{2}-\d{2}$/.test(header.to ?? '') && header.to! >= clean.at(-1)!.date ? header.to! : clean.at(-1)!.date;
+      const days = Math.max(1, (Date.parse(to) - Date.parse(from)) / 86400_000 + 1);
       const perMonth = (x: number) => (x * 30.4) / days;
       // recurring: the same other party paid in 2+ different months at a similar amount
       const recurring = [...new Set(realOut.filter((r) => r.who).map((r) => r.who))].map((who) => {
@@ -147,8 +168,23 @@ Copy amounts exactly as numbers (no currency signs or commas). One row per trans
       const personal = realOut.filter((r) => r.cat === 'Personal & family').reduce((s, r) => s + r.out, 0);
       const salesIn = inCats.find(([c]) => c === 'Sales & customer payments')?.[1] ?? 0;
       const sumIn = realIn.reduce((s, r) => s + r.in, 0), sumOut = realOut.reduce((s, r) => s + r.out, 0);
+      // what a good accountant would point at: what can be cut, who stopped paying, how long the cash lasts
+      const levies = rowsL.filter((r) => r.cat === 'Taxes & levies').reduce((s, r) => s + r.out, 0);
+      const chargeKinds = sumBy(rowsL.filter((r) => r.cat === 'Bank charges & fees'), (r) => (/sms|alert/i.test(r.desc) ? 'SMS alerts' : /maint/i.test(r.desc) ? 'account or card maintenance' : /atm|withdraw/i.test(r.desc) ? 'ATM fees' : /trf|transfer|nip|fee/i.test(r.desc) ? 'transfer fees' : 'other charges'), (r) => r.out);
+      const payers = new Map<string, { total: number; months: Set<string>; times: number }>();
+      for (const r of rowsL.filter((x) => x.cat === 'Sales & customer payments' && x.who)) { const p = payers.get(r.who) ?? { total: 0, months: new Set<string>(), times: 0 }; p.total += r.in; p.months.add(monthOf(r.date)); p.times++; payers.set(r.who, p); }
+      const lastMonth = months.at(-1)!;
+      const lapsed = months.length >= 2 ? [...payers.entries()].filter(([, p]) => !p.months.has(lastMonth) && p.times >= 1).sort((a, b) => b[1].total - a[1].total).slice(0, 5) : [];
+      const repeat = [...payers.values()].filter((p) => p.times >= 2).length;
+      const salesRows = rowsL.filter((r) => r.cat === 'Sales & customer payments');
+      const closingBal = [...rowsL].reverse().find((r) => r.balance !== undefined)?.balance ?? header.closing;
+      const dailySpend = sumOut / days;
+      const runwayDays = closingBal !== undefined && dailySpend > 0 ? Math.max(0, Math.floor(closingBal / dailySpend)) : undefined;
+      const overdrawnDays = new Set(rowsL.filter((r) => r.balance !== undefined && r.balance < 0).map((r) => r.date)).size;
+      const drawings = rowsL.filter((r) => r.out > 0 && ['Personal & family', 'Cash withdrawals'].includes(r.cat)).reduce((s, r) => s + r.out, 0);
+      const ownIn = rowsL.filter((r) => r.in > 0 && OWN.has(r.cat)).reduce((s, r) => s + r.in, 0), ownOut = rowsL.filter((r) => r.out > 0 && OWN.has(r.cat)).reduce((s, r) => s + r.out, 0);
       const facts = {
-        business: biz, period: `${clean[0].date} to ${clean.at(-1)!.date}`, days: Math.round(days), currency: cur.trim(),
+        business: biz, period: `${from} to ${to}`, days: Math.round(days), currency: cur.trim(),
         money_in: Math.round(sumIn), money_out: Math.round(sumOut), net: Math.round(sumIn - sumOut), sales_in: Math.round(salesIn),
         monthly: byMonth.map((x) => ({ month: x.m, in: Math.round(x.in), out: Math.round(x.out), net: Math.round(x.in - x.out) })),
         spending_by_category: spendCats.map(([c, v]) => ({ category: c, amount: Math.round(v), share: Math.round((v / Math.max(1, sumOut)) * 100) })),
@@ -160,12 +196,26 @@ Copy amounts exactly as numbers (no currency signs or commas). One row per trans
         lowest_balance: lowest ? { amount: Math.round(lowest.balance!), date: lowest.date } : null,
         biggest_payments_out: biggestOut.map((r) => ({ date: r.date, amount: Math.round(r.out), what: r.cat, who: r.who })),
         transactions: rowsL.length, reconciled: rec.ok,
+        avoidable_bank_charges: chargeKinds.map(([k, v]) => ({ kind: k, amount: Math.round(v), per_year: Math.round(perMonth(v) * 12) })),
+        government_levies: Math.round(levies), government_levies_per_year: Math.round(perMonth(levies) * 12),
+        paying_customers: payers.size, repeat_customers: repeat, sales_payments: salesRows.length,
+        average_sale: salesRows.length ? Math.round(salesIn / salesRows.length) : null,
+        biggest_customer_share_of_sales: customers.length && salesIn ? Math.round((customers[0][1] / salesIn) * 100) : null,
+        customers_who_stopped_paying: lapsed.map(([w, p]) => ({ who: w, paid_before: Math.round(p.total), last_paid_in: [...p.months].sort().at(-1) })),
+        owner_drawings_cash_and_personal: Math.round(drawings),
+        between_own_accounts: { in: Math.round(ownIn), out: Math.round(ownOut) },
+        cost_per_100_naira_of_sales: salesIn ? Math.round((sumOut / salesIn) * 100) : null,
+        closing_balance: closingBal !== undefined ? Math.round(closingBal) : null,
+        days_the_closing_balance_lasts_at_this_spending: runwayDays ?? null,
+        days_overdrawn: overdrawnDays,
+        owner_question: opts.details?.notes ? String(opts.details.notes).slice(0, 400) : null,
+        revision_request: (brief.match(/Revision requested by the customer: ([\s\S]*)$/)?.[1] ?? '').slice(0, 400) || null,
       };
 
       // 5. The CFO's read: findings and actions from the facts only
       job.log('writer', 'advice', 'findings and actions from the computed figures');
       const adv = parseJson<{ summary: string; findings: string[]; actions: string[] }>(await llm(job, 'writer', [
-        { role: 'system', content: `You are a small-business CFO in Nigeria writing to the owner of ${biz} about their bank statement. Use ONLY the facts JSON; every number you write must appear in it (you may round to the nearest thousand and write ₦). Plain, warm, direct English; no jargon. Reply JSON only: {"summary": 2 sentences: what happened to the money in this period, "findings": [5 specific observations, each with a number from the facts: where the money goes, who pays them most, charges, personal spending mixed in, tight days, trends between months], "actions": [5 concrete things to do this month, most valuable first, each tied to a finding (e.g. reduce bank charges by moving transfers to X, separate personal spending into another account, follow up the customer who paid less this month, keep a buffer of ₦X before the low point)]}` },
+        { role: 'system', content: `You are a small-business CFO in Nigeria writing to the owner of ${biz} about their bank statement. Use ONLY the facts JSON; every number you write must appear in it (you may round to the nearest thousand and write ₦). Plain, warm, direct English; no jargon. If owner_question or revision_request is set, answer it directly first: the summary opens with the answer. Point at what can actually change: the avoidable bank charges (not the government levies, which can't be avoided), customers who stopped paying (by name), the cash runway and overdrawn days, owner drawings mixed into business money. Every action names a naira figure and when to do it (this week / this month). Reply JSON only: {"summary": 2 sentences: what happened to the money in this period, "findings": [5 specific observations, each with a number from the facts: where the money goes, who pays them most, charges, personal spending mixed in, tight days, trends between months], "actions": [5 concrete things to do this month, most valuable first, each tied to a finding (e.g. reduce bank charges by moving transfers to X, separate personal spending into another account, follow up the customer who paid less this month, keep a buffer of ₦X before the low point)]}` },
         { role: 'user', content: JSON.stringify(facts) },
       ], 'write the findings and actions', { maxTokens: 1600, json: true, maxUsd: 0.06,
         dry: () => JSON.stringify({ summary: `Money in was ${money(sumIn, cur)} and money out ${money(sumOut, cur)}.`, findings: [`${spendCats[0]?.[0]} is the biggest cost at ${money(spendCats[0]?.[1] ?? 0, cur)}.`], actions: ['Move personal spending to a separate account.'] }) }), { summary: '', findings: [], actions: [] });
@@ -192,20 +242,21 @@ Copy amounts exactly as numbers (no currency signs or commas). One row per trans
         `# Money report: ${biz}`,
         `**${facts.period}** · ${rowsL.length} transactions${header.bank ? ` · ${header.bank}` : ''} · ${rec.ok ? 'reconciled ✓' : 'not fully reconciled'}`,
         adv.summary,
-        `| | Amount |\n|---|---|\n| Money in (not counting your own transfers) | ${money(sumIn, cur)} |\n| Money out (not counting your own transfers) | ${money(sumOut, cur)} |\n| Net | ${sumIn - sumOut < 0 ? '−' : ''}${money(Math.abs(sumIn - sumOut), cur)} |\n| From sales and customers | ${money(salesIn, cur)} |\n| Bank charges | ${money(charges, cur)} (about ${money(perMonth(charges) * 12, cur)} a year) |${lowest ? `\n| Lowest balance | ${money(lowest.balance!, cur)} on ${lowest.date} |` : ''}`,
+        `| | Amount |\n|---|---|\n| Money in (not counting your own transfers) | ${money(sumIn, cur)} |\n| Money out (not counting your own transfers) | ${money(sumOut, cur)} |\n| Net | ${sumIn - sumOut < 0 ? '−' : ''}${money(Math.abs(sumIn - sumOut), cur)} |\n| From sales and customers | ${money(salesIn, cur)} |\n| Bank charges you can cut | ${money(charges, cur)} (about ${about(perMonth(charges) * 12, cur)} a year) |\n| Government levies (stamp duty, EMTL, VAT on fees) | ${money(levies, cur)} |\n| Between your own accounts (left out above) | in ${money(ownIn, cur)} · out ${money(ownOut, cur)} |${runwayDays !== undefined ? `\n| Days your closing balance lasts at this spending | about ${runwayDays} |` : ''}${lowest ? `\n| Lowest balance | ${money(lowest.balance!, cur)} on ${lowest.date} |` : ''}`,
         `## What the CFO sees`, ...adv.findings.map((f) => `- ${f}`),
         `## What to do this month`, ...adv.actions.map((a, i) => `${i + 1}. ${a}`),
-        `## By month`, `| Month | In | Out | Net |\n|---|---|---|---|\n` + byMonth.map((x) => `| ${x.m} | ${money(x.in, cur)} | ${money(x.out, cur)} | ${x.in - x.out < 0 ? '−' : ''}${money(Math.abs(x.in - x.out), cur)} |`).join('\n'),
+        `## By month`, `| Month | In | Out | Net |\n|---|---|---|---|\n` + byMonth.map((x) => `| ${monthName(x.m)} | ${money(x.in, cur)} | ${money(x.out, cur)} | ${x.in - x.out < 0 ? '−' : ''}${money(Math.abs(x.in - x.out), cur)} |`).join('\n'),
         `## Where the money went`, `| Category | Amount | Share |\n|---|---|---|\n` + spendCats.map(([c, v]) => `| ${c} | ${money(v, cur)} | ${pct(v)} |`).join('\n'),
         customers.length ? `## Who pays you most\n\n` + customers.map(([w, v]) => `- ${w}: ${money(v, cur)}`).join('\n') : '',
         suppliers.length ? `## Who you pay most\n\n` + suppliers.map(([w, v]) => `- ${w}: ${money(v, cur)}`).join('\n') : '',
-        recurring.length ? `## Paid every month\n\n` + recurring.map((r) => `- ${r.who}: about ${money(r.avg, cur)} (${r.months} months)`).join('\n') : '',
+        lapsed.length ? `## Customers who stopped paying\n\nThey paid you earlier in this period but not in ${monthName(lastMonth)}: worth a message.\n\n` + lapsed.map(([w, p]) => `- ${w}: ${money(p.total, cur)} before, last in ${monthName([...p.months].sort().at(-1)!)}`).join('\n') : '',
+        recurring.length ? `## Paid every month\n\n` + recurring.map((r) => `- ${r.who}: about ${about(r.avg, cur)} (${r.months} months)`).join('\n') : '',
         `## How it was checked`,
         `- ${rec.ok ? 'Reconciled' : 'Reconciliation'}: ${rec.note}.`,
         `- Transfers between your own accounts are left out of money in and out, so they don't look like income or spending.`,
         `- Every figure here is computed from the statement; the AI only read the rows and labelled them, and wrote the advice from the computed figures.${stray.length ? ` ${stray.length} figure${stray.length === 1 ? '' : 's'} in the advice didn't match the statement exactly; treat ${stray.length === 1 ? 'it' : 'them'} with care.` : ''}`,
         `- \`transactions.csv\` has every transaction with its category, so you can check or change any of them.`,
-        `- Your statement files were deleted when this report was finished. This report opens only from the private link in your email.`,
+        `- Your statement files are deleted as soon as you accept or reject this report (and after 3 days at the latest); until then they're kept only so a revision can re-read them. This report opens only from the private link in your email.`,
         issues.length ? `> Notes: ${issues.join('; ')}` : '',
       ].filter(Boolean).join('\n\n');
       job.status = 'delivered';
@@ -213,9 +264,9 @@ Copy amounts exactly as numbers (no currency signs or commas). One row per trans
       job.status = 'failed';
       job.error = String(e?.message ?? e);
       console.error('  ✗', job.error);
-    } finally {
-      deleteStatements(ids); // the report is done either way: the statement doesn't stay with us
     }
+    // The statements stay (in their own folder, never served) until the customer decides, so a revision can
+    // read them again; orders.ts deletes them on accept, reject or refund, and the sweep after 3 days at the latest.
     job.save();
     return job;
   },
@@ -224,7 +275,7 @@ Copy amounts exactly as numbers (no currency signs or commas). One row per trans
 const esc = (x: string) => x.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 function chartHtml(byMonth: { m: string; in: number; out: number }[], cats: [string, number][], cur: string) {
   const max = Math.max(1, ...byMonth.flatMap((x) => [x.in, x.out])), cmax = Math.max(1, ...cats.map((c) => c[1]));
-  const k = (n: number) => (n >= 1e6 ? `${cur}${(n / 1e6).toFixed(1)}m` : `${cur}${Math.round(n / 1000)}k`);
+  const k = (n: number) => (n >= 1e6 ? `${cur}${(n / 1e6).toFixed(1)}m` : n >= 1000 ? `${cur}${Math.round(n / 1000)}k` : `${cur}${Math.round(n)}`);
   const bars = byMonth.slice(-6).map((x) => `<div class="m"><div class="pair"><i class="in" style="height:${(x.in / max) * 100}%"><b>${k(x.in)}</b></i><i class="out" style="height:${(x.out / max) * 100}%"><b>${k(x.out)}</b></i></div><span>${/^\d{4}-\d{2}$/.test(x.m) ? new Date(`${x.m}-01T12:00:00Z`).toLocaleString('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' }) : esc(x.m)}</span></div>`).join('');
   const rows = cats.map(([c, v]) => `<div class="c"><span>${esc(c)}</span><div class="t"><i style="width:${(v / cmax) * 100}%"></i></div><b>${k(v)}</b></div>`).join('');
   return `<!doctype html><html><head><meta charset="utf-8"><style>

@@ -1,6 +1,6 @@
 // Bank statements for the Money Report. They hold a person's or a business's finances, so they are handled apart
 // from the public photo uploads: stored under a random id in their own folder, never served back over HTTP, and
-// deleted when the report is done. A PDF or CSV is turned into text the moment it arrives and only the text is
+// deleted once the customer accepts or rejects the report (3 days at most). A PDF or CSV is turned into text the moment it arrives and only the text is
 // kept; a statement password, if the bank set one, is used for that and then forgotten. Screenshots are kept as
 // images (re-encoded, which drops their metadata) until the report has read them.
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
@@ -60,9 +60,9 @@ export function readStatement(id: string): { kind: 'text'; text: string } | { ki
   return undefined;
 }
 
-/** Delete statement files: after the report, and any left over a day after upload. */
+/** Delete statement files: when the customer accepts or rejects the report, and any left over 3 days after upload. */
 export function deleteStatements(ids: string[]) { for (const id of ids) if (ID.test(id)) for (const ext of ['txt', 'jpg']) rmSync(join(dir(), `${id}.${ext}`), { force: true }); }
-export function sweepStatements(maxAgeMs = 24 * 3600_000) {
+export function sweepStatements(maxAgeMs = 72 * 3600_000) {
   const now = Date.now();
   for (const f of readdirSync(dir())) { try { const p = join(dir(), f); if (now - statSync(p).mtimeMs > maxAgeMs) rmSync(p, { force: true }); } catch { /* skip */ } }
 }

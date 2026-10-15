@@ -156,7 +156,7 @@ const QA: [string, React.ReactNode][] = [
   ['How fast is it?', <>Most jobs are done in 2 to 5 minutes. You can watch the team work on your job page while it happens.</>],
   ['Is it really $1?', <>Yes. Every service is $1 (about {naira(1)}) while we grow. You always see the exact price before you pay.</>],
   ['Who does the work?', <>A team of AI agents, each with one job: one finds things, one reads, one writes, one designs, one checks. A separate AI audits the work before it reaches you, and every step is shown on your job page.</>],
-  ['Is my information private?', <>Your full-quality files unlock only when you accept. Bank statements for a Money Report are deleted when the report is done, and the report opens only from the private link in your email.</>],
+  ['Is my information private?', <>Your full-quality files unlock only when you accept. Bank statements for a Money Report are deleted once you accept or reject the report, and the report opens only from the private link in your email.</>],
 ];
 
 export function Questions() {

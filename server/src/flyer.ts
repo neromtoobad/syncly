@@ -14,13 +14,13 @@ export type FlyerInput = {
 };
 export const SIZES = { status: [1080, 1920], post: [1080, 1350], a4: [794, 1123] } as const;
 
-const esc = (s: unknown) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-function shade(hex: string, k: number) { const n = parseInt(hex.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255; const f = (c: number) => Math.round(k < 0 ? c * (1 + k) : c + (255 - c) * k); return `#${[f(r), f(g), f(b)].map((x) => x.toString(16).padStart(2, '0')).join('')}`; }
+export const esc = (s: unknown) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+export function shade(hex: string, k: number) { const n = parseInt(hex.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255; const f = (c: number) => Math.round(k < 0 ? c * (1 + k) : c + (255 - c) * k); return `#${[f(r), f(g), f(b)].map((x) => x.toString(16).padStart(2, '0')).join('')}`; }
 /** A bare price ("4500", "25000") reads as naira with thousands commas; anything else is kept exactly as written. */
 export const money = (p?: string) => { const t = String(p ?? '').trim(); return /^\d[\d,]*(\.\d+)?$/.test(t) ? `₦${Number(t.replace(/,/g, '')).toLocaleString('en-NG')}` : t; };
 /** Nigerian phone numbers spaced the way people read them out: 0803 555 0142, +234 803 555 0142. */
 export const spacedPhones = (t: string) => t.replace(/(\+?234|0)\s?([789][01]\d)\s?(\d{3})\s?(\d{4})\b/g, (_, cc, a, b, c) => `${cc === '0' ? '0' : `${cc} `}${a} ${b} ${c}`);
-const lum = (hex: string) => { const n = parseInt(hex.slice(1), 16); const c = [n >> 16, (n >> 8) & 255, n & 255].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+export const lum = (hex: string) => { const n = parseInt(hex.slice(1), 16); const c = [n >> 16, (n >> 8) & 255, n & 255].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
 
 export function flyerHtml(f: FlyerInput): string {
   const [W, H] = SIZES[f.size];

@@ -50,13 +50,16 @@ const ENGINES: Engine[] = [
   { id: 'chatgpt', label: 'ChatGPT', path: 'chat_gpt', models: ['gpt-5-mini', 'gpt-4o-mini'],
     body: (s, geo) => ({ web_search: true, ...(geo ? { web_search_country_iso_code: s.countryIso, web_search_city: s.city } : {}) }) },
   { id: 'gemini', label: 'Gemini', path: 'gemini', models: ['gemini-2.5-flash', 'gemini-2.0-flash'], body: () => ({ web_search: true }) },
-  { id: 'claude', label: 'Claude', path: 'claude', models: ['claude-sonnet-4-0', 'claude-3-7-sonnet-latest'],
-    body: (s, geo) => ({ web_search: true, ...(geo ? { web_search_country_iso_code: CLAUDE_COUNTRIES.includes(s.countryIso) ? s.countryIso : undefined, web_search_city: s.city } : {}) }) },
+  // Claude is left out until DataForSEO accepts a Claude model name again: both names were rejected on live jobs,
+  // and each rejected call was still paid for.
   // Sonar always searches the web; its request has no web_search field
   { id: 'perplexity', label: 'Perplexity', path: 'perplexity', models: ['sonar', 'sonar-pro'], body: (s, geo) => (geo ? { web_search_country_iso_code: s.countryIso } : {}) },
 ];
 // buy() serializes calls per agent, so two agents means two answers in flight at a time
-const LANES: { agent: Role; engines: EngineId[] }[] = [{ agent: 'investigator', engines: ['chatgpt', 'gemini'] }, { agent: 'researcher', engines: ['claude', 'perplexity'] }];
+const LANES: { agent: Role; engines: EngineId[] }[] = [{ agent: 'investigator', engines: ['chatgpt', 'gemini'] }, { agent: 'researcher', engines: ['perplexity'] }];
+/** Questions about the business by name go to the two assistants most people use; "recommend me one" questions go
+ *  to every assistant, since that's where a business is won or lost. */
+const enginesFor = (p: { type: string }) => (p.type === 'direct' ? ENGINES.filter((e) => e.id !== 'perplexity') : ENGINES);
 const preferred: Partial<Record<EngineId, string>> = {};
 const noGeo = new Set<EngineId>();
 
@@ -192,8 +195,10 @@ export async function gatherTruth(job: Job, spec: Spec, hints: MapsHints = {}): 
 
   let gbp: any;
   const cid = hit?.cid ? String(hit.cid) : hints.cid;
+  // the paid profile lookup only when there's a listing to look up (a match on Maps, or the owner's own link)
   const pin = hit?.latitude ? [Number(hit.latitude), Number(hit.longitude)] : hints.lat !== undefined && hints.lng !== undefined ? [hints.lat, hints.lng] : undefined;
-  try {
+  if (!hit && !hints.cid) job.log('scout', 'skip', 'no Google listing to read the full profile of');
+  else try {
     const task = {
       keyword: cid ? `cid:${cid}` : q,
       ...(pin ? { location_coordinate: `${pin[0].toFixed(6)},${pin[1].toFixed(6)},2000` } : { location_name: spec.country }),
@@ -598,7 +603,7 @@ export async function auditAnswers(job: Job, spec: Spec, truth: Truth, d?: Busin
   const kinds = opts.kinds ?? STANDARD_KINDS;
   const prompts: Prompt[] = ([
     { kind: 'hours', type: 'direct', text: `What are the opening hours of ${spec.name} in ${where}?`, expects: ['hours'] },
-    { kind: 'status', type: 'direct', text: `Is ${spec.name} in ${where} still open? What is their address and phone number?`, expects: ['status', 'address', 'phone'] },
+    { kind: 'status', type: 'direct', text: `Is ${spec.name} in ${where} still open? What are their opening hours, address and phone number?`, expects: ['status', 'hours', 'address', 'phone'] },
     { kind: 'price', type: 'direct', text: `How much does ${spec.name} in ${where} charge for ${spec.priceItem}? Do they have any deals or discounts at the moment?`, expects: ['price', 'deal'] },
     { kind: 'best', type: 'discovery', text: `What's the best ${spec.category} in ${where}?`, expects: [] },
     { kind: 'service', type: 'discovery', text: `Where can I get ${spec.service} near ${where}?`, expects: [] },
@@ -606,7 +611,7 @@ export async function auditAnswers(job: Job, spec: Spec, truth: Truth, d?: Busin
   ] as Prompt[]).filter((p) => kinds.includes(p.kind));
   // the customer's own question from the order form, asked about the business by name
   if (d?.questions) prompts.push({ kind: 'custom', type: 'direct', text: `About ${spec.name} in ${where}: ${d.questions.split('\n')[0].trim().slice(0, 160)}`, expects: ['other'] });
-  job.log('researcher', 'plan', `${prompts.length} questions × ${ENGINES.length} assistants, web search on`);
+  job.log('researcher', 'plan', `${prompts.length} questions, ${prompts.reduce((t, p) => t + enginesFor(p).length, 0)} answers from ${ENGINES.length} assistants, web search on`);
 
   // Two lanes ask; the analyst checks each question as soon as all four answers to it are in
   const states = new Map(ENGINES.map((e) => [e.id, { model: preferred[e.id] ?? e.models[0], ok: false, fails: 0, down: '' } as EngineState]));
@@ -614,7 +619,8 @@ export async function auditAnswers(job: Job, spec: Spec, truth: Truth, d?: Busin
   for (const lane of LANES) {
     let prev: Promise<unknown> = Promise.resolve();
     for (const p of prompts) for (const id of lane.engines) {
-      const e = ENGINES.find((x) => x.id === id)!;
+      const e = ENGINES.find((x) => x.id === id);
+      if (!e || !enginesFor(p).includes(e)) continue;
       const next = prev.then(() => ask(job, e, lane.agent, p, spec, states.get(id)!));
       pending.set(`${id}:${p.kind}`, next);
       prev = next;
@@ -624,7 +630,7 @@ export async function auditAnswers(job: Job, spec: Spec, truth: Truth, d?: Busin
   let n = 0;
   const answers: Answer[] = [];
   for (const p of prompts) {
-    const batch = await Promise.all(ENGINES.map((e) => pending.get(`${e.id}:${p.kind}`)!));
+    const batch = await Promise.all(enginesFor(p).map((e) => pending.get(`${e.id}:${p.kind}`)!));
     answers.push(...batch);
     await judge(job, spec, record, p, batch, qa, () => `F${++n}`);
   }

@@ -281,7 +281,9 @@ export default function BusinessForm({ service, onSubmit, busy, email, setEmail,
             <input type="text" value={d.goal} onChange={(e) => set('goal', e.target.value)} placeholder="Or write your own goal" />
           </div>
           <div className="field">Your voice {pick('tone', TONES.map((t) => [t, t]))}</div>
-          {photosField('Optional, up to 3. We restage your real products for the post images instead of inventing them.', 3)}
+          {photosField('Optional, up to 3. We restage your real products for the post designs; we never invent a product.', 3)}
+          {logoField('Optional. Goes on every post design.')}
+          {text('price', 'Price to feature', 'From ₦25,000', 'Optional. Goes on the post designs exactly as you write it.')}
           {colourField('No preference')}
           {notes('Optional: an offer to push this week, words you always use, topics to avoid.')}
         </div>
@@ -389,7 +391,7 @@ export default function BusinessForm({ service, onSubmit, busy, email, setEmail,
 
       {cur === 'statement' && (
         <div className="form">
-          <div className="note">Your statement is private. It's stored apart from everything else, read only to make your report, and deleted when the report is done. The report opens only from the private link we email you.</div>
+          <div className="note">Your statement is private. It's stored apart from everything else, read only to make your report, and deleted once you accept or reject the report. The report opens only from the private link we email you.</div>
           <div className="field">Bank statement <span className="hint">The PDF from your bank or app (GTBank, Access, Opay, Moniepoint, Kuda…), a CSV export, or clear screenshots of every page. One to three months works best.</span>
             <div className="uploads">
               {stmts.map((x) => <figure key={x.id} className="docfile"><span>{x.kind === 'image' ? '🖼' : '📄'} {x.name}{x.pages ? ` · ${x.pages} page${x.pages === 1 ? '' : 's'}` : ''}</span><button type="button" aria-label="Remove" onClick={() => { const all = stmts.filter((y) => y.id !== x.id); setStmts(all); set('statements', all.map((y) => y.id)); }}>×</button></figure>)}

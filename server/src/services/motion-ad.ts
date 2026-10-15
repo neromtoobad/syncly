@@ -295,7 +295,7 @@ async function finish(job: Job, o: { spec: Spec; file: string; size: [number, nu
     o.track ? `- Music licence: ${MUSIC_LICENSE} Our sound design sits underneath, and the mix is levelled for social` : `- The music is composed for this ad from its own timeline (no licensing), mastered for social`,
     `## Checks`,
     `- The scene ran with ${r.errors.length ? `${r.errors.length} page warnings` : 'no page errors'} and lasts exactly ${(r.frames / r.fps).toFixed(1)} s`,
-    `- A vision model looked at every scene: ${look.problems.length ? `notes left: ${look.problems.join('; ')}` : 'no problems found'}`,
+    `- A vision model looked at a still of every scene${look.problems.length ? ' and its notes went back to the producer; ask for a revision if anything still looks off to you' : ': no problems found'}.`,
     `- The audio was checked by loudness normalisation, not by ear. Have a listen.`,
     `## Changes`,
     `Ask for a revision with what to change: wording, colours, which product goes first, length, or vertical, square or landscape.`,

@@ -662,4 +662,4 @@ serve({ fetch: app.fetch, port }, () => console.log(`outlay api on :${port} (${D
 console.log(`mail: ${MAILER ?? 'off'}${MAILER === 'resend' ? ` from ${MAIL_FROM}` : ''}`);
 if (MAILER === 'resend' && !DRY) resend({ to: 'delivered@resend.dev', subject: 'Syncly mail check', text: 'Startup check.', html: '<p>Startup check.</p>' })
   .then((r) => console.log(`mail check: Resend accepted it (${r.id})`), (e) => console.log(`mail check FAILED: ${e.message}`));
-setInterval(() => { try { sweepStatements(); } catch { /* the folder may not exist yet */ } }, 3600_000); // statements left over from unpaid quotes go after a day
+setInterval(() => { try { sweepStatements(); } catch { /* the folder may not exist yet */ } }, 3600_000); // statements are deleted when the customer decides; any left over (unpaid quotes, undecided) go after 3 days

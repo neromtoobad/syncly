@@ -109,7 +109,9 @@ export function cleanStoryboard(sb: Storyboard, o: { seconds: number; photos: Ph
   const used = () => new Set(out.flatMap((x: any) => [x.photo, ...(x.photos ?? [])].filter(Boolean)));
   const wantPhotos = Math.min(3, o.photos.length);
   const photoScenes = () => out.filter((x: any) => x.photo || x.photos?.length).length;
-  const ranked = [...o.photos].sort((a, b) => Number(b.cut) - Number(a.cut));
+  // the owner's own photos first (they chose them), then product cut-outs, then the rest
+  const own = (p: { name: string }) => /^photo-/.test(p.name);
+  const ranked = [...o.photos].sort((a, b) => Number(own(b)) - Number(own(a)) || Number(b.cut) - Number(a.cut));
   for (let i = 1; i < out.length && photoScenes() < wantPhotos; i++) {
     const x = out[i] as any;
     if (x.photo || x.photos || x.type === 'points' || x.type === 'price') continue;
@@ -119,6 +121,10 @@ export function cleanStoryboard(sb: Storyboard, o: { seconds: number; photos: Ph
     if (!words) continue;
     out[i] = i % 2 ? { type: 'product', photo: free.name, title: cap(words, 34), tag: x.type === 'list' ? cap(x.items?.[0], 26) || undefined : undefined } : { type: 'showcase', photo: free.name, title: cap(words, 34), note: x.type === 'list' ? cap((x.items ?? []).join(' · '), 90) || undefined : undefined };
   }
+  // a photo the owner sent always makes it on screen: if the storyboard used only website pictures, the first
+  // product or showcase scene shows their best photo instead
+  const firstOwn = ranked.find(own);
+  if (firstOwn && !used().has(firstOwn.name)) { const sc = out.find((x: any) => (x.type === 'product' || x.type === 'showcase') && x.photo) as any; if (sc) sc.photo = firstOwn.name; }
   // still short (every scene was points or a price): add product scenes before the call to action
   while (photoScenes() < wantPhotos) {
     const free = ranked.find((p) => !used().has(p.name));

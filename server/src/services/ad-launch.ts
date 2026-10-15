@@ -211,7 +211,8 @@ export const adLaunch = {
           if (dropped) issues.push(`angle ${i + 1}: ${dropped} line${dropped === 1 ? '' : 's'} dropped for a number that isn't in your order`);
           return ok.length ? ok : [fallback];
         };
-        const overlay = c?.overlay && !unsourced(c.overlay).length ? c.overlay.trim() : a.hook;
+        // the angle's own hook is checked too: a number the owner never gave must not reach the picture
+        const overlay = c?.overlay && !unsourced(c.overlay).length ? c.overlay.trim() : !unsourced(a.hook).length ? a.hook : a.name;
         return { overlay: overlay.length > 40 ? a.name : overlay, primary: keep(c?.primary, 220, `${spec.product}. ${spec.cta}.`), headline: keep(c?.headline, 40, spec.business.slice(0, 40)), tiktok: keep(c?.tiktok ? [c.tiktok] : [], 100, `${spec.product}. ${spec.cta}`)[0] };
       });
 

@@ -334,7 +334,7 @@ Reply with JSON only: {"theme","brand","title","description","hero":{"variant","
         Object.keys(links).length || facts.bank ? `- **Where you already sell:** ${[...Object.keys(links).map((k) => k[0].toUpperCase() + k.slice(1)), ...(facts.bank ? ['pay-by-transfer details with a copy button'] : [])].join(', ')}${chow?.items.length ? ` (your Chowdeck menu and prices were read straight from your store)` : ''}` : '',
         `## Checks`,
         `- **Facts:** every price, phone number, address and review on the page comes from your listing, your posts or your brief; the page can't show one that doesn't.${issues.length ? ` Open notes on the copy: ${issues.join('; ')}.` : ''}`,
-        `- **Looked at on a phone and a laptop:** ${look.issues.length ? `open notes: ${look.issues.join('; ')}` : 'no problems found'}.`,
+        `- **Looked at on a phone and a laptop** by a vision model${look.issues.length ? '; its notes went back to the designer. Ask for a revision if anything still looks off to you' : ': no problems found'}.`,
         scores ? `- **Lighthouse (mobile):** ${Object.entries(scores).map(([k, v]) => `${k.replace(/[-_]/g, ' ')} ${v}`).join(' · ')}` : '- **Lighthouse:** runs on the live page once it is published on the public server.',
         notes.length ? `- **Adjusted automatically:** ${notes.join('; ')}.` : '',
         `## Changes`,

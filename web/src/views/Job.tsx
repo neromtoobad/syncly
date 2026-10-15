@@ -298,6 +298,7 @@ export default function Job({ id }: { id: string }) {
   const naira = (x: number) => `₦${Math.round(x).toLocaleString('en-NG')}`;
   const files = last?.files.filter((f) => !f.startsWith('preview-')) ?? [];
   const docFiles = files.filter((f) => !isImage(f) && !isVideo(f));
+  const reportFirst = ['money-report', 'get-found', 'find-customers', 'buy-smart'].includes(o.service);
   const hasMedia = files.some((f) => isImage(f) || isVideo(f)) || /\]\((?:https?:\/\/[^)\s]+)?\/s\/[a-z0-9-]+\)/.test(last?.deliverable ?? '');
   const qaBox = last?.qa ? <div className={`qa ${last.qa.verdict === 'pass' ? 'pass' : 'revise'}`} style={{ margin: '4px 0 18px' }}><Avatar role="auditor" /><div><b>Auditor {last.qa.verdict === 'pass' ? 'passed it' : 'left notes'}</b> <span className="model">· {last.qa.model}</span>{last.qa.notes && <div style={{ fontSize: 13.5, marginTop: 2 }}>{last.qa.notes}</div>}</div></div> : null;
 
@@ -409,9 +410,12 @@ export default function Job({ id }: { id: string }) {
                 )}
               </div>
             </div>
-            {(o as any).withdrawn ? <p className="muted">This work wasn't kept, so its files are gone.</p> : <Media id={o.id} files={files} deliverable={last!.deliverable} locked={locked} />}
-            {/* With pictures or video to look at, the write-up folds away so the decision sits right under them */}
-            {hasMedia ? (
+            {!reportFirst && ((o as any).withdrawn ? <p className="muted">This work wasn't kept, so its files are gone.</p> : <Media id={o.id} files={files} deliverable={last!.deliverable} locked={locked} />)}
+            {/* With pictures or video to look at, the write-up folds away so the decision sits right under them.
+                For a report, the report is the work: it reads first, open, and its charts follow. */}
+            {reportFirst ? (
+              <>{qaBox}<div className="deliverable" dangerouslySetInnerHTML={{ __html: html }} />{!(o as any).withdrawn && <Media id={o.id} files={files} deliverable={last!.deliverable} locked={locked} />}</>
+            ) : hasMedia ? (
               <details className="notes">
                 <summary>What the team wrote{last?.qa ? ` · auditor ${last.qa.verdict === 'pass' ? 'passed it' : 'left notes'}` : ''}</summary>
                 {qaBox}
@@ -420,7 +424,7 @@ export default function Job({ id }: { id: string }) {
             ) : <>{qaBox}<div className="deliverable" dangerouslySetInnerHTML={{ __html: html }} /></>}
           </section>
 
-          {o.status === 'delivered' && !hasMedia && <a href="#decide" className="decidebar">Ready for your decision <b>Accept, revise or reject ↓</b></a>}
+          {o.status === 'delivered' && (!hasMedia || reportFirst) && <a href="#decide" className="decidebar">Ready for your decision <b>Accept, revise or reject ↓</b></a>}
           {o.status === 'delivered' && <section className="card pad decisioncard" id="decide"><h3 className="t">Your decision</h3>{decisionPanel()}</section>}
           {o.status === 'accepted' && <div className="qa pass"><Avatar role="cfo" /><div>Accepted {o.decision?.by === 'auto' ? 'automatically after 48 h' : 'by you'} · {timeAgo(o.decision!.at)}. Thank you.{o.escrow?.closeTx && <> <Tx cfg={cfg} hash={o.escrow.closeTx}>Payment released on Arc</Tx></>}</div></div>}
           {o.status === 'rejected' && <div className="qa revise"><Avatar role="cfo" /><div>Rejected{o.naira?.refund ? `: ${naira(o.naira.refund.ngn)} ${o.naira.refund.status === 'paid' ? 'refunded' : 'being refunded'} through Bachs${o.naira.refund.bondNgn ? `, and the ${naira(o.naira.refund.bondNgn)} bond is owed to you (we'll send it to your bank account)` : ''}` : o.refund ? `: ${usd(o.refund.priceUsd)} refunded + ${usd(o.refund.bondUsd)} bond paid` : ''}. The CFO will learn from this.{o.refund?.tx && <> <Tx cfg={cfg} hash={o.refund.tx}>Refund on Arc</Tx></>}</div></div>}

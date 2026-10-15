@@ -7,6 +7,7 @@
 // 'escrow' (JobEscrow on Arc). An escrow order follows the chain: syncEscrow() reads the job's on-chain
 // state and mirrors it here. Only the customer's wallet can accept, revise or reject.
 import { mkdirSync, readFileSync, readdirSync, writeFileSync, existsSync } from 'node:fs';
+import { deleteStatements } from './statements.ts';
 import { join } from 'node:path';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { isAddress, type Address, type Hex } from 'viem';
@@ -82,6 +83,8 @@ export function saveOrder(o: Order) {
   // The moment a paid job is accepted its files are the customer's: the Messenger sends them.
   if (was !== 'accepted' && o.status === 'accepted' && o.payment?.mode === 'escrow') { const d = jobDir(o); if (d) void emailRelease(o, d); }
   if (was !== 'delivered' && o.status === 'delivered') makePreviews(o);
+  // A bank statement stays only while the customer may still ask for a revision: gone once they decide, or the order ends.
+  if (was !== o.status && ['accepted', 'rejected', 'expired'].includes(o.status) || (o.status === 'failed' && o.refund)) { const st = (o.details as any)?.statements; if (Array.isArray(st) && st.length) deleteStatements(st); }
   publish({ type: 'order', orderId: o.id, data: orderEventData(o) });
 }
 

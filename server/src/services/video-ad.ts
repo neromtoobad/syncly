@@ -72,7 +72,9 @@ export async function cutAd(job: Job, o: { clip: Buffer; overlay: string; endTit
     (track ? ';[3:a]atrim=0:8,afade=t=out:st=7.2:d=0.8,loudnorm=I=-14:TP=-1.5[au]' : ''),
     '-map', '[v]', ...(track ? ['-map', '[au]'] : []), '-c:v', 'libx264', '-preset', 'medium', '-crf', '19', '-pix_fmt', 'yuv420p', ...(track ? ['-c:a', 'aac', '-b:a', '160k'] : []), '-movflags', '+faststart', '-t', '8', out,
   ]);
-  const square = await ffmpeg({ 'v.mp4': vertical }, (f, out) => ['-i', f['v.mp4'], '-vf', 'crop=1080:1080:0:420', '-c:v', 'libx264', '-crf', '20', '-pix_fmt', 'yuv420p', '-c:a', 'copy', '-movflags', '+faststart', out]);
+  // the square keeps the whole vertical frame (hook at the top, call to action at the bottom) on a blurred fill of
+  // itself; a centre crop used to slice through the hook
+  const square = await ffmpeg({ 'v.mp4': vertical }, (f, out) => ['-i', f['v.mp4'], '-filter_complex', '[0:v]split[a][b];[a]scale=1080:1080:force_original_aspect_ratio=increase,crop=1080:1080,boxblur=24:2,eq=brightness=-0.08[bg];[b]scale=-2:1080[fg];[bg][fg]overlay=(W-w)/2:0,format=yuv420p[v]', '-map', '[v]', '-map', '0:a?', '-c:v', 'libx264', '-crf', '20', '-pix_fmt', 'yuv420p', '-c:a', 'copy', '-movflags', '+faststart', out]);
   return { vertical, square, music: !!track };
 }
 

@@ -40,7 +40,7 @@ type Gap = { item: string; shows: string; ok?: boolean; fix?: string; rank?: num
 
 // The AI part asks 5 questions (3 by name, 2 for a recommendation) instead of the audit's 6: the Maps grid
 // now shows who gets recommended from Google's side. The owner's own question is still asked.
-const KINDS: Kind[] = ['hours', 'status', 'price', 'best', 'service'];
+const KINDS: Kind[] = ['status', 'price', 'best', 'service']; // "status" asks the hours too
 const STEP_KM = 1.5;
 const ZOOM = 15;
 const LABEL = [['north-west', 'north', 'north-east'], ['west', 'middle', 'east'], ['south-west', 'south', 'south-east']];
@@ -130,7 +130,9 @@ async function runGrid(job: Job, spec: Spec, searches: string[], center: { lat: 
   let ok = 0, fails = 0, down = '';
   for (const [si, q0] of searches.entries()) {
     // with no pin, "near me" would mean near Serper's servers: search the area by name instead
-    const q = center ? q0 : q0.replace(/\bnear me\b/i, `in ${spec.area || spec.city}`);
+    // every search names the area when there's no pin (a bare "bead accessories" would search all of Nigeria)
+    const where = spec.area || spec.city, named = [spec.area, spec.city].some((w) => w && q0.toLowerCase().includes(w.toLowerCase()));
+    const q = center ? q0 : /\bnear me\b/i.test(q0) ? q0.replace(/\bnear me\b/i, `in ${where}`) : named || !where ? q0 : `${q0} in ${where}`;
     job.log('scout', 'grid', center ? `"${q}" from ${pts.length} spots ${STEP_KM} km apart around the listing` : `"${q}" once for the area (no map pin for the business)`);
     const cells: Cell[] = [];
     for (const [pi, pt] of pts.entries()) {
@@ -501,7 +503,7 @@ export const getFound = {
   priceUsd: 2,
   // 20-24 AI answers at 0.10 (cap 0.15) + Business Profile 0.10 + LLM Mentions 0.10 + 19 Maps searches at 0.006
   // + 2 review pages at 0.002 + site read + ~14 LLM calls ≈ 3.1; the cap stays under 4.50 of tools per job.
-  policy: { budgetUsd: 5.1 + MAIL_BUDGET_USD, allowHosts: [HOSTS.blockrun, HOSTS.blockrunArc, HOSTS.orthogonal, HOSTS.apex, HOSTS.exa, AISA, ...(MAIL_HOST ? [MAIL_HOST] : [])] },
+  policy: { budgetUsd: 3 + MAIL_BUDGET_USD, allowHosts: [HOSTS.blockrun, HOSTS.blockrunArc, HOSTS.orthogonal, HOSTS.apex, HOSTS.exa, AISA, ...(MAIL_HOST ? [MAIL_HOST] : [])] },
 
   async run(brief: string, opts: { orderId?: string; details?: BusinessDetails } = {}): Promise<Job> {
     const job = new Job(this.id, brief, this.policy, opts.orderId);
@@ -526,7 +528,9 @@ export const getFound = {
 
       // 2. Two lanes at once: the AI audit, and Maps → reviews → texts to paste. The audit starts first so its
       // one Scout call (LLM Mentions) is queued ahead of the grid's 18.
-      const aiRun = auditAnswers(job, spec, truth, d, { kinds: KINDS });
+      // with no listing and no website there's nothing to check by-name answers against: ask only whether the
+      // assistants would recommend the business (6 answers instead of 20)
+      const aiRun = auditAnswers(job, spec, truth, d, { kinds: truth.listing || truth.domain ? KINDS : ['best', 'service'] });
       // A third lane: the market itself (competitors, prices, demand), researched and cited (was Market Research).
       // It never fails the report: if it can't finish, the report says so and the rest stands.
       const marketBrief = `Market research for ${spec.name}, ${d?.offer ?? spec.category} in ${[spec.area, spec.city].filter(Boolean).join(', ')}. Cover: the main competitors in that area and what they charge, what customers there look for and pay, demand and trends, and how this business can win.${d?.competitors?.length ? ` Competitors the owner named: ${d.competitors.join(', ')}.` : ''}${d?.research ? ` The owner's own question: ${d.research}` : ''}`;

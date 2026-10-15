@@ -85,7 +85,7 @@ const handle = (v: unknown) => { const t = s(v, 120); if (!t) return undefined; 
 
 const RELEVANT: Record<string, (keyof BusinessDetails)[]> = {
   website: ['whatsapp', 'phone', 'email', 'address', 'maps', 'instagram', 'tiktok', 'facebook', 'website', 'links', 'bank', 'menu', 'story', 'style', 'colour', 'sections', 'notes', 'logo', 'photos'],
-  'content-pack': ['whatsapp', 'instagram', 'tiktok', 'website', 'competitors', 'platforms', 'goal', 'tone', 'colour', 'notes', 'photos'],
+  'content-pack': ['whatsapp', 'instagram', 'tiktok', 'website', 'competitors', 'platforms', 'goal', 'tone', 'colour', 'notes', 'photos', 'logo', 'price'],
   'motion-ad': ['promote', 'price', 'cta', 'whatsapp', 'phone', 'instagram', 'website', 'address', 'format', 'length', 'colour', 'notes', 'logo', 'photos'],
   'video-ad': ['promote', 'price', 'cta', 'whatsapp', 'phone', 'instagram', 'website', 'address', 'colour', 'notes', 'logo', 'photos'],
   'ai-answer-audit': ['website', 'instagram', 'maps', 'menu', 'questions'],
@@ -125,7 +125,8 @@ export function cleanDetails(raw: any, service = 'website'): BusinessDetails {
     platforms: Array.isArray(raw?.platforms) ? raw.platforms.filter((x: unknown) => (PLATFORM_CHOICES as readonly string[]).includes(x as string)) : undefined,
     goal: s(raw?.goal, 160), tone: s(raw?.tone, 120),
     competitors: service === 'get-found'
-      ? (Array.isArray(raw?.competitors) ? raw.competitors : typeof raw?.competitors === 'string' ? raw.competitors.split(/[,\n;]+/) : []).map((x: unknown) => s(x, 80)).filter(Boolean).slice(0, 3) as string[]
+      // names are split on commas and lines; @handles also on spaces ("@saf.ng @beadsby_rue" is two)
+      ? (Array.isArray(raw?.competitors) ? raw.competitors : typeof raw?.competitors === 'string' ? raw.competitors.split(/[,\n;]+/) : []).flatMap((x: unknown) => (/^\s*@\S+(\s+@\S+)+\s*$/.test(String(x)) ? String(x).trim().split(/\s+/) : [x])).map((x: unknown) => s(x, 80)).filter(Boolean).slice(0, 3) as string[]
       : Array.isArray(raw?.competitors) ? raw.competitors.map(handle).filter(Boolean).slice(0, 3) as string[] : typeof raw?.competitors === 'string' ? raw.competitors.split(/[\s,]+/).map(handle).filter(Boolean).slice(0, 3) as string[] : undefined,
     promote: s(raw?.promote, 200), price: s(raw?.price, 60),
     cta: ['whatsapp', 'call', 'visit', 'website', 'dm'].includes(raw?.cta) ? raw.cta : undefined,

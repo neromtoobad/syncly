@@ -9,11 +9,13 @@ import { Job } from '../job.ts';
 import { MODELS } from '../config.ts';
 import { HOSTS, llm, parseJson, webRead, type Page } from '../tools.ts';
 import { AISA, aisa } from '../sellers.ts';
-import { image } from '../media.ts';
 import { MAIL_BUDGET_USD, MAIL_HOST } from '../mail.ts';
 import type { BusinessDetails } from '../details.ts';
 import { readUpload } from '../uploads.ts';
 import { editImage } from '../media.ts';
+import { renderPages } from '../browser.ts';
+import { postHtml, POST_SIZES, type PostCard } from '../postcard.ts';
+import { money } from '../flyer.ts';
 
 type Spec = { business: string; niche: string; location: string; platforms: string[]; instagram?: string; tiktok?: string; website?: string; competitors: string[]; offer: string; audience: string; tone: string; keywords: string[] };
 export type Example = { n: number; platform: string; url: string; who: string; caption: string; views?: number; likes?: number; comments?: number; audio?: string; format?: string; posted?: string };
@@ -129,7 +131,7 @@ export const contentPack = {
       job.log('writer', 'write', '7 posts in their voice, each built on a style that is working');
       const plan = parseJson<{ posts: Post[] }>(
         await llm(job, 'writer', [
-          { role: 'system', content: `You write social posts for a small business, in its voice (${spec.tone}). Write 7 posts for the next 7 days across ${spec.platforms.join(' and ')}, each built on one of the working styles.${d?.goal ? ` The owner's goal: ${d.goal}; every post should push towards it.` : ''} Rules: never invent prices, discounts, awards or facts about the business that the site text or brief doesn't state (use a placeholder like [price] instead); the hook must work in the first second; the caption must end with a clear CTA (DM, WhatsApp, link in bio, order now); reels/TikToks get a shot list of 3–6 shots; carousels get slide text. Mark 3 of the posts as needing a designed image and give each an imagePrompt (describe the image only: subject, composition, light, colours; no text in the image). Reply JSON only: {"posts":[{"day":"Mon","platform":"Instagram","format":"reel|carousel|photo|story|tiktok","hook":"","caption":"","hashtags":["..."],"cta":"","shots":["..."],"inspiredBy":[example numbers],"imagePrompt":"" or null}]}` },
+          { role: 'system', content: `You write social posts for a small business, in its voice (${spec.tone}). Write 7 posts for the next 7 days across ${spec.platforms.join(' and ')}, each built on one of the working styles.${d?.goal ? ` The owner's goal: ${d.goal}; every post should push towards it.` : ''} Rules: never invent prices, discounts, awards or facts about the business that the site text or brief doesn't state (use a placeholder like [price] instead); the hook must work in the first second; the caption must end with a clear CTA (DM, WhatsApp, link in bio, order now); reels/TikToks get a shot list of 3–6 shots in "shots"; for a carousel, "shots" holds the 3–4 slide texts the audience reads after the cover (each under 70 characters, punchy, one idea per slide). Mark 3 of the posts as needing a designed image and give each an imagePrompt (describe the image only: subject, composition, light, colours; no text in the image). Reply JSON only: {"posts":[{"day":"Mon","platform":"Instagram","format":"reel|carousel|photo|story|tiktok","hook":"","caption":"","hashtags":["..."],"cta":"","shots":["..."],"inspiredBy":[example numbers],"imagePrompt":"" or null}]}` },
           { role: 'user', content: `Business: ${spec.business}\nOffer: ${spec.offer}\nAudience: ${spec.audience}\nLocation: ${spec.location}\nBrief: ${brief}\n\nTheir site says:\n${site?.text.slice(0, 3000) ?? '(no site)'}\n\nWhat's working now:\n${styles}` },
         ], 'write a week of posts', { maxTokens: 3500, json: true, dry: () => JSON.stringify({ posts: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, i) => ({ day, platform: i % 2 ? 'TikTok' : 'Instagram', format: i % 3 === 0 ? 'reel' : i % 3 === 1 ? 'carousel' : 'photo', hook: ['POV: 50 guests and zero stress', 'Guess the price of this tray', 'What ₦[price] gets you', 'Frying at 6am so your party slaps', 'The tray that ended the argument', 'Behind every owambe', 'Your Sunday sorted'][i], caption: `Small chops that show up hot and on time. Puff-puff, samosa, spring rolls, peppered gizzard — packed for your guests. Order for your next event.`, hashtags: ['#smallchopslagos', '#lagosevents', '#partyfood'], cta: 'DM us or WhatsApp to book your tray', shots: ['Top-down tray reveal', 'Close-up puff-puff pull', 'Packing into the box', 'Delivery handover'], inspiredBy: [1 + (i % 4)], imagePrompt: i < 3 ? 'Top-down photo of a full small chops party tray on a warm wooden table, soft daylight, green and gold napkins, appetising, editorial food photography' : null })) }) }),
         { posts: [] },
@@ -137,23 +139,49 @@ export const contentPack = {
       const posts = (plan.posts ?? []).filter((p) => p?.hook && p?.caption).slice(0, 7);
       if (posts.length < 5) throw new Error('the writer did not return a usable week of posts');
 
-      // 5. Three designed images
+      // 5. Three designed posts, ready to put up: their own photo restaged (the product stays exactly as it is) or,
+      // with no photo, a type-led design on their colour (never a made-up product), with the hook in big type, their
+      // logo, a price chip and a WhatsApp line, at the exact size each place shows it. A carousel gets its slides and
+      // a closing slide that asks for the order; with WhatsApp Status chosen, every feed post gets a 9:16 version.
       const withImages = posts.filter((p) => p.imagePrompt).slice(0, 3);
-      const images: { post: Post; name: string }[] = [];
+      const images: { post: Post; name: string; extra: string[] }[] = [];
+      const shots = d?.photos ?? [];
+      const uri = (b: Buffer) => `data:image/${b[0] === 0x89 ? 'png' : 'jpeg'};base64,${b.toString('base64')}`;
+      const logoBuf = d?.logo ? readUpload(d.logo) : undefined;
+      const wantStatus = spec.platforms.some((x) => /whatsapp/i.test(x));
+      const priceTag = d?.price ? money(d.price).slice(0, 18) : undefined;
+      const ctaLine = d?.whatsapp ? `Order on WhatsApp ${d.whatsapp}` : undefined;
+      if (priceTag) for (const p of posts) { p.caption = p.caption.replace(/₦?\s?\[price\]/gi, priceTag); p.hook = p.hook.replace(/₦?\s?\[price\]/gi, priceTag); }
       for (const [i, p] of withImages.entries()) {
-        job.log('illustrator', 'design', `image ${i + 1} of ${withImages.length}: ${p.day} ${p.format}`);
+        job.log('illustrator', 'design', `post ${i + 1} of ${withImages.length}: ${p.day} ${p.format}`);
         try {
-          const size = p.format === 'story' || /tiktok|reel/i.test(p.format) ? '1024x1792' : '1024x1024';
-          // Their own photo, staged for the post, beats a generated one: the product stays real.
-          const own = d?.photos?.[i] ? readUpload(d.photos[i]) : undefined;
-          const tint = d?.colour ? ` Colour accents in ${d.colour}.` : '';
-          const { buf } = own
-            ? await editImage(job, 'illustrator', { prompt: `Keep the product or subject from this photo exactly as it is. Restage it for a social post: ${p.imagePrompt}.${tint} Photographic and natural, no text, no logos, no watermark.`, images: [own], size, reason: `stage their photo for ${p.day}'s post` })
-            : await image(job, 'illustrator', { prompt: `${p.imagePrompt}. For ${spec.business}, ${spec.offer}.${tint} Photographic, natural, no text, no logos, no watermark.`, size, reason: `image for ${p.day}'s post` });
-          const name = `post-${i + 1}-${p.day.toLowerCase()}.png`;
-          job.files.push({ name, content: buf });
-          images.push({ post: p, name });
-        } catch (e: any) { job.log('illustrator', 'skip', `image ${i + 1} failed (${String(e?.message ?? e).slice(0, 60)})`); }
+          const tall = p.format === 'story' || /tiktok|reel/i.test(p.format);
+          const own = shots.length ? readUpload(shots[i % shots.length]) : undefined;
+          let photo: Buffer | undefined;
+          if (own) {
+            const tint = d?.colour ? ` Colour accents in ${d.colour}.` : '';
+            photo = await editImage(job, 'illustrator', { prompt: `Keep the product or subject from this photo exactly as it is: same shape, labels, colours and details. Restage it for a social post: ${p.imagePrompt}.${tint} Leave calm space ${i % 3 === 1 ? 'at the top' : 'at the bottom'} for a headline. Photographic and natural, no text, no logos, no watermark.`, images: [own], size: tall ? '1024x1792' : '1024x1024', reason: `stage their photo for ${p.day}'s post` })
+              .then((r) => r.buf).catch((e) => { job.log('illustrator', 'skip', `restaging failed (${String(e?.message ?? e).slice(0, 50)}); using their photo as it is`); return own; });
+          }
+          // a [price] the writer left for the owner becomes their real price, or comes out of the design
+          const fill = (t: string) => (priceTag ? t.replace(/₦?\s?\[price\]/gi, priceTag) : t.replace(/\s*(for|at|from)?\s*₦?\s?\[price\]/gi, '').replace(/\[[^\]]*\]/g, '').replace(/\s{2,}/g, ' ').trim());
+          p.hook = fill(p.hook); p.shots = (p.shots ?? []).map(fill);
+          const base = { business: spec.business, colour: d?.colour, logo: logoBuf ? uri(logoBuf) : undefined, cta: ctaLine ?? p.cta.slice(0, 40), price: priceTag };
+          const cover: PostCard = { ...base, size: tall ? 'story' : 'feed', kind: 'cover', photo: photo ? uri(photo) : undefined, hook: p.hook, tag: p.format === 'carousel' ? undefined : p.day, look: i };
+          const slides = /carousel/i.test(p.format) ? (p.shots ?? []).map((x) => String(x).trim()).filter(Boolean).slice(0, 3) : [];
+          const cards: { name: string; card: PostCard }[] = [];
+          const stem = `post-${i + 1}-${p.day.toLowerCase()}`;
+          if (slides.length) {
+            const of = slides.length + 2;
+            cards.push({ name: `${stem}-1.png`, card: { ...cover, size: 'feed', slide: { n: 1, of } } });
+            slides.forEach((t, k) => cards.push({ name: `${stem}-${k + 2}.png`, card: { ...base, size: 'feed', kind: 'slide', hook: t, slide: { n: k + 2, of } } }));
+            cards.push({ name: `${stem}-${of}.png`, card: { ...base, size: 'feed', kind: 'end', hook: p.cta.slice(0, 60), slide: { n: of, of } } });
+          } else cards.push({ name: `${stem}.png`, card: cover });
+          if (wantStatus && cover.size === 'feed') cards.push({ name: `${stem}-status.png`, card: { ...cover, size: 'story', slide: undefined } });
+          const bufs = await renderPages(cards.map((c) => ({ html: postHtml(c.card), w: POST_SIZES[c.card.size][0], h: POST_SIZES[c.card.size][1], kind: 'png' as const })));
+          cards.forEach((c, k) => job.files.push({ name: c.name, content: bufs[k] }));
+          images.push({ post: p, name: cards[0].name, extra: cards.slice(1).map((c) => c.name) });
+        } catch (e: any) { job.log('illustrator', 'skip', `post ${i + 1} failed (${String(e?.message ?? e).slice(0, 60)})`); }
       }
 
       // 6. QA: code first, then an auditor on another model family
@@ -193,7 +221,7 @@ export const contentPack = {
           const img = images.find((x) => x.post === p);
           return [`### ${p.day} · ${p.platform} ${p.format}`, `**Hook:** ${p.hook}`, '', p.caption, '', `**CTA:** ${p.cta}`, `**Hashtags:** ${(p.hashtags ?? []).join(' ')}`,
             p.shots?.length ? `**${/carousel/i.test(p.format) ? 'Slides' : 'Shots'}:**\n${p.shots.map((s, k) => `${k + 1}. ${s}`).join('\n')}` : '',
-            img ? `**Image:** \`${img.name}\` (attached)` : '', p.inspiredBy?.length ? `*Built on: ${p.inspiredBy.filter((n) => known.has(n)).map((n) => `[${n}]`).join(' ')}*` : ''].filter(Boolean).join('\n') + (i < posts.length - 1 ? '\n' : '');
+            img ? `**Design:** \`${img.name}\`${img.extra.length ? ` + ${img.extra.map((x) => `\`${x}\``).join(', ')}` : ''} (attached, ready to post)` : '', p.inspiredBy?.length ? `*Built on: ${p.inspiredBy.filter((n) => known.has(n)).map((n) => `[${n}]`).join(' ')}*` : ''].filter(Boolean).join('\n') + (i < posts.length - 1 ? '\n' : '');
         }),
         `## The posts behind this`,
         '| # | Where | Who | Views | Likes | Link |', '|---|---|---|---|---|---|',
