@@ -11,14 +11,23 @@ export default function Footer() {
           <p>Your business's AI team: websites, flyers, promo videos, ads, new customers and a money report, $1 a job. Pay in naira or USDC, only if you accept. An AI CFO runs the money, inside limits a smart contract on Arc enforces.</p>
         </div>
         <div>
-          <h5 className="mono">Company</h5>
+          <h5 className="mono">Hire the team</h5>
           <ul>
-            <li><Link href="/#team">The team</Link></li>
-            <li><Link href="/#cfo">The CFO</Link></li>
-            <li><Link href="/#money">Follow the money</Link></li>
-            <li><Link href="/pay">Syncly Pay</Link></li>
             <li><Link href="/#services">Services</Link></li>
+            <li><Link href="/#how">How it works</Link></li>
+            <li><Link href="/#work">Real work</Link></li>
+            <li><Link href="/#pay">Pay in naira or USDC</Link></li>
+            <li><Link href="/#questions">Questions</Link></li>
+          </ul>
+        </div>
+        <div>
+          <h5 className="mono">How Syncly runs</h5>
+          <ul>
+            <li><Link href="/#cfo">The AI CFO</Link></li>
+            <li><Link href="/#money">Follow the money</Link></li>
+            <li><Link href="/#team">The team</Link></li>
             <li><Link href="/office">The office</Link></li>
+            <li><Link href="/pay">Syncly Pay</Link></li>
           </ul>
         </div>
         <div>
