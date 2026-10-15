@@ -103,7 +103,7 @@ export const CATALOG = [
   {
     id: 'buy-smart', name: 'Best Price & Seller Check', dept: 'Buying', live: true, priceUsd: 1, listedCostUsd: 0.7, etaMin: 3,
     tagline: 'The cheapest place to buy what you need, delivered, and whether the seller is safe to pay.',
-    youGet: ['Best pick and runner-up for up to 5 items, with the delivered total in your currency', 'Every price re-checked on the seller’s own page, with stock and delivery fee', 'A RED / AMBER / GREEN check on up to 3 sellers: the ones you’re talking to, and any pick from a classified ad or a shop we don’t know', 'Every signal cited, what to ask each seller, and how to pay safely', 'A spreadsheet of every offer and the raw seller signals, emailed to you'],
+    youGet: ['Best pick and runner-up for up to 5 items, with the delivered total in your currency', 'Every price re-checked on the seller’s own page, with stock and delivery fee', 'A RED / AMBER / GREEN check on up to 3 sellers: the ones you’re talking to, and any pick from a classified ad or a shop we don’t know', 'Every signal cited, what to ask each seller, and how to pay safely', 'A price to open at when the seller haggles, and a checklist for when the goods arrive', 'A spreadsheet of every offer and the raw seller signals, emailed to you'],
     team: ['researcher', 'scout', 'reader', 'analyst', 'investigator', 'writer', 'auditor', 'messenger'],
     example: '2 chest freezers (300 L) and a double-basket deep fryer, new, delivered to Surulere, Lagos. Budget ₦900k. Also talking to @frostking_ng on Instagram',
   },

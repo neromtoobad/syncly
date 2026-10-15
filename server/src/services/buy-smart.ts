@@ -68,6 +68,36 @@ const stripQty = (line: string) => line.replace(/^\s*\d{1,3}\s*(?:x|×|pcs?\.?|p
 const adSeller = (o: BP.Offer) => o.store ?? o.title.match(/,\s*([^,|]{3,60}?)\s*$/)?.[1]?.trim() ?? o.snippet.match(/\b(?:call|seller:?|sold by)\s+([A-Z][\w&' -]{2,40})/)?.[1]?.trim();
 const adPlace = (o: BP.Offer) => o.title.match(/\bin ([A-Z][\w ]{2,30}?) - /)?.[1];
 
+/** What to check on delivery, before paying, by the kind of thing it is. Code, so it's the same advice every time. */
+export function inspectList(name: string, condition: string): string[] {
+  const n = name.toLowerCase(), used = condition !== 'new';
+  const out: string[] = [];
+  if (/phone|iphone|samsung|tecno|infinix|itel|pixel|ipad|tablet|laptop|macbook|notebook|computer|console|playstation|xbox|watch|airpod|earbud|camera/.test(n)) out.push(
+    'Switch it on in front of the seller; check the screen, buttons, speakers, cameras and charging port all work',
+    'The serial or IMEI number on the device (Settings → About, or dial *#06#) matches the box and the receipt',
+    'Signed out of the previous owner\'s iCloud or Google account, and not locked to a network',
+    ...(used ? ['Battery health (iPhone: Settings → Battery) and that it holds a charge', 'No swollen battery, bent frame or replaced screen (check the edges and the True Tone/display settings)'] : ['Factory seal intact on a "new" box; the charger and cable are original']));
+  else if (/fridge|freezer|deep ?freez|air ?con|\bac\b|generator|gen\b|inverter|solar|battery|fryer|oven|cooker|blender|washing|microwave|fan|tv|television|stabili[sz]er|pump|machine/.test(n)) out.push(
+    /fridge|freez/.test(n) ? 'Plug it in on the spot and let it run until it starts cooling (give it 20 to 30 minutes)' : /generator|gen\b/.test(n) ? 'Start it on the spot and let it run steady with something plugged in' : /inverter|solar|battery/.test(n) ? 'Connect it and check it powers a load; for batteries, check the charge level and the date code' : 'Plug it in and run it on the spot, through a full cycle if it has one',
+    'Model number and capacity (litres, kVA, watts) on the rating plate match what you paid for',
+    'No dents, rust, cracks or oil and gas smell; doors and seals close properly',
+    'Warranty card stamped and dated, with the seller\'s name on the receipt',
+    ...(used ? ['Ask how old it is and why it\'s being sold; look for signs of repair (new screws, re-welded pipes)'] : []));
+  else if (/cement|rod|iron|block|tile|paint|roof|sheet|pipe|wire|cable|plank|wood|sand|granite|marble|pop\b/.test(n)) out.push(
+    'Count the quantity before it\'s off-loaded and again after',
+    'Grade, size and gauge on the bags, bundles or labels match the order (e.g. 12 mm rods, 42.5R cement)',
+    'Nothing wet, rusted, cracked or broken; bags sealed and full weight',
+    'Same batch or shade for tiles and paint, so they match');
+  else if (/shoe|bag|dress|shirt|cloth|fabric|ankara|wig|hair|perfume|cream|watch|jewel|gold/.test(n)) out.push(
+    'Size, colour and material match the pictures; check stitching, zips and clasps',
+    'For hair, perfume and creams: seals unbroken and the batch and expiry dates printed',
+    'Branded goods: compare the logo, tags and packaging with the brand\'s own website; fakes are common');
+  out.push(...(out.length ? [] : ['It matches the listing: model, size, colour and quantity', 'Nothing broken, missing or damaged in transit']),
+    'A receipt or invoice with the seller\'s name, the item and the amount',
+    'Pay into an account in the business\'s name, never a different person\'s "for delivery"');
+  return out;
+}
+
 export const buySmart = {
   id: 'buy-smart',
   name: 'Buy Smart',
@@ -295,7 +325,16 @@ export const buySmart = {
         if (s) return `**Seller check:** not done (${s.failed ? 'the check failed' : s.skip}). Treat them as unverified.`;
         return sk ? `**Seller check:** ${sk.tag.startsWith('not needed') ? 'not needed' : 'not done'}; ${sk.why}.` : '';
       };
-      const picks = ['## The picks', ...p.md.items.map((x, i) => [`### ${x.heading}`, x.body.trim(), checkLine(i)].filter(Boolean).join('\n\n'))].join('\n\n');
+      // where haggling is normal (classified ads, Instagram and WhatsApp sellers, small shops), a price to open at:
+      // the lowest real price we found for it (scam-flagged prices are already out of the spread)
+      const haggle = (i: number) => {
+        const r = results[i], b = r.best;
+        if (!b || b.unit === undefined || (b.tier !== 'classifieds' && b.tier !== 'unknown')) return '';
+        const low = r.spread.min;
+        return low !== undefined && low < b.unit * 0.98 ? `**Price to offer:** this seller will usually haggle. Open at ${fmt(low)} (the lowest real price we found for it) and don't go above ${fmt(b.unit)} each.` : `**Price to offer:** this is already the lowest real price we found, so ask for free delivery instead of a discount.`;
+      };
+      const picks = ['## The picks', ...p.md.items.map((x, i) => [`### ${x.heading}`, x.body.trim(), checkLine(i), haggle(i)].filter(Boolean).join('\n\n'))].join('\n\n');
+      const arrives = ['## When it arrives: check before you pay', 'Pay on delivery where you can, and only after these checks. If anything fails, don\'t accept it.', ...shop.items.map((it, i) => `**${label(i)}**\n\n${inspectList(it.name, it.condition).map((x) => `- [ ] ${x}`).join('\n')}`)].join('\n\n');
       const offerWarnings = ['## Warnings about the offers', p.md.warnings.join('\n')].join('\n\n');
 
       const ids = (s: Seller) => [s.v.instagram && `@${s.v.instagram}`, s.v.phone?.local, s.v.domain ?? s.v.host, s.v.address].filter(Boolean).join(', ');
@@ -345,7 +384,7 @@ export const buySmart = {
         [p.md.method.trim(), `- **Which sellers we checked.** ${SELLER_RULES}`, '- **Seller verdicts** come from fixed rules in code, not from an AI\'s opinion:', ...VC.VERDICT_RULES.map((x) => `  ${x}`)].join('\n'),
         '_Every offer we found is in `offers.csv`; every seller signal, with its source, is in `buy-smart-signals.json`._',
       ].join('\n\n');
-      const md = [head, picks, before, offerWarnings, limits, method].join('\n\n') + '\n';
+      const md = [head, picks, before, offerWarnings, arrives, limits, method].join('\n\n') + '\n';
 
       // 13. QA: both cores' checks, then the merged report
       const issues: string[] = [];
