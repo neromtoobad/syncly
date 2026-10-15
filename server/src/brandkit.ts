@@ -50,6 +50,18 @@ export function handleVariants(h: string, name?: string): string[] {
   return [...out].filter((x) => /^[a-z0-9._]{3,30}$/.test(x)).slice(0, 10);
 }
 
+// When no vision model answers: rank posts by what their captions talk about. Words for what they sell count for a
+// post, words for events, flyers and notices count against it; only posts that come out ahead are used.
+const FOOD = /\b(jollof|rice|fried rice|chicken|turkey|suya|asun|pepper ?soup|small chops|puff[- ]?puff|samosa|spring rolls?|shawarma|burgers?|pizza|fish|catfish|croaker|beef|goat|meat|plates?|platter|menu|dish(es)?|meals?|lunch|dinner|breakfast|delicious|yummy|tasty|swallow|egusi|efo|ogbono|amala|pounded yam|ofada|ayamase|nkwobi|isi ewu|abacha|moi ?moi|akara|grills?|grilled|bbq|fries|chips|plantain|dodo|snacks?|cakes?|pastr(y|ies)|bread|drinks?|cocktails?|mocktails?|smoothies?|zobo|chapman|juice|wings|noodles|pasta|spaghetti|salad|soup|stew|sauce)\b/gi;
+const NOT_IT = /\b(wedding|birthday|anniversary|event|hosted|celebrat\w*|congrat\w*|hiring|vacanc\w*|job|apply|closed|announcement|notice|giveaway|winner|contest|happy (new year|sunday|monday|independence)|throwback|tbt|meet (our|the) (team|staff))\b/gi;
+export function byCaption(posts: { caption: string; likes: number }[], about: string): number[] {
+  const words = [...new Set(about.toLowerCase().split(/[^a-z]+/).filter((w) => w.length >= 4))];
+  const food = FOOD.test(about) || /restaurant|food|kitchen|cater|eat|chops|bakery|grill|lounge|bar\b/i.test(about);
+  FOOD.lastIndex = 0;
+  const score = (c: string) => { const t = c.toLowerCase(); return (food ? (t.match(FOOD) ?? []).length * 2 : 0) + words.filter((w) => t.includes(w)).length - (t.match(NOT_IT) ?? []).length * 3; };
+  return posts.map((p, i) => ({ i, s: score(p.caption), likes: p.likes })).filter((x) => x.s > 0).sort((a, b) => b.s - a.s || b.likes - a.likes).map((x) => x.i);
+}
+
 const PRICE = /(?:₦|\bN|#|NGN)\s?\d[\d,.]*\s?k?\b|\b\d{1,3}(?:,\d{3})+\s?(?:naira|NGN)\b/gi;
 
 /** Read the brand kit from an Instagram handle and/or a website. Never throws: a page that won't read is skipped. */
@@ -96,26 +108,38 @@ export async function brandKit(job: Job, o: { instagram?: string; website?: stri
         const ranked = [...nodes].sort((a, b) => (b.edge_liked_by?.count ?? b.edge_media_preview_like?.count ?? 0) - (a.edge_liked_by?.count ?? a.edge_media_preview_like?.count ?? 0));
         for (const n of nodes) { const c = String(n.edge_media_to_caption?.edges?.[0]?.node?.text ?? '').trim(); if (c) kit.captions.push(c.slice(0, 280)); }
         for (const c of [kit.bio ?? '', ...kit.captions]) for (const m of c.match(PRICE) ?? []) if (kit.prices.length < 8 && !kit.prices.includes(m.trim())) kit.prices.push(m.trim());
-        // the pictures of what they sell, not their most-liked post (often an event, a flyer or the logo): a vision
-        // model looks at up to 12 and picks the ones that show the food or product; most-liked order if it can't
-        const cands: Buffer[] = [];
-        for (const n of ranked.slice(0, 12)) { const src = n.display_url ?? n.thumbnail_src; const b = src ? await getImage(src) : undefined; if (b) cands.push(b); }
-        let order = cands.map((_, i) => i);
-        if (wantPhotos && cands.length > 1) {
-          try {
-            const thumbs = await Promise.all(cands.map((b) => ffmpeg({ in: b }, (f, out) => ['-i', f.in, '-vf', 'scale=320:-2,format=yuvj420p', '-q:v', '6', '-frames:v', '1', out], 'jpg')));
-            const msgs: Msg[] = [
-              { role: 'system', content: 'You choose photos for a small business\'s ads from its Instagram posts. Pick the photos that clearly show what it sells (its food, dishes, drinks, products, or the finished result of its service), best first: sharp, appetising, the item filling the frame. Leave out logos, flyers, posters and anything that is mostly text, screenshots, and photos of people, events or the venue unless that is what the business sells. Reply JSON only: {"pick": [photo numbers, best first]}' },
-              { role: 'user', content: [{ type: 'text', text: `The business sells: ${o.about ?? kit.category ?? 'see the photos'}. ${cands.length} photos:` }, ...thumbs.flatMap((t, i) => [{ type: 'text' as const, text: `Photo ${i + 1}` }, { type: 'image_url' as const, image_url: { url: `data:image/jpeg;base64,${t.toString('base64')}` } }])] },
-            ];
-            const pick = parseJson<{ pick: number[] }>(await llm(job, agent, msgs, 'pick the photos that show what they sell', { model: MODELS.vision, maxTokens: 120, json: true, maxUsd: 0.06, dry: () => JSON.stringify({ pick: cands.map((_, i) => i + 1) }) }), { pick: [] }).pick
-              .map((x) => Number(x) - 1).filter((x, k, xs) => Number.isInteger(x) && x >= 0 && x < cands.length && xs.indexOf(x) === k);
-            if (pick.length) { order = pick; job.log(agent, 'photos', `${pick.length} of ${cands.length} posts show what they sell; using those`); }
-          } catch (e: any) { job.log(agent, 'skip', `photo pick unavailable (${String(e?.message ?? e).slice(0, 50)}); using their most-liked posts`); }
+        // the pictures of what they sell, never their most-liked post for its own sake (often an event, a flyer or the
+        // logo): a vision model looks at the posts and keeps only those showing the food or product (a second model
+        // if the first fails); with no model, the captions decide; nothing unrelated is used to fill the count
+        const posts: { buf: Buffer; caption: string; likes: number }[] = [];
+        for (const n of ranked.slice(0, 12)) {
+          const src = n.display_url ?? n.thumbnail_src, b = src ? await getImage(src) : undefined;
+          if (b) posts.push({ buf: b, caption: String(n.edge_media_to_caption?.edges?.[0]?.node?.text ?? ''), likes: n.edge_liked_by?.count ?? n.edge_media_preview_like?.count ?? 0 });
         }
-        for (const i of order) {
+        let order: number[] | undefined;
+        if (wantPhotos && posts.length) {
+          const thumbs = await Promise.all(posts.map((p) => ffmpeg({ in: p.buf }, (f, out) => ['-i', f.in, '-vf', 'scale=256:-2,format=yuvj420p', '-q:v', '7', '-frames:v', '1', out], 'jpg').catch(() => undefined)));
+          const msgs: Msg[] = [
+            { role: 'system', content: 'You choose photos for a small business\'s ads from its Instagram posts. Keep ONLY the photos that clearly show what it sells: for a restaurant or caterer, plates of food, dishes, drinks; for a shop, its products; for a service, the finished result. Best first: sharp, appetising, the item filling the frame. Leave out logos, flyers, posters and anything mostly text, screenshots, selfies and group photos, weddings, birthdays and other events, and photos of the building or staff, unless that is what the business sells. If none qualify, return an empty list. Reply JSON only: {"pick": [photo numbers, best first]}' },
+            { role: 'user', content: [{ type: 'text', text: `The business: ${o.name ?? kit.name ?? ''}. It sells: ${o.about ?? kit.category ?? 'see the photos'}. ${posts.length} photos:` }, ...thumbs.flatMap((t, i) => (t ? [{ type: 'text' as const, text: `Photo ${i + 1}` }, { type: 'image_url' as const, image_url: { url: `data:image/jpeg;base64,${t.toString('base64')}` } }] : []))] },
+          ];
+          for (const model of [MODELS.vision, MODELS.auditor]) {
+            try {
+              const pick = parseJson<{ pick: number[] }>(await llm(job, agent, msgs, 'keep only the photos that show what they sell', { model, maxTokens: 120, json: true, maxUsd: 0.08, dry: () => JSON.stringify({ pick: posts.map((_, i) => i + 1) }) }), { pick: [] }).pick;
+              order = (Array.isArray(pick) ? pick : []).map((x) => Number(x) - 1).filter((x, k, xs) => Number.isInteger(x) && x >= 0 && x < posts.length && xs.indexOf(x) === k);
+              job.log(agent, 'photos', order.length ? `${order.length} of ${posts.length} recent posts show what they sell; using those` : `none of their ${posts.length} recent posts show what they sell`);
+              break;
+            } catch (e: any) { job.log(agent, 'skip', `photo pick with ${model.split('/')[1]} failed (${String(e?.message ?? e).slice(0, 100)})`); }
+          }
+          if (!order) {
+            order = byCaption(posts, `${o.about ?? ''} ${kit.category ?? ''} ${kit.bio ?? ''}`);
+            job.log(agent, 'photos', `picked by their captions: ${order.length} of ${posts.length} posts are about what they sell`);
+          }
+          if (!order.length) kit.notes.push('Your recent Instagram posts don\'t show what you sell, so we didn\'t use them. Upload a few photos of it in a revision and we remake the video with them.');
+        }
+        for (const i of order ?? []) {
           if (kit.photos.length >= wantPhotos) break;
-          const up = await saveUpload(cands[i]).catch(() => undefined);
+          const up = await saveUpload(posts[i].buf).catch(() => undefined);
           if (up) kit.photos.push(up.id);
         }
         job.log(agent, 'instagram', `@${ig}: ${[kit.name, logoBufs.length ? 'logo' : '', kit.photos.length ? `${kit.photos.length} photos` : '', kit.whatsapp || kit.phone ? 'a contact number' : '', kit.prices.length ? `${kit.prices.length} prices` : ''].filter(Boolean).join(', ') || 'nothing usable'}`);
