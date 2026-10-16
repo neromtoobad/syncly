@@ -30,7 +30,7 @@ export const POLICY = {
   lowWaterJobs: 2, // top an agent up when it can afford fewer than this many jobs
   reclaimMin: 0.25, // surplus worth taking back to the vault (a withdrawal costs a few cents)
   minFloat: 0.05, // smallest float worth planning for an agent that pays for anything
-  bondTarget: 3, // bond cover to hold: two jobs at the top bond (30% of a 5 USDC job)
+  bondTarget: 6, // bond cover to hold: about 26 undecided $1 jobs at once (their bonds stay locked up to 48 hours)
   cfoGasMin: 0.01, // below this the CFO can't send transactions; tell the Boss
   dust: 0.01, // ignore amounts smaller than this
 };
@@ -431,7 +431,7 @@ export async function tick(reason = 'scheduled') {
     const toolsNeed = r6(s.agents.reduce((t, a) => t + Math.max(0, a.allowance - a.toppedUp), 0) - s.buckets.tools);
     const wants: [Bucket, number, string][] = [
       ['tools', toolsNeed, `cover the ${usd(toolsNeed + s.buckets.tools)} USDC agents may still draw this week`],
-      ['bond', r6(POLICY.bondTarget - s.buckets.bond), `hold ${POLICY.bondTarget} USDC of bond cover, enough for two top-size guarantees`],
+      ['bond', r6(POLICY.bondTarget - s.buckets.bond), `hold ${POLICY.bondTarget} USDC of bond cover, enough for about 26 undecided $1 jobs at once`],
       ['reserve', r6(s.reserveFloor - s.buckets.reserve), `keep the reserve at its ${s.reserveFloor} USDC floor`],
     ];
     let operating = s.buckets.operating;
