@@ -75,7 +75,7 @@ export async function preparePhoto(buf: Buffer, name: string, about: string, max
 
 /** Make a storyboard safe to render: known scene types, short copy, real photos, a hook first, the CTA last,
  *  every cut on a beat (0.5 s at 120 BPM) and the lengths adding up to exactly `seconds`. */
-export function cleanStoryboard(sb: Storyboard, o: { seconds: number; photos: Photo[]; cta: string; business: string; brandColour?: string; beat?: number }): Storyboard & { scenes: (Scene & { dur: number })[] } {
+export function cleanStoryboard(sb: Storyboard, o: { seconds: number; photos: Photo[]; cta: string; business: string; brandColour?: string; beat?: number; website?: string }): Storyboard & { scenes: (Scene & { dur: number })[] } {
   // a photo reference counts if it names a file we have, with or without the extension, in any case, or by its number
   const stem = (x: string) => x.toLowerCase().replace(/\.(png|jpe?g|webp)$/, '').replace(/[\s_]+/g, '-');
   const byStem = new Map(o.photos.map((p) => [stem(p.name), p.name]));
@@ -136,7 +136,12 @@ export function cleanStoryboard(sb: Storyboard, o: { seconds: number; photos: Ph
   const pts = out.find((x) => x.type === 'points') as any;
   if (pts && !pts.photo) { const free = ranked.find((p) => !p.cut && !used().has(p.name)) ?? ranked.find((p) => !used().has(p.name)); if (free) pts.photo = free.name; }
   const ctaIn = (sb?.scenes ?? []).find((x: any) => x?.type === 'cta') as any;
-  out.push({ type: 'cta', headline: cap(ctaIn?.headline, 30) || undefined, action: cap(o.cta || ctaIn?.action || `Visit ${o.business}`, 46), sub: cap(ctaIn?.sub, 44) || undefined, brand: cap(o.business, 30) });
+  // the small line under the button never carries a web address or phone number the order doesn't have (a model once
+  // "corrected" a dead website into another address)
+  const known = `${o.cta} ${o.website ?? ''}`.toLowerCase().replace(/\s+/g, '');
+  const subRaw = cap(ctaIn?.sub, 44);
+  const subOk = !((subRaw.match(/(?:https?:\/\/)?(?:www\.)?[a-z0-9-]+\.(?:com|ng|net|org|site|co|store|shop|africa|io)\b/gi) ?? []).some((u) => !known.includes(u.toLowerCase().replace(/^https?:\/\/(www\.)?|^www\./, ''))) || (subRaw.match(/\d[\d\s-]{6,}\d/g) ?? []).some((n) => !known.includes(n.replace(/\D/g, ''))));
+  out.push({ type: 'cta', headline: cap(ctaIn?.headline, 30) || undefined, action: cap(o.cta || ctaIn?.action || `Visit ${o.business}`, 46), sub: (subOk && subRaw) || undefined, brand: cap(o.business, 30) });
   // trim to fit: about 2.5 s a scene at least
   while (out.length > Math.max(3, Math.floor(o.seconds / 2.5))) out.splice(out.length - 2, 1);
 

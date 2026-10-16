@@ -19,7 +19,7 @@ import { MUSIC_LICENSE, pickTrack, trackAudio, trackFile, trackGrid, type Track 
 import { MAIL_BUDGET_USD, MAIL_HOST } from '../mail.ts';
 import type { BusinessDetails } from '../details.ts';
 import { readUpload } from '../uploads.ts';
-import { headsUp, withBrandKit } from '../brandkit.ts';
+import { headsUp, relevantPosts, withBrandKit } from '../brandkit.ts';
 import { AISA } from '../sellers.ts';
 import { prepPhoto } from '../site/photos.ts';
 import { parseMenu } from '../site/facts.ts';
@@ -202,16 +202,20 @@ async function promoScene(job: Job, o: { spec: Spec; brief: string; siteText: st
     const found = await siteImages(spec.website.startsWith('http') ? spec.website : `https://${spec.website}`, 12).catch(() => []);
     // product shots beat banners: try the squarer pictures first, keep the best few, cut-outs ahead
     const order = [...found].sort((a, b) => Math.abs(Math.log(a.w / a.h)) - Math.abs(Math.log(b.w / b.h)));
-    const site: { photo: Photo; file: { name: string; buf: Buffer } }[] = [];
+    const raw: { buf: Buffer; alt: string }[] = [];
     for (const im of order) {
-      if (site.length >= 8) break;
-      if (/\bqr\b|qr[-_ ]?code|app ?store|play ?store|google ?play|barcode|download the app/i.test(`${im.src} ${im.alt}`)) continue;
+      if (raw.length >= 10) break;
+      if (/\bqr\b|qr[-_ ]?code|app ?store|play ?store|google ?play|barcode|download the app|app[-_ ]?screen|screenshot/i.test(`${im.src} ${im.alt}`)) continue;
       try {
         const buf = await download(im.src, 8);
         if (await looksLikeCode(buf).catch(() => false)) continue; // QR codes and flat black-and-white graphics
-        site.push(await preparePhoto(buf, `site-${site.length + 1}`, im.alt ? `from their website: ${im.alt}` : 'a picture from their website'));
+        raw.push({ buf, alt: im.alt ?? '' });
       } catch { /* a picture that won't download is skipped */ }
     }
+    // only pictures of what they sell (the same check as their Instagram posts): no app screens, banners or the building
+    const keep = raw.length > 1 ? await relevantPosts(job, 'reader', raw.map((r) => ({ buf: r.buf, caption: r.alt, likes: 0 })), { name: spec.business, about: spec.offer, what: 'pictures on their website' }) : raw.map((_, i) => i);
+    const site: { photo: Photo; file: { name: string; buf: Buffer } }[] = [];
+    for (const i of keep.slice(0, 8)) site.push(await preparePhoto(raw[i].buf, `site-${site.length + 1}`, raw[i].alt ? `from their website: ${raw[i].alt}` : 'a picture from their website'));
     site.sort((a, b) => Number(b.photo.cut) - Number(a.photo.cut));
     const take = site.slice(0, Math.max(0, 7 - photos.length));
     take.forEach((x, i) => { const name = x.photo.name.replace(/site-\d+/, `site-${i + 1}`); photos.push({ ...x.photo, name }); files.push({ ...x.file, name }); });
@@ -248,7 +252,7 @@ Rules: use ONLY facts in the brief and the site text; never invent prices, disco
   try { grid = await trackGrid(track); job.log('producer', 'music', `"${track.title}" by ${track.author} (${Math.round(grid.bpm)} BPM): every cut lands on its beat`); }
   catch (e: any) { job.log('producer', 'music', `the track didn't download (${String(e?.message ?? e).slice(0, 60)}); composing one instead`); track = undefined; }
   const music = track ? undefined : pickMusic(spec.mood);
-  const opts = { seconds: o.seconds, photos, cta: spec.cta, business: spec.business, brandColour: (spec.palette.match(/#[0-9a-f]{6}/i) ?? [])[0], beat: 60 / (grid?.bpm ?? 120) };
+  const opts = { seconds: o.seconds, photos, cta: spec.cta, business: spec.business, brandColour: (spec.palette.match(/#[0-9a-f]{6}/i) ?? [])[0], beat: 60 / (grid?.bpm ?? 120), website: spec.website };
   const bpm = grid?.bpm ?? 120;
 
   job.log('producer', 'storyboard', `${o.seconds} s ${o.format}: scenes, words and photos, with the pictures in view`);

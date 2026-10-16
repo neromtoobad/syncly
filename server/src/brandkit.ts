@@ -20,6 +20,7 @@ export type BrandKit = {
   logo?: string; photos: string[]; colour?: string; prices: string[]; captions: string[]; sources: string[];
   notes: string[]; // for the customer: a handle or site we couldn't find, and what we used instead
   siteDead?: boolean; // the website they gave didn't open
+  siteFixed?: string; // it didn't, but the likely right spelling did
 };
 
 const handleOf = (s?: string) => (s ?? '').trim().replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/^@/, '').split(/[/?#\s]/)[0] || undefined;
@@ -71,7 +72,8 @@ const PRICE = /(?:₦|\bN|#|NGN)\s?\d[\d,.]*\s?k?\b|\b\d{1,3}(?:,\d{3})+\s?(?:na
  * at the pictures (a second model if the first fails); with no model, the captions decide. Shared by every service
  * that takes photos from Instagram.
  */
-export async function relevantPosts(job: Job, agent: Role, posts: { buf: Buffer; caption: string; likes: number }[], o: { name?: string; about?: string; bio?: string }): Promise<number[]> {
+export async function relevantPosts(job: Job, agent: Role, posts: { buf: Buffer; caption: string; likes: number }[], o: { name?: string; about?: string; bio?: string; what?: string }): Promise<number[]> {
+  const what = o.what ?? 'recent posts';
   if (!posts.length) return [];
   const thumbs = await Promise.all(posts.map((p) => ffmpeg({ in: p.buf }, (f, out) => ['-i', f.in, '-vf', 'scale=256:-2,format=yuvj420p', '-q:v', '7', '-frames:v', '1', out], 'jpg').catch(() => undefined)));
   const msgs: Msg[] = [
@@ -82,12 +84,12 @@ export async function relevantPosts(job: Job, agent: Role, posts: { buf: Buffer;
     try {
       const pick = parseJson<{ pick: number[] }>(await llm(job, agent, msgs, 'keep only the photos that show what they sell', { model, maxTokens: 120, json: true, maxUsd: 0.08, dry: () => JSON.stringify({ pick: posts.map((_, i) => i + 1) }) }), { pick: [] }).pick;
       const order = (Array.isArray(pick) ? pick : []).map((x) => Number(x) - 1).filter((x, k, xs) => Number.isInteger(x) && x >= 0 && x < posts.length && xs.indexOf(x) === k);
-      job.log(agent, 'photos', order.length ? `${order.length} of ${posts.length} recent posts show what they sell; using those` : `none of their ${posts.length} recent posts show what they sell`);
+      job.log(agent, 'photos', order.length ? `${order.length} of ${posts.length} ${what} show what they sell; using those` : `none of their ${posts.length} ${what} show what they sell`);
       return order;
     } catch (e: any) { job.log(agent, 'skip', `photo pick with ${model.split('/')[1]} failed (${String(e?.message ?? e).slice(0, 100)})`); }
   }
   const order = byCaption(posts, `${o.about ?? ''} ${o.bio ?? ''}`);
-  job.log(agent, 'photos', `picked by their captions: ${order.length} of ${posts.length} posts are about what they sell`);
+  job.log(agent, 'photos', `picked by their captions: ${order.length} of ${posts.length} ${what} are about what they sell`);
   return order;
 }
 
@@ -161,20 +163,31 @@ export async function brandKit(job: Job, o: { instagram?: string; website?: stri
 
   const site = o.website ?? kit.website;
   if (site && !DRY) {
-    try {
-      const url = /^https?:\/\//.test(site) ? site : `https://${site}`;
-      job.log(agent, 'website', `${url.replace(/^https?:\/\//, '')}: logo, colour and contact links`);
-      const b = await siteBrand(url);
-      if (b) {
-        kit.sources.push(url.replace(/^https?:\/\//, ''));
-        kit.website = kit.website ?? url;
+    // the address as typed, then (if it doesn't open) the likely right spelling: otegaresturant.com → otegarestaurant.com
+    const typed = /^https?:\/\//.test(site) ? site : `https://${site}`;
+    const fixedUrl = SPELL.reduce((t, [re, to]) => t.replace(re, to), typed.toLowerCase());
+    const bare = (u: string) => u.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    let opened = false;
+    for (const url of [typed, ...(fixedUrl !== typed.toLowerCase() ? [fixedUrl] : [])]) {
+      try {
+        job.log(agent, 'website', `${bare(url)}: logo, colour and contact links`);
+        const b = await siteBrand(url);
+        if (!b) { job.log(agent, 'skip', `${bare(url)} didn't open`); continue; }
+        opened = true;
+        if (url !== typed) { kit.siteFixed = url; kit.notes.push(`${bare(typed)} didn't open, but ${bare(url)} is your site, so we used that.`); }
+        kit.sources.push(bare(url));
+        kit.website = kit.siteFixed ?? kit.website ?? url;
         kit.name = kit.name ?? b.name;
         kit.whatsapp = kit.whatsapp ?? b.whatsapp;
         kit.phone = kit.phone ?? b.phone;
-        if (b.logo) { const buf = await getImage(b.logo); if (buf) logoBufs.unshift(buf); } // a site's own logo file beats a profile picture
+        // a site's own logo file beats a profile picture, unless it's a wide wordmark (it would be tiny in a round
+        // or square logo spot), when the profile picture stays first
+        if (b.logo) { const buf = await getImage(b.logo); if (buf) { const sz = imgSize(buf); if (sz && sz[0] > sz[1] * 2 && logoBufs.length) logoBufs.push(buf); else logoBufs.unshift(buf); } }
         if (b.themeColour && /^#[0-9a-f]{6}$/i.test(b.themeColour)) kit.colour = b.themeColour;
-      } else { kit.siteDead = true; job.log(agent, 'skip', `${url.replace(/^https?:\/\//, '')} didn't open`); kit.notes.push(`${url.replace(/^https?:\/\//, '').replace(/\/$/, '')} didn't open, so nothing was taken from it. Check the address.`); }
-    } catch (e: any) { kit.siteDead = true; job.log(agent, 'skip', `website unreadable (${String(e?.message ?? e).slice(0, 60)})`); kit.notes.push(`${site} didn't open, so nothing was taken from it. Check the address.`); }
+        break;
+      } catch (e: any) { job.log(agent, 'skip', `${bare(url)} unreadable (${String(e?.message ?? e).slice(0, 60)})`); }
+    }
+    if (!opened) { kit.siteDead = true; kit.notes.push(`${bare(typed)} didn't open, so nothing was taken from it. Check the address.`); }
   }
 
   if (logoBufs.length) { const up = await saveUpload(logoBufs[0]).catch(() => undefined); if (up) kit.logo = up.id; }
@@ -183,6 +196,13 @@ export async function brandKit(job: Job, o: { instagram?: string; website?: stri
   if (kit.whatsapp && !e164(kit.whatsapp)) kit.whatsapp = undefined;
   if (kit.phone && !e164(kit.phone)) kit.phone = undefined;
   return kit;
+}
+
+/** Width and height of a PNG or JPEG, read from its header. */
+function imgSize(b: Buffer): [number, number] | undefined {
+  if (b.length > 24 && b.readUInt32BE(0) === 0x89504e47) return [b.readUInt32BE(16), b.readUInt32BE(20)];
+  if (b[0] === 0xff && b[1] === 0xd8) for (let i = 2; i < b.length - 9;) { if (b[i] !== 0xff) { i++; continue; } const m = b[i + 1]; if (m >= 0xc0 && m <= 0xc3) return [b.readUInt16BE(i + 7), b.readUInt16BE(i + 5)]; i += 2 + b.readUInt16BE(i + 2); }
+  return undefined;
 }
 
 async function getImage(url: string): Promise<Buffer | undefined> {
@@ -214,6 +234,7 @@ export async function withBrandKit<T extends { name?: string; offer?: string; in
   if (!d.whatsapp && !d.phone && (kit.whatsapp || kit.phone)) d.whatsapp = kit.whatsapp ?? kit.phone;
   if (!d.website && kit.website) d.website = kit.website;
   // a website that doesn't open never becomes the button: their WhatsApp or phone does
+  if (kit.siteFixed) d.website = kit.siteFixed;
   if (kit.siteDead && d.website) {
     d.website = undefined;
     if (d.cta === 'website') d.cta = d.whatsapp ? 'whatsapp' : d.phone ? 'call' : d.instagram ? 'dm' : undefined;
