@@ -121,20 +121,29 @@ export function cleanStoryboard(sb: Storyboard, o: { seconds: number; photos: Ph
     if (!words) continue;
     out[i] = i % 2 ? { type: 'product', photo: free.name, title: cap(words, 34), tag: x.type === 'list' ? cap(x.items?.[0], 26) || undefined : undefined } : { type: 'showcase', photo: free.name, title: cap(words, 34), note: x.type === 'list' ? cap((x.items ?? []).join(' · '), 90) || undefined : undefined };
   }
+  // the opening shows the product: the best photo (theirs first) sits behind the hook from frame 0
+  if (out[0]?.type === 'hook' && ranked.length) { const taken = used(); (out[0] as any).photo = (ranked.find((p) => !taken.has(p.name) && !p.cut) ?? ranked.find((p) => !taken.has(p.name)) ?? ranked[0]).name; } // not the photo the next scene shows
   // a photo the owner sent always makes it on screen: if the storyboard used only website pictures, the first
   // product or showcase scene shows their best photo instead
   const firstOwn = ranked.find(own);
   if (firstOwn && !used().has(firstOwn.name)) { const sc = out.find((x: any) => (x.type === 'product' || x.type === 'showcase') && x.photo) as any; if (sc) sc.photo = firstOwn.name; }
-  // the opening shows the product: the best photo (theirs first) sits behind the hook from frame 0
-  if (out[0]?.type === 'hook' && ranked.length) (out[0] as any).photo = ranked[0].name;
+  // the range in one frame: with 4 or more photos and no grid yet, the four the other scenes don't show (the best
+  // ones if they all do) go in a grid right after the opening product, where the trim to length never reaches
+  if (o.photos.length >= 4 && !out.some((x) => x.type === 'grid')) {
+    const unused = ranked.filter((p) => !used().has(p.name) && !p.cut);
+    const spare = out.some((x: any) => x.type === 'points' && !x.photo) && unused.length > 4 ? unused[unused.length - 1].name : undefined; // one left for the points scene
+    const pool = [...ranked.filter((p) => !used().has(p.name) && p.name !== spare), ...ranked.filter((p) => used().has(p.name))].slice(0, 4).map((p) => p.name);
+    const list = (sb?.scenes ?? []).find((x: any) => x?.type === 'list' || x?.type === 'grid') as any;
+    out.splice(Math.min(2, out.length), 0, { type: 'grid', photos: pool, title: cap(list?.title, 30) || cap(`More from ${o.business}`, 30), items: (list?.items ?? []).map((x: unknown) => cap(x, 18)).filter(Boolean).slice(0, 6) });
+  }
+  const pts = out.find((x) => x.type === 'points') as any;
+  if (pts && !pts.photo) { const free = ranked.find((p) => !p.cut && !used().has(p.name)) ?? ranked.find((p) => !used().has(p.name)); if (free) pts.photo = free.name; }
   // still short (every scene was points or a price): add product scenes before the call to action
   while (photoScenes() < wantPhotos) {
     const free = ranked.find((p) => !used().has(p.name));
     if (!free) break;
     out.splice(Math.max(1, out.length), 0, { type: 'product', photo: free.name, title: cap(free.about.replace(/^(their own photo \d+|from their website: |a picture from their website)/i, '').trim() || o.business, 34) });
   }
-  const pts = out.find((x) => x.type === 'points') as any;
-  if (pts && !pts.photo) { const free = ranked.find((p) => !p.cut && !used().has(p.name)) ?? ranked.find((p) => !used().has(p.name)); if (free) pts.photo = free.name; }
   const ctaIn = (sb?.scenes ?? []).find((x: any) => x?.type === 'cta') as any;
   // the small line under the button never carries a web address or phone number the order doesn't have (a model once
   // "corrected" a dead website into another address)

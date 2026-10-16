@@ -7,7 +7,7 @@ import type { Job } from './job.ts';
 import type { Role } from './wallets.ts';
 import { aisa } from './sellers.ts';
 import { download } from './media.ts';
-import { siteBrand } from './browser.ts';
+import { siteBrand, siteImages } from './browser.ts';
 import { saveUpload } from './uploads.ts';
 import { brandCandidates } from './site/color.ts';
 import { e164 } from './site/facts.ts';
@@ -19,6 +19,7 @@ export type BrandKit = {
   name?: string; bio?: string; category?: string; website?: string; whatsapp?: string; phone?: string;
   logo?: string; photos: string[]; colour?: string; prices: string[]; captions: string[]; sources: string[];
   notes: string[]; // for the customer: a handle or site we couldn't find, and what we used instead
+  siteLabels?: string[]; // what their website calls its pictures, often the menu or product categories
   siteDead?: boolean; // the website they gave didn't open
   siteFixed?: string; // it didn't, but the likely right spelling did
 };
@@ -54,7 +55,7 @@ export function handleVariants(h: string, name?: string): string[] {
 
 // When no vision model answers: rank posts by what their captions talk about. Words for what they sell count for a
 // post, words for events, flyers and notices count against it; only posts that come out ahead are used.
-const FOOD = /\b(jollof|rice|fried rice|chicken|turkey|suya|asun|pepper ?soup|small chops|puff[- ]?puff|samosa|spring rolls?|shawarma|burgers?|pizza|fish|catfish|croaker|beef|goat|meat|plates?|platter|menu|dish(es)?|meals?|lunch|dinner|breakfast|delicious|yummy|tasty|swallow|egusi|efo|ogbono|amala|pounded yam|ofada|ayamase|nkwobi|isi ewu|abacha|moi ?moi|akara|grills?|grilled|bbq|fries|chips|plantain|dodo|snacks?|cakes?|pastr(y|ies)|bread|drinks?|cocktails?|mocktails?|smoothies?|zobo|chapman|juice|wings|noodles|pasta|spaghetti|salad|soup|stew|sauce)\b/gi;
+const FOOD = /\b(food|foods|soups?|swallow|rice|pasta|sides|jollof|rice|fried rice|chicken|turkey|suya|asun|pepper ?soup|small chops|puff[- ]?puff|samosa|spring rolls?|shawarma|burgers?|pizza|fish|catfish|croaker|beef|goat|meat|plates?|platter|menu|dish(es)?|meals?|lunch|dinner|breakfast|delicious|yummy|tasty|swallow|egusi|efo|ogbono|amala|pounded yam|ofada|ayamase|nkwobi|isi ewu|abacha|moi ?moi|akara|grills?|grilled|bbq|fries|chips|plantain|dodo|snacks?|cakes?|pastr(y|ies)|bread|drinks?|cocktails?|mocktails?|smoothies?|zobo|chapman|juice|wings|noodles|pasta|spaghetti|salad|soup|stew|sauce)\b/gi;
 const NOT_IT = /\b(wedding|birthday|anniversary|event|hosted|celebrat\w*|congrat\w*|hiring|vacanc\w*|job|apply|closed|announcement|notice|giveaway|winner|contest|happy (new year|sunday|monday|independence)|throwback|tbt|meet (our|the) (team|staff))\b/gi;
 export function byCaption(posts: { caption: string; likes: number }[], about: string): number[] {
   const words = [...new Set(about.toLowerCase().split(/[^a-z]+/).filter((w) => w.length >= 4))];
@@ -91,6 +92,20 @@ export async function relevantPosts(job: Job, agent: Role, posts: { buf: Buffer;
   const order = byCaption(posts, `${o.about ?? ''} ${o.bio ?? ''}`);
   job.log(agent, 'photos', `picked by their captions: ${order.length} of ${posts.length} ${what} are about what they sell`);
   return order;
+}
+
+/** Pictures of what they sell from their own website (its menu, product and gallery images), checked like their
+ *  Instagram posts; app screens, QR codes, logos and banners are left out. Returns the picked images and the words the
+ *  site puts on its pictures (often its menu categories: "Soups", "Swallow", "Rice & Pasta"). */
+export async function sitePhotos(job: Job, agent: Role, url: string, o: { name?: string; about?: string; want: number }): Promise<{ bufs: Buffer[]; labels: string[] }> {
+  const ims = await siteImages(url, 24).catch(() => []);
+  const ok = ims.filter((im) => !/\bqr\b|qr[-_ ]?code|app ?store|play ?store|google ?play|barcode|download the app|app[-_ ]?screen|screenshot|logo|icon|favicon|banner|avatar/i.test(`${im.src} ${im.alt}`) && Math.min(im.w, im.h) >= 300);
+  const raw: { buf: Buffer; caption: string; likes: number }[] = [];
+  for (const im of ok.slice(0, 12)) { const buf = await getImage(im.src); if (buf) raw.push({ buf, caption: im.alt ?? '', likes: 0 }); }
+  const labels = [...new Set(ok.map((im) => String(im.alt ?? '').trim()).filter((a) => a.length >= 3 && a.length <= 40 && !/experience|photo|image|picture|food$|banner|hero/i.test(a)))].slice(0, 10);
+  if (!raw.length || !o.want) return { bufs: [], labels };
+  const pick = await relevantPosts(job, agent, raw, { name: o.name, about: o.about, what: 'pictures on their website' });
+  return { bufs: pick.slice(0, o.want).map((i) => raw[i].buf), labels };
 }
 
 /** Read the brand kit from an Instagram handle and/or a website. Never throws: a page that won't read is skipped. */
@@ -184,6 +199,11 @@ export async function brandKit(job: Job, o: { instagram?: string; website?: stri
         // or square logo spot), when the profile picture stays first
         if (b.logo) { const buf = await getImage(b.logo); if (buf) { const sz = imgSize(buf); if (sz && sz[0] > sz[1] * 2 && logoBufs.length) logoBufs.push(buf); else logoBufs.unshift(buf); } }
         if (b.themeColour && /^#[0-9a-f]{6}$/i.test(b.themeColour)) kit.colour = b.themeColour;
+        // their own site's pictures of what they sell fill what Instagram didn't (the best source for a restaurant's dishes)
+        const sp = await sitePhotos(job, agent, url, { name: o.name ?? kit.name, about: o.about, want: Math.max(0, wantPhotos - kit.photos.length) });
+        for (const buf of sp.bufs) { const up = await saveUpload(buf).catch(() => undefined); if (up) kit.photos.push(up.id); }
+        if (sp.bufs.length) job.log(agent, 'photos', `${sp.bufs.length} pictures of what they sell from ${bare(url)}`);
+        kit.siteLabels = sp.labels;
         break;
       } catch (e: any) { job.log(agent, 'skip', `${bare(url)} unreadable (${String(e?.message ?? e).slice(0, 60)})`); }
     }
@@ -246,6 +266,6 @@ export async function withBrandKit<T extends { name?: string; offer?: string; in
   if (!d.cta && d.whatsapp) d.cta = 'whatsapp';
   // nothing to brand it with: say so, so the customer knows why and how to fix it
   if (!d.logo && !d.photos?.length) kit.notes.push('We had no logo or photos to work with, so this uses your name and colours only. Upload your logo and a few photos in a revision and we remake it with them.');
-  const text = [kit.bio && `Their Instagram bio: ${kit.bio}`, kit.category && `Category: ${kit.category}`, kit.prices.length && `Prices in their posts: ${kit.prices.join(', ')}`, kit.captions.length && `Their recent posts say:\n${kit.captions.slice(0, 8).map((c) => `- ${c.replace(/\s+/g, ' ')}`).join('\n')}`].filter(Boolean).join('\n');
+  const text = [kit.siteLabels?.length && `Their website's sections and pictures: ${kit.siteLabels.join(', ')}`, kit.bio && `Their Instagram bio: ${kit.bio}`, kit.category && `Category: ${kit.category}`, kit.prices.length && `Prices in their posts: ${kit.prices.join(', ')}`, kit.captions.length && `Their recent posts say:\n${kit.captions.slice(0, 8).map((c) => `- ${c.replace(/\s+/g, ' ')}`).join('\n')}`].filter(Boolean).join('\n');
   return { d, text, notes: kit.notes };
 }
