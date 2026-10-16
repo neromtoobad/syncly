@@ -17,7 +17,7 @@ import { bus, type SynclyEvent } from './bus.ts';
 import { CATALOG, findService } from './services/index.ts';
 import { cleanDetails, detailsBrief, type BusinessDetails } from './details.ts';
 import { MAX_BYTES, allowUpload, readUpload, saveUpload } from './uploads.ts';
-import { addPhoto, applyPatch, editorView, previewHtml, publishPatch, rerenderAll, sourceBySlug, sourceByToken, undoLast, type SiteSource } from './site/edit.ts';
+import { addPhoto, applyPatch, editLinkFor, editorView, previewHtml, publishPatch, rerenderAll, sourceBySlug, sourceByToken, undoLast, type SiteSource } from './site/edit.ts';
 import { PREVIEW, SITE_GONE, SITE_RIBBON, jobDir, previewFile, released, teaser, withdrawn } from './release.ts';
 import { allowStatement, saveStatement, sweepStatements } from './statements.ts';
 import { LINKS, chowdeckHours, readChowdeck, samePhone } from './site/links.ts';
@@ -34,7 +34,7 @@ import { vendorPayees } from './payees.ts';
 import { screeningStatus, startScreening } from './screen.ts';
 import { books, beancount, team } from './books.ts';
 import { resolveSettlements } from './settle.ts';
-import { MAILER, MAIL_FROM, resend } from './mail.ts';
+import { MAILER, MAIL_FROM, PUBLIC_URL, resend } from './mail.ts';
 
 process.env.OUTLAY_QUIET ??= '1';
 
@@ -300,6 +300,16 @@ app.post('/api/orders/:id/redo', async (c) => {
   const str = (v: unknown, n: number) => (typeof v === 'string' ? v.slice(0, n) : undefined);
   // the new job's key goes back to the owner, who opens it with the key so its media plays
   try { const n = redoOnTheHouse(o, { name: str(fix?.name, 80), instagram: str(fix?.instagram, 40), website: str(fix?.website, 200) }); return c.json({ ...shown(c, view(n.id, c)), customerKey: n.customerKey }); } catch (e: any) { return c.json({ error: e.message }, 400); }
+});
+
+// The owner looks up a website order's private editor link, to send a customer who lost the delivery email.
+app.get('/api/orders/:id/edit-link', (c) => {
+  if (!isOwner(c)) return c.json({ error: 'owner only' }, 401);
+  const o = getOrder(c.req.param('id'));
+  if (!o) return c.json({ error: 'No order with that ID.' }, 404);
+  if (o.service !== 'website') return c.json({ error: 'That order is not a website.' }, 400);
+  const link = editLinkFor(o.id, PUBLIC_URL);
+  return link ? c.json({ link }) : c.json({ error: 'No site was built for that order yet.' }, 404);
 });
 
 app.post('/api/orders/:id/retry', async (c) => {

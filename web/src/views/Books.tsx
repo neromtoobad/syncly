@@ -126,6 +126,27 @@ function TestEmail() {
   );
 }
 
+/** Owner tool: a website order's private editor link, for a customer who wants to change their site. */
+function SiteEditLink() {
+  const [id, setId] = useState('');
+  const [link, setLink] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  async function go(e: FormEvent) {
+    e.preventDefault(); setMsg(null); setLink(null);
+    try { setLink((await api<{ link: string }>(`/api/orders/${encodeURIComponent(id.trim())}/edit-link`)).link); }
+    catch (x: any) { setMsg(x.message); }
+  }
+  return (
+    <form className="testmail" onSubmit={go} style={{ flexWrap: 'wrap' }}>
+      <span className="mono">Site edit link</span>
+      <input value={id} onChange={(e) => setId(e.target.value)} placeholder="ord_…" aria-label="Website order ID" />
+      <button className="btn secondary sm" disabled={!/^ord_[a-z0-9_]+$/i.test(id.trim())}>Get link</button>
+      {link && <span style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}><a className="mono" href={link} target="_blank" rel="noreferrer">{link}</a><button type="button" className="btn ghost sm" onClick={() => navigator.clipboard?.writeText(link)}>Copy</button></span>}
+      {msg && <span className="muted">{msg}</span>}
+    </form>
+  );
+}
+
 /** Owner tool: a free redo of an order, on the house (same brief, details, photos and email), optionally correcting
  *  what the customer mistyped: the business name, the Instagram handle, a website that doesn't exist. Opens the new job. */
 function RedoOnTheHouse() {
@@ -173,6 +194,7 @@ export default function Books() {
         <p className="sub">Only you can see this page. An AI CFO runs Syncly's money, and these books come from the same records that move it: job receipts, escrow and the vault on Arc. Updated {timeAgo(b.asOf)}. <button type="button" className="linkbtn" onClick={() => { try { localStorage.removeItem(OWNER_KEY); } catch {} window.location.reload(); }}>Lock this device</button></p>
         <TestEmail />
       <RedoOnTheHouse />
+      <SiteEditLink />
         {b.mode === 'demo' && <div className="banner"><span>●</span><div><b>Demo mode.</b> These numbers come from simulated jobs: no real money moved and every receipt is marked “demo”. Live figures from Arc mainnet replace them when the treasury is funded.</div></div>}
       </div>
 
