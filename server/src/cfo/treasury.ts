@@ -278,10 +278,17 @@ function spendFor(service: string): Partial<Record<Role, number>> {
       runs.push(by);
     }
   }
-  if (!runs.length) return SPEND[service] ?? {};
+  const floor = FLOOR[service] ?? {};
+  const withFloor = (m: Partial<Record<Role, number>>) => { for (const [r, v] of Object.entries(floor) as [Role, number][]) m[r] = Math.max(m[r] ?? 0, v); return m; };
+  if (!runs.length) return withFloor({ ...(SPEND[service] ?? {}) });
   const last = runs.slice(-10), roles = new Set(last.flatMap((b) => Object.keys(b) as Role[]));
-  return Object.fromEntries([...roles].map((r) => [r, median(last.map((b) => b[r] ?? 0))]));
+  return withFloor(Object.fromEntries([...roles].map((r) => [r, median(last.map((b) => b[r] ?? 0))])));
 }
+
+// Work a service's past jobs can't show yet: the brand kit (Oct 16) has the reader buy the Instagram profile (about
+// 0.10, capped 0.15) and run the photo checks (up to 0.08 each) on every job with a handle or a website, so it's
+// kept ready for that from the first job, before the medians catch up.
+const FLOOR: Record<string, Partial<Record<Role, number>>> = Object.fromEntries(['website', 'motion-ad', 'flyers', 'content-pack', 'ad-launch'].map((id) => [id, { reader: 0.3 }]));
 
 /**
  * Before quoting, the CFO checks the team can pay for the job's tools: every agent that spends on this
