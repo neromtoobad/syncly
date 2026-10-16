@@ -83,13 +83,16 @@ export function validatePlan(raw: any, facts: Facts, photos: { id: string; kind:
   let heroVariant = ['photo', 'split', 'stack', 'type'].includes(h.variant) ? h.variant : 'split';
   const heroPhoto = photoIds.has(h.photo) ? h.photo : undefined;
   if (heroVariant !== 'type' && !heroPhoto) { heroVariant = 'type'; notes.push('hero had no usable photo; switched to the type-only hero'); }
+  // with a real photo, the first screen leads with it (full-bleed or side by side, picked per business) instead of a
+  // block of text with the picture pushed below: the stock AI-site look
+  if (heroVariant === 'stack' && heroPhoto) heroVariant = [...facts.name].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % 2 ? 'photo' : 'split';
   const plan: Plan = {
     theme, brand,
     title: cut(raw?.title, LIMITS.title, 'title', notes) || `${facts.name}${facts.area ? ` · ${facts.area}` : ''}`,
     description: cut(raw?.description, LIMITS.description, 'description', notes) || facts.offer.slice(0, LIMITS.description),
     hero: {
       variant: heroVariant, photo: heroPhoto,
-      eyebrow: cut(h.eyebrow, LIMITS.eyebrow, 'hero.eyebrow', notes),
+      eyebrow: cut(typeof h.eyebrow === 'string' ? h.eyebrow.replace(/\s+[—–-]\s+/g, ' · ') : h.eyebrow, LIMITS.eyebrow, 'hero.eyebrow', notes),
       headline: cut(h.headline, LIMITS.headline, 'hero.headline', notes) || facts.name,
       accent: cut(h.accent, LIMITS.accent, 'hero.accent', notes),
       sub: cut(h.sub, LIMITS.sub, 'hero.sub', notes) || facts.offer,
@@ -155,6 +158,14 @@ export function validatePlan(raw: any, facts: Facts, photos: { id: string; kind:
   }
   if (!plan.sections.some((s) => s.kind === 'offer') && facts.items.length) plan.sections.unshift({ kind: 'offer', variant: facts.items.some((i) => i.price) ? 'menu' : 'cards', title: 'What we offer', items: facts.items.slice(0, 8).map((x) => ({ id: x.id })) });
   if (!plan.sections.some((s) => s.kind === 'cta')) plan.sections.push({ kind: 'cta', variant: 'band', headline: 'Ready when you are', action: canChat ? 'whatsapp' : 'call' });
+  // their photos are the proof: three or more good ones the page doesn't show yet get a gallery, before where to find
+  // them (a site with one picture on it reads as a template)
+  const shown = new Set([plan.hero.photo, ...plan.sections.flatMap((s: any) => [s.photo, ...(s.photos ?? []), ...(s.items ?? []).map((i: any) => i.photo)])].filter(Boolean));
+  const spare = photos.filter((p) => !['flyer', 'logo'].includes(p.kind) && !shown.has(p.id)).map((p) => p.id);
+  if (spare.length >= 3 && !plan.sections.some((s) => s.kind === 'gallery')) {
+    const at = plan.sections.findIndex((s) => s.kind === 'reviews' || s.kind === 'location' || s.kind === 'faq' || s.kind === 'cta');
+    plan.sections.splice(at < 0 ? plan.sections.length : at, 0, { kind: 'gallery', variant: 'grid', title: facts.kind === 'food' ? 'From our kitchen' : 'Our work', photos: spare.slice(0, 8) });
+  }
   // messages the owner pasted from their customers always make it on: up to two beside the Google reviews, or a
   // section of their own before the questions and the call to action
   const msgs = facts.reviews.filter((r) => r.source === 'message').map((r) => r.id);

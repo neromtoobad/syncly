@@ -20,6 +20,7 @@ export type BrandKit = {
   logo?: string; photos: string[]; colour?: string; prices: string[]; captions: string[]; sources: string[];
   notes: string[]; // for the customer: a handle or site we couldn't find, and what we used instead
   siteLabels?: string[]; // what their website calls its pictures, often the menu or product categories
+  handle?: string; // the Instagram handle it settled on (a mistyped one corrected)
   siteDead?: boolean; // the website they gave didn't open
   siteFixed?: string; // it didn't, but the likely right spelling did
 };
@@ -127,6 +128,7 @@ export async function brandKit(job: Job, o: { instagram?: string; website?: stri
   }
 
   if (ig) {
+    kit.handle = ig;
     try {
       job.log(agent, 'instagram', `@${ig}: name, bio, logo, contact and recent posts`);
       const r = await aisa<any>(job, 'instagram/profile', { query: { handle: ig } }, {

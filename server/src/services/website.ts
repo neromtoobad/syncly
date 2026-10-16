@@ -20,6 +20,7 @@ import { MAIL_BUDGET_USD, MAIL_HOST, PUBLIC_URL } from '../mail.ts';
 import { norm, parseHours, parseMenu, parseTestimonials, type Facts, type Item, type Kind, type Photo, type Review } from '../site/facts.ts';
 import { prepPhoto } from '../site/photos.ts';
 import { brandCandidates } from '../site/color.ts';
+import { brandKit, sitePhotos } from '../brandkit.ts';
 import { matchItemPhotos, CATALOGUE, LIMITS, RECIPES, defaultPlan, validatePlan, type Plan } from '../site/plan.ts';
 import { copyIssues } from '../site/checks.ts';
 import { renderSite } from '../site/engine.ts';
@@ -100,7 +101,20 @@ export const website = {
       for (const t of parseTestimonials(d?.testimonials)) reviews.push({ id: `m${reviews.length + 1}`, text: t.text, who: t.who, rating: 0, source: 'message' });
       if (d?.testimonials && reviews.some((r) => r.source === 'message')) job.log('reader', 'testimonials', `${reviews.filter((r) => r.source === 'message').length} customer messages from the owner`);
 
-      // 3. Their own words and photos
+      // 3. Their own pages: the Instagram profile (logo, bio, business phone, category; a mistyped handle corrected) and
+      // their website (logo, colour, the likely right address if the typed one doesn't open, and its pictures of
+      // what they sell), the same brand kit every other service reads
+      const kit = spec.instagram || spec.website ? await brandKit(job, { instagram: spec.instagram, website: spec.website, photos: 0, name: spec.business, about: spec.offer }) : undefined;
+      if (kit?.handle) spec.instagram = kit.handle;
+      if (kit?.siteFixed) spec.website = kit.siteFixed;
+      else if (kit?.siteDead) spec.website = undefined; // never read again, never linked
+      if (kit?.bio) sources.push(`Their Instagram bio: ${kit.bio}`);
+      if (kit?.category) sources.push(`Their Instagram category: ${kit.category}`);
+      if (kit?.siteLabels?.length) sources.push(`Their website's sections and pictures: ${kit.siteLabels.join(', ')}`);
+      if (kit?.prices.length) sources.push(`Prices in their Instagram posts: ${kit.prices.join(', ')}`);
+      if (!spec.whatsapp && !spec.phone && (kit?.whatsapp || kit?.phone)) spec.whatsapp = spec.phone = kit.whatsapp ?? kit.phone;
+
+      // 3a. Their own words and photos
       if (spec.website) {
         try {
           job.log('reader', 'read', `their current site ${spec.website}`);
@@ -111,7 +125,15 @@ export const website = {
       const raw: { buf: Buffer; caption: string }[] = [];
       for (const id of d?.photos ?? []) { const b = readUpload(id); if (b) raw.push({ buf: b, caption: 'Uploaded by the owner' }); }
       if (d?.photos?.length) job.log('reader', 'photos', `${raw.length} photo${raw.length === 1 ? '' : 's'} the owner uploaded`);
-      const logoBuf = d?.logo ? readUpload(d.logo) : undefined;
+      // their logo: the one they uploaded, else the one their website or Instagram profile shows
+      const logoBuf = d?.logo ? readUpload(d.logo) : kit?.logo ? readUpload(kit.logo) : undefined;
+      if (!d?.logo && logoBuf) job.log('reader', 'logo', 'their logo, from their own pages');
+      // pictures of what they sell from their own website, checked like the Instagram ones
+      if (spec.website && !DRY) {
+        const sp = await sitePhotos(job, 'reader', spec.website.startsWith('http') ? spec.website : `https://${spec.website}`, { name: spec.business, about: spec.offer, want: 8 }).catch(() => ({ bufs: [] as Buffer[], labels: [] as string[] }));
+        for (const b of sp.bufs) raw.push({ buf: b, caption: 'From their own website' });
+        if (sp.bufs.length) job.log('reader', 'photos', `${sp.bufs.length} pictures of what they sell from their website`);
+      }
       const ig = handle(spec.instagram);
       if (ig) {
         try {
@@ -229,8 +251,10 @@ Rules:
 - Facts only. Prices, phone numbers, hours, addresses and reviews are rendered from the facts automatically; your copy must not contain any number the facts don't. No invented years, awards, founders, counts or claims.
 - Write like the owner talking to a customer: plain, specific, warm, local. No filler ("nestled", "elevate", "in the heart of", "culinary journey", "look no further", "where X meets Y", "unforgettable"), no emoji, no exclamation marks.
 - Hero headline: under ${LIMITS.headline} characters; a sharp, specific promise about what they sell (not the business name; the name is already in the header). Optionally mark 1–3 words of it as "accent" (they get the theme's accent style). Sub: one sentence on what, for whom, where.
-- Photos: use photo ids only; prefer quality 4–5; the hero photo should be striking and not busy if the hero is "photo". Never use flyers.
-- brand: pick one of the candidate colours taken from their photos, or one that fits the business if none fit.
+- Hero: lead with their best photo: "photo" (full-bleed, the words over it) when it is striking and has calm space, else "split". "type" only when there is no good photo. The eyebrow is optional; when used, a few plain words with no dashes.
+- Photos: use photo ids only; prefer quality 4–5, and pictures of what they sell (their dishes, products, work) over the building or people. Never use flyers.
+- Theme: match the business's own look (its logo, its colours, how its Instagram feels), not a safe default: a dark logo or a premium night-time feel suits lounge; a loud, young brand suits street; a playful one market. Use atelier only when they really are a warm, crafty, editorial brand.
+- brand: their own brand colour: the first candidate when it comes from their logo, else one of the candidates taken from their photos, or one that fits the business if none fit.
 Reply with JSON only: {"theme","brand","title","description","hero":{"variant","eyebrow","headline","accent","sub","photo","primary","secondary"},"sections":[...],"whatsappText"}`;
       const factsForModel = {
         name: facts.name, kind: facts.kind, category: facts.category, offer: facts.offer, area: facts.area, city: facts.city, address: facts.address, landmark: facts.landmark,

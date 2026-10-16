@@ -26,9 +26,9 @@ export const THEMES: Record<ThemeId, Theme> = {
     id: 'atelier', mood: 'editorial and warm: a soft serif with real character, cream paper, hairline rules, italic accents',
     fits: 'bakeries, caterers, restaurants, cafés, food brands, florists, makers',
     fonts: 'family=Fraunces:ital,opsz,wght@0,9..144,400..800;1,9..144,400..700&family=Work+Sans:wght@400;500;600',
-    display: { family: "'Fraunces', Georgia, serif", weight: 560, tracking: '-0.025em', leading: 1.02, accentItalic: true },
+    display: { family: "'Fraunces', Georgia, serif", weight: 560, tracking: '-0.025em', leading: 1.02 },
     body: { family: "'Work Sans', system-ui, sans-serif", weight: 400 },
-    label: 'italic', mode: 'warm', radius: { btn: '999px', card: '6px', img: '4px' }, rule: true, action: 'ink',
+    label: 'italic', mode: 'warm', radius: { btn: '999px', card: '6px', img: '4px' }, rule: true, action: 'brand',
   },
   street: {
     id: 'street', mood: 'bold and loud: an extended heavy grotesk, big blocks of brand colour, confident and youthful',
@@ -52,7 +52,7 @@ export const THEMES: Record<ThemeId, Theme> = {
     fonts: 'family=Space+Grotesk:wght@400;500;600;700&family=Work+Sans:wght@400;500;600&family=Space+Mono:wght@400;700',
     display: { family: "'Space Grotesk', system-ui, sans-serif", weight: 500, tracking: '-0.045em', leading: 0.98 },
     body: { family: "'Work Sans', system-ui, sans-serif", weight: 400 },
-    label: 'mono', mono: "'Space Mono', ui-monospace, monospace", mode: 'light', radius: { btn: '0px', card: '0px', img: '0px' }, rule: true, action: 'ink',
+    label: 'caps', mono: "'Space Mono', ui-monospace, monospace", mode: 'light', radius: { btn: '0px', card: '0px', img: '0px' }, rule: true, action: 'ink',
   },
   clinic: {
     id: 'clinic', mood: 'calm and trustworthy: a readable serif for headings, a very legible sans, clean cards, nothing flashy',
