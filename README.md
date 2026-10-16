@@ -106,6 +106,8 @@ Canteen's [essay](https://thecanteenapp.com/analysis/2026/09/12/agents-and-ledge
 
 ## On Arc mainnet (chain 5042)
 
+All five contracts are **verified (exact match)** on Arc's explorer and Sourcify. They're also published on their own, documented and ready to fork, at **[arc-agent-commerce](https://github.com/neromtoobad/arc-agent-commerce)**.
+
 | Contract / wallet | Address | Role |
 |---|---|---|
 | **SynclyVault** | [`0x589e8ec9134777acecb83a9abdf018942ddc9f2b`](https://explorer.arc.io/address/0x589e8ec9134777acecb83a9abdf018942ddc9f2b) | The treasury: five buckets (OPERATING, TOOLS, BOND, RESERVE, PROMO). The CFO can move money between buckets and fund agents, never send it anywhere else. |
@@ -213,3 +215,7 @@ Live mode needs the agents' mnemonic (`OUTLAY_MNEMONIC`) and `deployments/arc.js
   - **Paymaster:** it isn't deployed on Arc.
 - **Email delivery** goes out from hello@hiresyncly.site through Resend. The Messenger can also pay AgentMail per email by x402 (`OUTLAY_MAIL=aisa`).
 - **Paying customers need a wallet with USDC on Arc.** /arc brings it from another chain, swaps it from ETH or USDT, or lists the exchanges that withdraw to Arc.
+
+## License
+
+[MIT](LICENSE). The contracts are also published separately at [arc-agent-commerce](https://github.com/neromtoobad/arc-agent-commerce).
