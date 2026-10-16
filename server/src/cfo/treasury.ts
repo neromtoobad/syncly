@@ -289,6 +289,9 @@ function spendFor(service: string): Partial<Record<Role, number>> {
 // 0.10, capped 0.15) and run the photo checks (up to 0.08 each) on every job with a handle or a website, so it's
 // kept ready for that from the first job, before the medians catch up.
 const FLOOR: Record<string, Partial<Record<Role, number>>> = Object.fromEntries(['website', 'motion-ad', 'flyers', 'content-pack', 'ad-launch'].map((id) => [id, { reader: 0.3 }]));
+// Social Media Posts (Oct 16) writes every post for seven platforms: up to 9,000 tokens a pass, two passes when the
+// auditor asks for fixes.
+FLOOR['content-pack'] = { ...FLOOR['content-pack'], writer: 0.35 };
 
 /**
  * Before quoting, the CFO checks the team can pay for the job's tools: every agent that spends on this
