@@ -190,7 +190,7 @@ export default function CfoDesk() {
           </div>
           {fund.err && <div className="error">{fund.err}</div>}
           {fund.done && <div className="ok">Sent. <a href={txUrl(cfg, fund.done)} target="_blank" rel="noreferrer">Transaction ↗</a> Watch the CFO's log below.</div>}
-          {!hasWallet() && <p className="muted" style={{ fontSize: 12.5, margin: 0 }}>Open this page in a wallet browser, or send USDC on Arc to <span className="mono">{cfg.vault}</span>.</p>}
+          {!hasWallet() && <p className="muted" style={{ fontSize: 12.5, margin: 0 }}>Open this page in your wallet app's browser to send it from here. Sending by hand: send the USDC token (contract <span className="mono">{cfg.usdc}</span>, 6 decimals) to <span className="mono">{cfg.vault}</span>, not the wallet's main USDC balance: the vault refuses a plain transfer of Arc's gas balance.</p>}
         </div>
       )}
 
