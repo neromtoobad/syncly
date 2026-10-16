@@ -14,7 +14,23 @@ const naira = (usd: number) => `₦${(Math.round((usd * NGN_PER_USD) / 50) * 50)
 
 const WA = <svg viewBox="0 0 24 24" aria-hidden><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2z" /></svg>;
 
+// Real work for each card: live customer sites, and posts, ads, flyers and video made by the same engines the
+// services run (public/showcase); the drawn sketches below stay as a fallback for a service without one.
+const SHOWCASE: Record<string, string> = {
+  website: 'Three live customer websites built by Syncly, on phones',
+  'content-pack': 'One post designed for the feed, Stories and X',
+  'ad-launch': 'Two sponsored ads with a Send message button',
+  'motion-ad': 'Frames from a promo video: the hook, a dish, the menu grid and the order card',
+  flyers: 'A WhatsApp Status flyer, an Instagram flyer and an A4 flyer with a WhatsApp QR code',
+  'product-photos': 'A phone photo of a dish, and the ready-to-sell copy with its price and WhatsApp number',
+  'get-found': 'A Google Maps rank grid beside three findings',
+  'money-report': 'A money chart from a bank statement beside three findings',
+  'find-customers': 'Three local businesses, each with a WhatsApp message ready',
+  'buy-smart': 'Three offers for a chest freezer, each with a seller check',
+};
+
 export function Preview({ id }: { id: string }) {
+  if (SHOWCASE[id]) return <div className="pv pv-img"><img src={`/showcase/${id}.webp`} alt={SHOWCASE[id]} width={900} height={560} loading="lazy" decoding="async" /></div>;
   switch (id) {
     case 'website': return (
       <div className="pv pv-site"><div className="phone"><i className="bar" /><b className="h">Portraits that make you look twice</b><i className="l" /><i className="l s" /><span className="btn">{WA}WhatsApp</span><div className="ph" /></div></div>
