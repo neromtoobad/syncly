@@ -5,8 +5,8 @@
 // page says POSTER_READY once its fonts and photo are in and every text box is fitted.
 import { esc, lum, shade, spacedPhones } from './flyer.ts';
 
-export type PostSize = 'feed' | 'story';
-export const POST_SIZES: Record<PostSize, [number, number]> = { feed: [1080, 1350], story: [1080, 1920] };
+export type PostSize = 'feed' | 'story' | 'wide';
+export const POST_SIZES: Record<PostSize, [number, number]> = { feed: [1080, 1350], story: [1080, 1920], wide: [1600, 900] }; // wide: an X (Twitter) image
 export type PostCard = {
   size: PostSize; kind: 'cover' | 'slide' | 'end';
   business: string; colour?: string; logo?: string; photo?: string;
@@ -56,7 +56,7 @@ export function postHtml(p: PostCard): string {
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{width:${W}px;height:${H}px;overflow:hidden}
-body{--u:${W / 100}px;font-family:Geist,Arial,sans-serif;background:${p.kind === 'cover' && p.photo && look !== 2 ? '#111' : accent};color:${onAccent};position:relative}
+body{--u:${Math.min(W, H) / 100}px;font-family:Geist,Arial,sans-serif;background:${p.kind === 'cover' && p.photo && look !== 2 ? '#111' : accent};color:${onAccent};position:relative}
 body:before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 88% 6%, rgba(255,255,255,.2), transparent 40%),radial-gradient(circle at 0% 100%, rgba(0,0,0,.22), transparent 45%);pointer-events:none}
 .bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .shade{position:absolute;inset:0}.shade.bottom{background:linear-gradient(180deg,rgba(0,0,0,.35) 0%,rgba(0,0,0,0) 22%,rgba(0,0,0,0) 42%,rgba(0,0,0,.82) 78%,rgba(0,0,0,.9) 100%)}

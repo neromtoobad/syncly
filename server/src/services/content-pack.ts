@@ -20,7 +20,22 @@ import { money } from '../flyer.ts';
 
 type Spec = { business: string; niche: string; location: string; platforms: string[]; instagram?: string; tiktok?: string; website?: string; competitors: string[]; offer: string; audience: string; tone: string; keywords: string[] };
 export type Example = { n: number; platform: string; url: string; who: string; caption: string; views?: number; likes?: number; comments?: number; audio?: string; format?: string; posted?: string };
-type Post = { day: string; platform: string; format: string; hook: string; caption: string; hashtags: string[]; cta: string; shots: string[]; inspiredBy: number[]; imagePrompt?: string };
+type Post = { day: string; platform: string; format: string; hook: string; caption: string; hashtags: string[]; cta: string; shots: string[]; inspiredBy: number[]; imagePrompt?: string; versions?: Partial<Record<Outlet, string>> };
+
+// Every post comes written for every place a Nigerian small business posts, each in that place's own length and
+// manner, with the design in the size that place shows: 4:5 feed, 9:16 vertical, 16:9 for X.
+type Outlet = 'instagram' | 'story' | 'tiktok' | 'x' | 'snapchat' | 'whatsapp' | 'facebook';
+const OUTLETS: { key: Outlet; name: string; rule: string; max: number; size: 'feed' | 'story' | 'wide' }[] = [
+  { key: 'instagram', name: 'Instagram post', rule: 'the caption: the hook as its first line, short lines, the call to action, then 5 to 10 hashtags', max: 2200, size: 'feed' },
+  { key: 'story', name: 'Instagram Story', rule: 'at most 12 words on screen, then "Sticker:" and one sticker to add (a poll, a question, a countdown or a link)', max: 160, size: 'story' },
+  { key: 'tiktok', name: 'TikTok', rule: '"On screen:" the words for the first 2 seconds, then "Caption:" under 150 characters with 3 to 5 hashtags', max: 320, size: 'story' },
+  { key: 'x', name: 'X (Twitter)', rule: 'one tweet under 260 characters: punchy, conversational, at most 2 hashtags', max: 280, size: 'wide' },
+  { key: 'snapchat', name: 'Snapchat', rule: 'a snap caption under 80 characters, casual, like talking to a friend', max: 90, size: 'story' },
+  { key: 'whatsapp', name: 'WhatsApp Status', rule: 'under 50 words, written like a message to their customers, ending with how to order', max: 400, size: 'story' },
+  { key: 'facebook', name: 'Facebook', rule: '60 to 120 words, warmer and fuller, with a question that invites comments, then the call to action', max: 1500, size: 'feed' },
+];
+/** A version past its place's limit is cut at a sentence or word, never mid-word. */
+const fit = (t: string, max: number) => { const s = String(t ?? '').trim(); if (s.length <= max) return s; const cut = s.slice(0, max - 1); const end = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? ')); return (end > max * 0.6 ? cut.slice(0, end + 1) : cut.replace(/\s+\S*$/, '') + '…').trim(); };
 
 const handle = (h?: string) => h?.replace(/^@/, '').replace(/^https?:\/\/(www\.)?(instagram|tiktok)\.com\/@?/, '').replace(/\/.*$/, '').trim() || undefined;
 const csvCell = (v: unknown) => { const s = v === undefined || v === null ? '' : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
@@ -133,12 +148,23 @@ export const contentPack = {
       job.log('writer', 'write', '7 posts in their voice, each built on a style that is working');
       const plan = parseJson<{ posts: Post[] }>(
         await llm(job, 'writer', [
-          { role: 'system', content: `You write social posts for a small business, in its voice (${spec.tone}). Write 7 posts for the next 7 days across ${spec.platforms.join(' and ')}, each built on one of the working styles.${d?.goal ? ` The owner's goal: ${d.goal}; every post should push towards it.` : ''} Rules: never invent prices, discounts, awards or facts about the business that the site text or brief doesn't state (use a placeholder like [price] instead); the hook must work in the first second; the caption must end with a clear CTA (DM, WhatsApp, link in bio, order now); reels/TikToks get a shot list of 3–6 shots in "shots"; for a carousel, "shots" holds the 3–4 slide texts the audience reads after the cover (each under 70 characters, punchy, one idea per slide). Mark 3 of the posts as needing a designed image and give each an imagePrompt (describe the image only: subject, composition, light, colours; no text in the image). Reply JSON only: {"posts":[{"day":"Mon","platform":"Instagram","format":"reel|carousel|photo|story|tiktok","hook":"","caption":"","hashtags":["..."],"cta":"","shots":["..."],"inspiredBy":[example numbers],"imagePrompt":"" or null}]}` },
+          { role: 'system', content: `You write social posts for a small business, in its voice (${spec.tone}). Write 7 posts for the next 7 days, each built on one of the working styles, and write every post for every place they post, each version tailored to that place (not the same text pasted seven times):\n${OUTLETS.map((o) => `- ${o.key} (${o.name}): ${o.rule}`).join('\n')}\n${d?.goal ? ` The owner's goal: ${d.goal}; every post should push towards it.` : ''} Rules: never invent prices, discounts, awards or facts about the business that the site text or brief doesn't state (use a placeholder like [price] instead); the hook must work in the first second; the caption must end with a clear CTA (DM, WhatsApp, link in bio, order now); reels/TikToks get a shot list of 3–6 shots in "shots"; for a carousel, "shots" holds the 3–4 slide texts the audience reads after the cover (each under 70 characters, punchy, one idea per slide). Mark 3 of the posts as needing a designed image and give each an imagePrompt (describe the image only: subject, composition, light, colours; no text in the image). Reply JSON only: {"posts":[{"day":"Mon","platform":"Instagram","format":"reel|carousel|photo|story|tiktok","hook":"","caption":"","hashtags":["..."],"cta":"","shots":["..."],"inspiredBy":[example numbers],"imagePrompt":"" or null,"versions":{${OUTLETS.map((o) => `"${o.key}":""`).join(',')}}}]}` },
           { role: 'user', content: `Business: ${spec.business}\nOffer: ${spec.offer}\nAudience: ${spec.audience}\nLocation: ${spec.location}\nBrief: ${brief}\n\nTheir site says:\n${site?.text.slice(0, 3000) ?? '(no site)'}${pageText ? `\n\nTheir own Instagram:\n${pageText}` : ''}\n\nWhat's working now:\n${styles}` },
-        ], 'write a week of posts', { maxTokens: 3500, json: true, dry: () => JSON.stringify({ posts: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, i) => ({ day, platform: i % 2 ? 'TikTok' : 'Instagram', format: i % 3 === 0 ? 'reel' : i % 3 === 1 ? 'carousel' : 'photo', hook: ['POV: 50 guests and zero stress', 'Guess the price of this tray', 'What ₦[price] gets you', 'Frying at 6am so your party slaps', 'The tray that ended the argument', 'Behind every owambe', 'Your Sunday sorted'][i], caption: `Small chops that show up hot and on time. Puff-puff, samosa, spring rolls, peppered gizzard — packed for your guests. Order for your next event.`, hashtags: ['#smallchopslagos', '#lagosevents', '#partyfood'], cta: 'DM us or WhatsApp to book your tray', shots: ['Top-down tray reveal', 'Close-up puff-puff pull', 'Packing into the box', 'Delivery handover'], inspiredBy: [1 + (i % 4)], imagePrompt: i < 3 ? 'Top-down photo of a full small chops party tray on a warm wooden table, soft daylight, green and gold napkins, appetising, editorial food photography' : null })) }) }),
+        ], 'write a week of posts', { maxTokens: 9000, json: true, dry: () => JSON.stringify({ posts: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, i) => ({ day, platform: i % 2 ? 'TikTok' : 'Instagram', format: i % 3 === 0 ? 'reel' : i % 3 === 1 ? 'carousel' : 'photo', hook: ['POV: 50 guests and zero stress', 'Guess the price of this tray', 'What ₦[price] gets you', 'Frying at 6am so your party slaps', 'The tray that ended the argument', 'Behind every owambe', 'Your Sunday sorted'][i], caption: `Small chops that show up hot and on time. Puff-puff, samosa, spring rolls, peppered gizzard — packed for your guests. Order for your next event.`, hashtags: ['#smallchopslagos', '#lagosevents', '#partyfood'], cta: 'DM us or WhatsApp to book your tray', shots: ['Top-down tray reveal', 'Close-up puff-puff pull', 'Packing into the box', 'Delivery handover'], inspiredBy: [1 + (i % 4)], imagePrompt: i < 3 ? 'Top-down photo of a full small chops party tray on a warm wooden table, soft daylight, green and gold napkins, appetising, editorial food photography' : null })) }) }),
         { posts: [] },
       );
       const posts = (plan.posts ?? []).filter((p) => p?.hook && p?.caption).slice(0, 7);
+      // every place gets its version: the writer's, held to the place's length, else one made from the post itself
+      for (const p of posts) {
+        const v: Partial<Record<Outlet, string>> = {};
+        const tags = (p.hashtags ?? []).map((h) => (h.startsWith('#') ? h : `#${h}`));
+        const made: Record<Outlet, string> = {
+          instagram: `${p.caption}\n\n${tags.join(' ')}`.trim(), story: `${p.hook}\nSticker: a question box`, tiktok: `On screen: ${p.hook}\nCaption: ${p.hook} ${tags.slice(0, 4).join(' ')}`,
+          x: `${p.hook} ${p.cta}`, snapchat: p.hook, whatsapp: `${p.hook}\n${p.cta}`, facebook: `${p.caption}\n\n${p.cta}`,
+        };
+        for (const o of OUTLETS) v[o.key] = fit(String(p.versions?.[o.key] ?? '').trim() || made[o.key], o.max);
+        p.versions = v;
+      }
       if (posts.length < 5) throw new Error('the writer did not return a usable week of posts');
 
       // 5. Three designed posts, ready to put up: their own photo restaged (the product stays exactly as it is) or,
@@ -150,7 +176,6 @@ export const contentPack = {
       const shots = d?.photos ?? [];
       const uri = (b: Buffer) => `data:image/${b[0] === 0x89 ? 'png' : 'jpeg'};base64,${b.toString('base64')}`;
       const logoBuf = d?.logo ? readUpload(d.logo) : undefined;
-      const wantStatus = spec.platforms.some((x) => /whatsapp/i.test(x));
       const priceTag = d?.price ? money(d.price).slice(0, 18) : undefined;
       const ctaLine = d?.whatsapp ? `Order on WhatsApp ${d.whatsapp}` : undefined;
       if (priceTag) for (const p of posts) { p.caption = p.caption.replace(/₦?\s?\[price\]/gi, priceTag); p.hook = p.hook.replace(/₦?\s?\[price\]/gi, priceTag); }
@@ -179,7 +204,10 @@ export const contentPack = {
             slides.forEach((t, k) => cards.push({ name: `${stem}-${k + 2}.png`, card: { ...base, size: 'feed', kind: 'slide', hook: t, slide: { n: k + 2, of } } }));
             cards.push({ name: `${stem}-${of}.png`, card: { ...base, size: 'feed', kind: 'end', hook: p.cta.slice(0, 60), slide: { n: of, of } } });
           } else cards.push({ name: `${stem}.png`, card: cover });
-          if (wantStatus && cover.size === 'feed') cards.push({ name: `${stem}-status.png`, card: { ...cover, size: 'story', slide: undefined } });
+          // the same design in every shape: feed (Instagram, Facebook), vertical (Stories, Snapchat, TikTok, Status), wide (X)
+          if (cover.size === 'feed') cards.push({ name: `${stem}-vertical.png`, card: { ...cover, size: 'story', slide: undefined } });
+          else cards.push({ name: `${stem}-feed.png`, card: { ...cover, size: 'feed', slide: undefined } });
+          cards.push({ name: `${stem}-x.png`, card: { ...cover, size: 'wide', slide: undefined } });
           const bufs = await renderPages(cards.map((c) => ({ html: postHtml(c.card), w: POST_SIZES[c.card.size][0], h: POST_SIZES[c.card.size][1], kind: 'png' as const })));
           cards.forEach((c, k) => job.files.push({ name: c.name, content: bufs[k] }));
           images.push({ post: p, name: cards[0].name, extra: cards.slice(1).map((c) => c.name) });
@@ -198,7 +226,7 @@ export const contentPack = {
       const audit = parseJson<{ verdict: 'pass' | 'revise'; issues: string[] }>(
         await llm(job, 'auditor', [
           { role: 'system', content: 'You audit social posts written for a small business. Flag any post that states a price, discount, award, statistic or fact about the business that the brief and site text do not support (placeholders like [price] are fine), anything misleading or unsafe, and any style claim not backed by the cited posts. Reply JSON only: {"verdict":"pass"|"revise","issues":[short strings naming the post day]}.' },
-          { role: 'user', content: `Brief: ${brief}\nSite: ${site?.text.slice(0, 2500) ?? '(none)'}${pageText ? `\nTheir own Instagram: ${pageText.slice(0, 1500)}` : ''}\n\nStyles:\n${styles}\n\nPosts:\n${JSON.stringify(posts, null, 1).slice(0, 9000)}` },
+          { role: 'user', content: `Brief: ${brief}\nSite: ${site?.text.slice(0, 2500) ?? '(none)'}${pageText ? `\nTheir own Instagram: ${pageText.slice(0, 1500)}` : ''}\n\nStyles:\n${styles}\n\nPosts:\n${JSON.stringify(posts, null, 1).slice(0, 16000)}` },
         ], 'check the posts for invented claims', { model: MODELS.auditor, maxTokens: 600, json: true, dry: () => JSON.stringify({ verdict: 'pass', issues: [] }) }),
         { verdict: 'pass', issues: [] },
       );
@@ -208,7 +236,7 @@ export const contentPack = {
         const fixed = parseJson<{ posts: Post[] }>(await llm(job, 'writer', [
           { role: 'system', content: 'Fix every auditor issue in these posts: remove or replace unsupported claims with a placeholder. Keep everything else. Reply JSON only: {"posts":[...same shape...]}' },
           { role: 'user', content: `Issues:\n- ${audit.issues.join('\n- ')}\n\nPosts:\n${JSON.stringify(posts)}` },
-        ], 'fix the auditor\'s issues', { maxTokens: 3500, json: true, dry: () => JSON.stringify({ posts }) }), { posts });
+        ], 'fix the auditor\'s issues', { maxTokens: 9000, json: true, dry: () => JSON.stringify({ posts }) }), { posts });
         if (fixed.posts?.length === posts.length) posts.splice(0, posts.length, ...fixed.posts);
       }
 
@@ -216,12 +244,12 @@ export const contentPack = {
       const topEx = [...examples].sort((a, b) => (b.views ?? b.likes ?? 0) - (a.views ?? a.likes ?? 0)).slice(0, 12);
       job.deliverable = [
         `# Content Pack: ${spec.business}`,
-        `*${spec.niche}${spec.location ? ` · ${spec.location}` : ''} · ${examples.length} real posts and ads pulled this week · ${posts.length} posts ready to publish*`,
+        `*${spec.niche}${spec.location ? ` · ${spec.location}` : ''} · ${examples.length} real posts and ads pulled this week · ${posts.length} posts, each written for ${OUTLETS.map((o) => o.name).join(', ')}, with designs in feed, vertical and X sizes*`,
         `## What's working right now`, styles.trim(),
         `## Your week`,
         ...posts.map((p, i) => {
           const img = images.find((x) => x.post === p);
-          return [`### ${p.day} · ${p.platform} ${p.format}`, `**Hook:** ${p.hook}`, '', p.caption, '', `**CTA:** ${p.cta}`, `**Hashtags:** ${(p.hashtags ?? []).join(' ')}`,
+          return [`### ${p.day} · ${p.format}`, `**Hook:** ${p.hook}`, '', ...OUTLETS.map((o) => `**${o.name}**\n\n${String(p.versions?.[o.key] ?? '').split('\n').map((l) => `> ${l}`).join('\n')}\n`), `**CTA:** ${p.cta}`,
             p.shots?.length ? `**${/carousel/i.test(p.format) ? 'Slides' : 'Shots'}:**\n${p.shots.map((s, k) => `${k + 1}. ${s}`).join('\n')}` : '',
             img ? `**Design:** \`${img.name}\`${img.extra.length ? ` + ${img.extra.map((x) => `\`${x}\``).join(', ')}` : ''} (attached, ready to post)` : '', p.inspiredBy?.length ? `*Built on: ${p.inspiredBy.filter((n) => known.has(n)).map((n) => `[${n}]`).join(' ')}*` : ''].filter(Boolean).join('\n') + (i < posts.length - 1 ? '\n' : '');
         }),
@@ -230,7 +258,8 @@ export const contentPack = {
         ...topEx.map((e) => `| ${e.n} | ${e.platform} ${e.format ?? ''} | @${e.who} | ${short(e.views)} | ${short(e.likes)} | [open](${e.url}) |`),
         `\n*Numbers are as pulled on ${new Date().toISOString().slice(0, 10)}. Trends move weekly; this pack is a snapshot.*`,
       ].join('\n\n');
-      job.files.push({ name: 'posts.csv', content: ['day,platform,format,hook,caption,cta,hashtags,shots,image', ...posts.map((p) => [p.day, p.platform, p.format, p.hook, p.caption, p.cta, (p.hashtags ?? []).join(' '), (p.shots ?? []).join(' | '), images.find((x) => x.post === p)?.name ?? ''].map(csvCell).join(','))].join('\n') });
+      const design = (p: Post, size: string) => { const im = images.find((x) => x.post === p); if (!im) return ''; const all = [im.name, ...im.extra]; return (size === 'wide' ? all.find((n) => n.endsWith('-x.png')) : size === 'story' ? all.find((n) => /-vertical\.png$/.test(n)) ?? (/-feed\.png$/.test(all[1] ?? '') ? im.name : '') : all.find((n) => /-feed\.png$/.test(n)) ?? im.name) ?? im.name; };
+      job.files.push({ name: 'posts.csv', content: ['day,place,format,text,image,hook,cta,shots', ...posts.flatMap((p) => OUTLETS.map((o) => [p.day, o.name, p.format, p.versions?.[o.key] ?? '', design(p, o.size), p.hook, p.cta, (p.shots ?? []).join(' | ')].map(csvCell).join(',')))].join('\n') });
       job.files.push({ name: 'examples.csv', content: ['n,platform,format,who,views,likes,comments,audio,url,caption', ...examples.map((e) => [e.n, e.platform, e.format, e.who, e.views, e.likes, e.comments, e.audio, e.url, e.caption.replace(/\s+/g, ' ')].map(csvCell).join(','))].join('\n') });
       job.qa = { verdict: issues.length ? 'revise' : 'pass', notes: issues.join(' | ') || `${examples.length} real posts cited, ${posts.length} posts, ${images.length} images`, model: `rules + ${MODELS.auditor}` };
       job.deliverable += headsUp(brandNotes);

@@ -279,7 +279,7 @@ export default function BusinessForm({ service, onSubmit, busy, email, setEmail,
 
       {cur === 'content' && (
         <div className="form">
-          <div className="field">Where you post {chips('platforms', PLATFORMS)}</div>
+          <p className="hint" style={{ margin: 0 }}>Every post comes written for Instagram, Instagram Stories, TikTok, X, Snapchat, WhatsApp Status and Facebook, each in that platform's own style, with designs in feed, vertical and X sizes.</p>
           <div className="field">What it should do for you {pick('goal', GOALS.map((g) => [g, g]))}
             <input type="text" value={d.goal} onChange={(e) => set('goal', e.target.value)} placeholder="Or write your own goal" />
           </div>

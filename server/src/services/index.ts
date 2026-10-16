@@ -61,7 +61,7 @@ export const CATALOG = [
   {
     id: 'content-pack', name: 'Social Media Posts', dept: 'Marketing', live: true, priceUsd: 1, listedCostUsd: 1.1, etaMin: 3,
     tagline: '7 ready-to-post social media posts and 3 images, based on what is working in your niche this week.',
-    youGet: ['The content styles pulling views in your niche right now, each backed by real posts and their numbers', 'What your own account shows: what worked and what didn’t', '7 posts in your voice: hook, caption, CTA, hashtags, shot list', '3 designed images, ready to post', 'Checked: every example is real, no invented claims'],
+    youGet: ['The content styles pulling views in your niche right now, each backed by real posts and their numbers', 'What your own account shows: what worked and what didn’t', '7 posts in your voice, each written for Instagram, Stories, TikTok, X, Snapchat, WhatsApp Status and Facebook', '3 designed posts in every size: feed, vertical and X', 'Checked: every example is real, no invented claims'],
     team: ['researcher', 'reader', 'scout', 'analyst', 'writer', 'illustrator', 'auditor', 'messenger'],
     example: 'Content for Tolu’s Small Chops in Lagos, Instagram @tolussmallchops',
   },
