@@ -80,12 +80,18 @@ async function demoClip(seconds: number): Promise<Buffer> {
 
 // ---------- paid generation
 
+// Google's image models on BlockRun take only square sizes (1024, 2048, 4096); a portrait or landscape request is
+// rejected with a 400. For them the shape goes as an aspect-ratio hint on a square size instead.
+const RATIO: Record<string, string> = { '1024x1792': '9:16', '1792x1024': '16:9' };
+const sizing = (model: string, size?: string) =>
+  !size ? {} : model.startsWith('google/') && !/^(1024x1024|2048x2048|4096x4096)$/.test(size) ? { size: '1024x1024', aspect_ratio: RATIO[size] ?? '1:1' } : { size };
+
 export async function image(job: Job, agent: Role, o: { prompt: string; model?: string; size?: '1024x1024' | '1024x1792' | '1792x1024'; reason: string }): Promise<{ buf: Buffer; url?: string }> {
   const model = o.model ?? 'google/nano-banana-pro';
   const usd = IMAGE_USD[model] ?? 0.1;
   const data = await buy<any>(job, {
     agent, vendor: `BlockRun ${model.split('/')[1]}`, url: `https://${HOSTS.blockrun}/api/v1/images/generations`,
-    body: { model, prompt: o.prompt.slice(0, 4000), size: o.size ?? '1024x1024', n: 1 }, reason: o.reason,
+    body: { model, prompt: o.prompt.slice(0, 4000), ...sizing(model, o.size ?? '1024x1024'), n: 1 }, reason: o.reason,
     expectUsd: usd, maxUsd: usd * 1.6 + 0.01, dryData: () => ({ data: [{ url: 'dry://image' }] }),
   });
   if (DRY) { const [w, h] = (o.size ?? '1024x1024').split('x').map(Number); return { buf: await demoPicture(o.prompt, w / 2, h / 2) }; }
@@ -100,7 +106,7 @@ export async function editImage(job: Job, agent: Role, o: { prompt: string; imag
   const usd = IMAGE_USD[model] ?? 0.1;
   const data = await buy<any>(job, {
     agent, vendor: `BlockRun ${model.split('/')[1]} edit`, url: `https://${HOSTS.blockrun}/api/v1/images/image2image`,
-    body: { model, prompt: o.prompt.slice(0, 4000), image: o.images.length === 1 ? dataUri(o.images[0]) : o.images.slice(0, 3).map((b) => dataUri(b)), ...(o.size ? { size: o.size } : {}) },
+    body: { model, prompt: o.prompt.slice(0, 4000), image: o.images.length === 1 ? dataUri(o.images[0]) : o.images.slice(0, 3).map((b) => dataUri(b)), ...sizing(model, o.size) },
     reason: o.reason, expectUsd: usd, maxUsd: usd * 1.6 + 0.01, dryData: () => ({ data: [{ url: 'dry://image' }] }),
   });
   if (DRY) return { buf: await demoPicture(o.prompt, 512, 896) };
