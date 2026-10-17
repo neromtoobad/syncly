@@ -65,6 +65,7 @@ export function handleVariants(h: string, name?: string): string[] {
   const out = new Set<string>();
   const own = h.includes('.') ? '.' : h.includes('_') ? '_' : '', seps = [own, ...['.', '_', ''].filter((x) => x !== own)];
   for (const base of [h, fix(h)]) for (const sep of seps) out.add(base.replace(/[._]/g, sep));
+  for (const base of [h, fix(h)]) if (/[._]/.test(base)) { out.add(base.replace(/[._]+/g, '__')); out.add(base.replace(/[._]+/g, '_').replace(/_(?=[^_]*$)/, '__')); } // a doubled underscore, all through or just the last one
   for (const w of [words, words.map(fix)]) if (w.length) for (const sep of seps) out.add(w.join(sep));
   out.delete(h);
   return [...out].filter((x) => /^[a-z0-9._]{3,30}$/.test(x)).slice(0, 10);
