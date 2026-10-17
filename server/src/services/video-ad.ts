@@ -16,7 +16,7 @@ import { MAIL_BUDGET_USD, MAIL_HOST, PUBLIC_URL } from '../mail.ts';
 import type { BusinessDetails } from '../details.ts';
 import { readUpload } from '../uploads.ts';
 import { palette } from '../site/color.ts';
-import { relevantPosts } from '../brandkit.ts';
+import { igKnownMissing, isNotFound, markIgMissing, relevantPosts } from '../brandkit.ts';
 
 type Spec = { business: string; product: string; offer: string; price?: string; cta: string; photo?: string; instagram?: string; palette: string; mood: string; scene: string };
 type Copy = { overlay: string; endTitle: string; endLine: string; hooks: string[]; primary: string[]; headline: string[] };
@@ -36,7 +36,8 @@ export async function productPhoto(job: Job, o: { upload?: string; url?: string;
     catch (e: any) { job.log('scout', 'skip', `couldn't fetch their photo (${String(e?.message ?? e).slice(0, 50)})`); }
   }
   const ig = o.instagram?.replace(/^@/, '').replace(/\/.*$/, '');
-  if (!photo && ig) {
+  if (!photo && ig && igKnownMissing(ig)) job.log('scout', 'skip', `no Instagram photo: there's no account @${ig}`);
+  else if (!photo && ig) {
     try {
       job.log('scout', 'photo', `a photo of what they sell from @${ig}'s recent posts`);
       const d = await aisa<any>(job, 'instagram/user/posts', { query: { handle: ig, trim: true } }, { agent: 'scout', vendor: 'Instagram posts (AIsa)', reason: `a product photo from @${ig}`, dry: () => ({ items: [{ display_uri: 'dry://photo' }] }) });
@@ -52,7 +53,10 @@ export async function productPhoto(job: Job, o: { upload?: string; url?: string;
         photo = pick.length ? posts[pick[0]].buf : undefined;
         if (!photo && posts.length) job.log('scout', 'photo', `none of @${ig}'s recent posts show what they sell, so none is used`);
       }
-    } catch (e: any) { job.log('scout', 'skip', `Instagram unavailable (${String(e?.message ?? e).slice(0, 50)})`); }
+    } catch (e: any) {
+      if (!DRY && isNotFound(e)) markIgMissing(ig);
+      job.log('scout', 'skip', `Instagram unavailable (${String(e?.message ?? e).slice(0, 160)})`);
+    }
   }
   return photo;
 }

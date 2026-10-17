@@ -20,7 +20,7 @@ import { MAIL_BUDGET_USD, MAIL_HOST, PUBLIC_URL } from '../mail.ts';
 import { norm, parseHours, parseMenu, parseTestimonials, type Facts, type Item, type Kind, type Photo, type Review } from '../site/facts.ts';
 import { prepPhoto } from '../site/photos.ts';
 import { brandCandidates } from '../site/color.ts';
-import { brandKit, sitePhotos } from '../brandkit.ts';
+import { brandKit, igKnownMissing, isNotFound, markIgMissing, sitePhotos } from '../brandkit.ts';
 import { matchItemPhotos, CATALOGUE, LIMITS, RECIPES, defaultPlan, validatePlan, type Plan } from '../site/plan.ts';
 import { copyIssues } from '../site/checks.ts';
 import { renderSite } from '../site/engine.ts';
@@ -135,7 +135,8 @@ export const website = {
         if (sp.bufs.length) job.log('reader', 'photos', `${sp.bufs.length} pictures of what they sell from their website`);
       }
       const ig = handle(spec.instagram);
-      if (ig) {
+      if (ig && (kit?.igMissing || igKnownMissing(ig))) job.log('reader', 'skip', `no Instagram photos: there's no account @${ig}`);
+      else if (ig) {
         try {
           job.log('reader', 'instagram', `@${ig}'s recent posts: their photos, prices and how they sell`);
           const d = await aisa<any>(job, 'instagram/user/posts', { query: { handle: ig, trim: true } }, { agent: 'reader', vendor: 'Instagram posts (AIsa)', reason: `@${ig}'s own photos and captions`,
@@ -150,7 +151,10 @@ export const website = {
             catch { /* expired or blocked image; skip it */ }
             if (raw.length >= 14) break;
           }
-        } catch (e: any) { job.log('reader', 'skip', `Instagram unavailable (${String(e?.message ?? e).slice(0, 50)})`); }
+        } catch (e: any) {
+          if (!DRY && isNotFound(e)) markIgMissing(ig);
+          job.log('reader', 'skip', `Instagram unavailable (${String(e?.message ?? e).slice(0, 160)})`);
+        }
       }
 
       // 3b. Where they already sell, book and get paid: links from the form, the brief and the Google listing.

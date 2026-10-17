@@ -11,7 +11,9 @@ import { siteBrand, siteImages } from './browser.ts';
 import { saveUpload } from './uploads.ts';
 import { brandCandidates } from './site/color.ts';
 import { e164 } from './site/facts.ts';
-import { DRY, MODELS } from './config.ts';
+import { DATA_DIR, DRY, MODELS } from './config.ts';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { llm, parseJson, type Msg } from './tools.ts';
 import { ffmpeg } from './media.ts';
 
@@ -23,7 +25,21 @@ export type BrandKit = {
   handle?: string; // the Instagram handle it settled on (a mistyped one corrected)
   siteDead?: boolean; // the website they gave didn't open
   siteFixed?: string; // it didn't, but the likely right spelling did
+  igMissing?: boolean; // Instagram has no account with the handle they gave
 };
+
+// Handles Instagram has no account for. AIsa charges for a lookup that finds nothing ("not_found"), so a handle that
+// came back missing isn't paid for again for two weeks: not by the posts lookup in the same job, not in a revision.
+const MISSING_FILE = () => join(DATA_DIR, 'ig-missing.json');
+const readMissing = (): Record<string, string> => { try { return existsSync(MISSING_FILE()) ? JSON.parse(readFileSync(MISSING_FILE(), 'utf8')) : {}; } catch { return {}; } };
+export const igKnownMissing = (h?: string): string | undefined => {
+  const at = h ? readMissing()[h.toLowerCase()] : undefined;
+  return at && Date.now() - Date.parse(at) < 14 * 864e5 ? at : undefined;
+};
+export const markIgMissing = (h: string) => { try { writeFileSync(MISSING_FILE(), JSON.stringify({ ...readMissing(), [h.toLowerCase()]: new Date().toISOString() })); } catch { /* not remembering is fine */ } };
+export const isNotFound = (e: unknown) => /not[_ ]found|user not found|does not exist|no such user/i.test(String((e as any)?.message ?? e));
+/** What to tell the customer when Instagram has no account with the handle they gave. */
+export const igMissingNote = (h: string) => `We couldn't find @${h} on Instagram, so none of your Instagram photos are in this. Check the spelling (it's the name after instagram.com/ on your profile), or upload photos of what you sell when you ask for a revision, and we'll use them.`;
 
 const handleOf = (s?: string) => (s ?? '').trim().replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/^@/, '').split(/[/?#\s]/)[0] || undefined;
 const PHONE = /(?:\+?234|\b0)\s?[789][01]\d[\s-]?\d{3}[\s-]?\d{4}\b/;
@@ -127,7 +143,12 @@ export async function brandKit(job: Job, o: { instagram?: string; website?: stri
     if (found) { job.log(agent, 'instagram', `@${ig} wasn't found on Instagram; @${found} is ${o.name ?? 'the business'}, so we used that`); kit.notes.push(`We couldn't find @${ig} on Instagram, so we used @${found}. If that isn't you, ask for a revision with the right handle.`); ig = found; }
   }
 
-  if (ig) {
+  const missingSince = igKnownMissing(ig);
+  if (ig && missingSince) {
+    kit.handle = ig; kit.igMissing = true;
+    job.log(agent, 'skip', `Instagram has no account @${ig} (checked ${missingSince.slice(0, 10)}), so we don't pay to look it up again`);
+    kit.notes.push(igMissingNote(ig));
+  } else if (ig) {
     kit.handle = ig;
     try {
       job.log(agent, 'instagram', `@${ig}: name, bio, logo, contact and recent posts`);
@@ -175,7 +196,16 @@ export async function brandKit(job: Job, o: { instagram?: string; website?: stri
         job.log(agent, 'instagram', `@${ig}: ${[kit.name, logoBufs.length ? 'logo' : '', kit.photos.length ? `${kit.photos.length} photos` : '', kit.whatsapp || kit.phone ? 'a contact number' : '', kit.prices.length ? `${kit.prices.length} prices` : ''].filter(Boolean).join(', ') || 'nothing usable'}`);
       }
       else kit.notes.push(`We couldn't read @${ig} on Instagram. Check the handle is right and the account is public.`);
-    } catch (e: any) { job.log(agent, 'skip', `Instagram unreadable (${String(e?.message ?? e).slice(0, 60)})`); kit.notes.push(`We couldn't read @${ig} on Instagram. Check the handle is right and the account is public.`); }
+    } catch (e: any) {
+      if (!DRY && isNotFound(e)) {
+        markIgMissing(ig); kit.igMissing = true;
+        job.log(agent, 'skip', `Instagram has no account @${ig} (the lookup came back not_found). The handle is probably mistyped`);
+        kit.notes.push(igMissingNote(ig));
+      } else {
+        job.log(agent, 'skip', `Instagram unreadable (${String(e?.message ?? e).slice(0, 160)})`);
+        kit.notes.push(`We couldn't read @${ig} on Instagram. Check the handle is right and the account is public.`);
+      }
+    }
   }
 
   const site = o.website ?? kit.website;
