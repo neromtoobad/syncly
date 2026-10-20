@@ -137,7 +137,8 @@ ${kit('template.html')}`;
         if (shot.errors.length) problems.push(...shot.errors.slice(0, 5).map((e) => `page error: ${e.slice(0, 160)}`));
         if (Math.abs(shot.total / shot.fps - seconds) > 0.1) problems.push(`the reel lasts ${(shot.total / shot.fps).toFixed(1)} s, not ${seconds} s`);
         if (shot.stills.length < 4) problems.push(`only ${shot.stills.length} states; the ad needs 5-7`);
-        const jpgs = await Promise.all(shot.stills.map((s) => ffmpeg({ 'in.png': s.png }, (f, out) => ['-i', f['in.png'], '-vf', 'scale=iw/2:-1', '-q:v', '5', out], 'jpg')));
+        const jpgs: Buffer[] = []; // one at a time: six ffmpegs at once next to a render ran the server out of threads
+        for (const s of shot.stills) jpgs.push(await ffmpeg({ 'in.png': s.png }, (f, out) => ['-i', f['in.png'], '-vf', 'scale=iw/2:-1', '-q:v', '5', out], 'jpg'));
         job.log('auditor', 'look', `reviewing ${jpgs.length} state stills with ${MODELS.vision.split('/')[1]}`);
         const v = parseJson<{ issues: string[] }>(await llm(job, 'auditor', [
           { role: 'system', content: 'You review stills (one per state, in order) of a short motion ad for a small business. List concrete problems only: text cut off, overflowing or overlapping, text too small to read on a phone, blank or near-empty states, content spilling out of the shape or off the frame, clashing or unreadable colours, a missing call to action at the end, anything that looks broken or unfinished. Reply JSON only: {"issues": [short specific strings naming the state number]} (empty if it looks professional).' },
@@ -180,7 +181,8 @@ async function review(job: Job, business: string, file: string, size: [number, n
   catch (e: any) { return { problems: [`the scene did not load: ${String(e?.message ?? e).slice(0, 200)}`], stills: [] }; }
   if (shot.errors.length) problems.push(...shot.errors.slice(0, 5).map((e) => `page error: ${e.slice(0, 160)}`));
   if (Math.abs(shot.total / shot.fps - seconds) > 0.1) problems.push(`the ad lasts ${(shot.total / shot.fps).toFixed(1)} s, not ${seconds} s`);
-  const jpgs = await Promise.all(shot.stills.map((s) => ffmpeg({ 'in.png': s.png }, (f, out) => ['-i', f['in.png'], '-vf', 'scale=iw/2:-1', '-q:v', '5', out], 'jpg')));
+  const jpgs: Buffer[] = []; // one at a time: six ffmpegs at once next to a render ran the server out of threads
+        for (const s of shot.stills) jpgs.push(await ffmpeg({ 'in.png': s.png }, (f, out) => ['-i', f['in.png'], '-vf', 'scale=iw/2:-1', '-q:v', '5', out], 'jpg'));
   job.log('auditor', 'look', `reviewing ${jpgs.length} scenes with ${MODELS.vision.split('/')[1]}`);
   const v = parseJson<{ issues: string[] }>(await llm(job, 'auditor', [
     { role: 'system', content: 'You review stills (one per scene, in order) of a short motion ad for a small business. List concrete problems only: text cut off or overlapping a product, text too small to read on a phone, a photo that is the wrong one for its words (e.g. a TV under "inverters"), a blank or broken-looking scene, unreadable colour contrast, a spelling mistake, a missing call to action at the end. Reply JSON only: {"issues": [short specific strings naming the scene number]} (empty if it looks professional).' },

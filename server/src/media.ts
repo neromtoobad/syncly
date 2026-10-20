@@ -160,7 +160,18 @@ export async function ffmpeg(inputs: Record<string, Buffer>, args: (files: Recor
     const files: Record<string, string> = {};
     for (const [name, buf] of Object.entries(inputs)) writeFileSync((files[name] = join(dir, name)), buf);
     const out = join(dir, `out.${ext}`);
-    await run(FFMPEG, ['-y', '-hide_banner', '-loglevel', 'error', ...args(files, out)], { maxBuffer: 1 << 24, timeout: 240_000 });
+    const a = args(files, out);
+    // Stills are tiny: two encoder threads are plenty. Left to itself ffmpeg opens one per core the host reports,
+    // and several of those next to a video render can run the server out of threads.
+    if (/^(jpe?g|png|webp)$/.test(ext) && a[a.length - 1] === out && !a.includes('-threads')) a.splice(a.length - 1, 0, '-threads', '2');
+    const go = () => run(FFMPEG, ['-y', '-hide_banner', '-loglevel', 'error', ...a], { maxBuffer: 1 << 24, timeout: 240_000 });
+    try { await go(); }
+    catch (e: any) {
+      // out of threads or memory for a moment (another render is busy): wait and try once more
+      if (!/thread|Resource temporarily unavailable|EAGAIN|Cannot allocate memory/i.test(String(e?.message ?? e))) throw e;
+      await new Promise((r) => setTimeout(r, 2000));
+      await go();
+    }
     return readFileSync(out);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 }

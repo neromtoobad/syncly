@@ -88,7 +88,8 @@ export const flyers = {
       // 3. Look at every design
       const look = async () => {
         const pngs = out.filter((x) => x.name.endsWith('.png') && !x.name.includes('a4'));
-        const jpgs = await Promise.all(pngs.map((p) => ffmpeg({ 'in.png': p.buf }, (f, o) => ['-i', f['in.png'], '-vf', 'scale=iw/2:-1', '-q:v', '5', o], 'jpg')));
+        const jpgs: Buffer[] = []; // one at a time, so a busy server doesn't run out of threads
+        for (const p of pngs) jpgs.push(await ffmpeg({ 'in.png': p.buf }, (f, o) => ['-i', f['in.png'], '-vf', 'scale=iw/2:-1', '-q:v', '5', o], 'jpg'));
         job.log('auditor', 'look', `reviewing ${jpgs.length} designs with ${MODELS.vision.split('/')[1]}`);
         return parseJson<{ issues: string[] }>(await llm(job, 'auditor', [
           { role: 'system', content: 'You review flyer designs for a small business (several sizes and two styles of the same flyer). List concrete problems only: text cut off or overlapping, text too small to read on a phone, a spelling mistake, a wrong or missing price, unreadable colour contrast, an empty or broken-looking area, a missing call to action. Reply JSON only: {"issues": [short specific strings]} (empty if it looks professional).' },
