@@ -47,4 +47,6 @@ The rerun then caught a third problem, a race that had been there all along: **a
 - So it rewrote the hire page's URL and cancelled the move.
 - It now only touches the address once the address is that job's.
 
+After that, a sharper money-trail test caught one more: **the Audit trail stop hid a real, verified decision log** whenever the CFO was only observing, and showed a placeholder instead. The log is real either way. Only the weekly-plan line depends on the CFO acting, so now only that line does.
+
 The other blocked test was the books page. That was the PRD's mistake (it said the books were public), and the PRD and the test were corrected.
