@@ -1,19 +1,44 @@
 # The TestSprite suite
 
-The suite is generated and kept in the TestSprite 3.0 portal and runs against the PR's preview, which is in demo mode, so no money moves. This page lists what it covers and why.
+The suite lives in the TestSprite 3.0 portal and runs against each PR's preview, which is in demo mode, so no money moves. The agents first explored staging (7 agents, 123 pages) and were steered by [`PRD.md`](PRD.md). They planned 51 tests. We kept the 19 that don't overlap.
 
-Target: [syncly-staging.vercel.app](https://syncly-staging.vercel.app) (production branch) and `syncly-staging-git-<branch>-moren808s-projects.vercel.app` (each PR).
+Targets:
+- the production branch: [syncly-staging.vercel.app](https://syncly-staging.vercel.app);
+- each PR: `syncly-staging-git-<branch>-moren808s-projects.vercel.app`.
 
-## What it covers
+## The 19 tests
 
-| Area | Pages | What a pass proves |
+| Area | Test | What a pass proves |
 |---|---|---|
-| Home and the money trail | `/`, `/#money` | Every stop on "follow the money" renders a number, and the nav reaches every section. |
-| Hiring | `/hire/[service]` | A customer can pick a service, fill the brief, and get a fixed-price quote from the CFO with its bond. |
-| A job, end to end | `/job/[id]` | A demo job runs through every step, shows what each tool cost, and ends delivered. Accept, revise and reject each do what they say. |
-| The books | `/books` | The vault buckets, agent allowances and decision log render, and the log verifies. |
-| Syncly Pay | `/pay`, `/pay/[id]`, `/pay/desk/[token]` | One sentence becomes an invoice. A supplier bill goes through the payee checks. A changed payout address is stopped. |
-| The office | `/live`, `/office` | The stage loads and reacts to a running job. |
-| Docs | `/docs` | Every docs page renders and its links resolve. |
+| Hire | Hire best-price check and reach delivered | Brief, CFO quote with bond, **Pay (demo)**, then the job page runs every step and ends **delivered**. |
+| Hire | Hire find-customers and reach delivered | The same journey for a second service, with its own example briefs. |
+| Hire | Quote request requires a long enough brief and valid email | The form won't price "Buy two items." or a bad email, and says what's missing. |
+| Hire | Change the brief from the quote returns to the form | Backing out of a quote keeps the brief. |
+| Website | Business website quote flow | The structured business form gets a quote. |
+| Website | Pay for a business website quote in demo mode | The demo payment opens a job. |
+| Website | Track a business website job to delivery | The website job reaches delivered. |
+| Money | View follow the money section from the home page | Every stop on the money trail shows a number. |
+| Money | Check CFO verification is ok | `/api/cfo` is public and its signed log verifies. |
+| Money | Open the books page | The owner's books stay private without the passcode. |
+| Safety | Check API health in demo mode | The preview says `mode: demo`. A preview pointed at the live company fails here. |
+| Pay | Open Syncly Pay | The Pay page renders with its calls to action. |
+| Pay | Create a demo invoice from the Syncly Pay page | One sentence becomes an invoice, the owner confirms it, and it's booked. |
+| Office | Open the live office stage | `/live` loads full screen. |
+| Office | Open the office page inside the site | `/office` loads inside the site. |
+| Docs | Open the docs hub and a section page | Docs pages render and their links resolve. |
+| Nav | Use the footer to open docs and service links | The footer reaches every section. |
+| Errors | Open a missing hire service | An unknown service shows "We don't do that one." |
+| Errors | Open a missing job | An unknown job shows "Couldn't find this job." |
 
-The exact cases and their latest results are in the portal. Each PR's run is linked from the TestSprite comment on that PR.
+## What it caught on the first PR
+
+The first TestSprite check on [PR #1](https://github.com/neromtoobad/syncly/pull/1) failed (16 passed, 1 failed, 2 blocked) and held the merge. Behind it were two real problems:
+
+- **"Buy it" was enough to get a quote** for Best Price & Seller Check. The shopping list only had to be non-empty, so the Researcher got nothing to price. A free-text brief had the same gap: "Buy two items." passed a 12-character check, although the API's own error asks for a sentence.
+- **Syncly Pay told a demo owner to check an inbox that never gets an email,** so the invoice could never be confirmed. The test was blocked at that point.
+
+Both were fixed in the same PR:
+- A shopping list must name a product, and a brief must be a short sentence. The form says what's missing.
+- In demo mode only, the page shows the confirmation link that the email would carry.
+
+The other blocked test was the books page. That was the PRD's mistake (it said the books were public), and the PRD and the test were corrected.

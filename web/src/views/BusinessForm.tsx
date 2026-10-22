@@ -32,6 +32,10 @@ const THEMES: { id: string; name: string; mood: string; font: string; bg: string
 ];
 const SECTIONS: [string, string][] = [['offer', 'Menu / prices'], ['gallery', 'Photo gallery'], ['reviews', 'Google reviews'], ['about', 'About us'], ['steps', 'How to order or book'], ['location', 'Map & opening hours'], ['faq', 'Questions & answers']];
 const SWATCHES = ['#C0392B', '#D4380D', '#E67E22', '#D4A017', '#2E7D32', '#0F766E', '#1D4ED8', '#6D28D9', '#BE185D', '#111827'];
+// Same rule as the API's: a shopping list has to name a product, not just "Buy it".
+const FILLER = /^(buy|get|me|it|this|that|these|those|something|stuff|things?|items?|some|an?|the|one|two|three|four|five|six|seven|eight|nine|ten|few|many|\d+)$/;
+const vagueItems = (s: string) => !s.toLowerCase().split(/[^a-z0-9]+/).some((w) => w.length >= 2 && !FILLER.test(w));
+
 const EMPTY: Details = { name: '', kind: 'food', offer: '', area: '', city: 'Lagos', whatsapp: '', phone: '', email: '', address: '', maps: '', instagram: '', tiktok: '', facebook: '', website: '', links: '', bankName: '', bankNumber: '', bankAccountName: '', menu: '', story: '', testimonials: '', style: 'auto', colour: '', sections: SECTIONS.map(([k]) => k), notes: '', photos: [], platforms: ['instagram', 'tiktok'], goal: '', competitors: '', tone: '', promote: '', price: '', cta: 'whatsapp', format: 'vertical', length: 16, questions: '', searches: '', adGoal: 'messages', adBudget: '', adPlatforms: ['meta'], audience: '', adResults: [], product: '', uses: ['instagram', 'whatsapp'], look: 'clean', items: '', deliverTo: '', budget: '', condition: 'new', sellers: '' , flyerKind: 'promo', statements: [] , research: '' };
 const PLATFORMS: [string, string][] = [['instagram', 'Instagram'], ['tiktok', 'TikTok'], ['whatsapp-status', 'WhatsApp Status'], ['facebook', 'Facebook'], ['x', 'X'], ['linkedin', 'LinkedIn']];
 const GOALS = ['More orders this month', 'More bookings', 'More followers who buy', 'Launch a new product', 'Fill quiet weekdays'];
@@ -136,7 +140,7 @@ export default function BusinessForm({ service, onSubmit, busy, email, setEmail,
   const valid: Record<StepId, boolean> = {
     business: !!(d.name.trim() && d.offer.trim() && (service !== 'get-found' || d.city.trim() || d.area.trim())),
     contact: reach, links: true, offer: true, look: true, content: d.platforms.length > 0, ad: ['motion-ad', 'ad-launch'].includes(service) && !!(d.instagram.trim() || d.website.trim()) ? !!(service === 'motion-ad' || d.promote.trim()) : !!(d.promote.trim() && ctaReady), audit: true,
-    plan: d.adPlatforms.length > 0, shots: d.photos.length > 0, buy: !!(d.items.trim() && (d.deliverTo.trim() || d.city.trim() || d.area.trim())),
+    plan: d.adPlatforms.length > 0, shots: d.photos.length > 0, buy: !!(d.items.trim() && !vagueItems(d.items) && (d.deliverTo.trim() || d.city.trim() || d.area.trim())),
     flyer: (d.flyerKind === 'pricelist' ? !!d.menu.trim() : !!d.promote.trim()) && !!(d.whatsapp.trim() || d.phone.trim() || d.instagram.trim() || d.website.trim() || d.address.trim()),
     statement: d.statements.length > 0,
   };
@@ -146,7 +150,7 @@ export default function BusinessForm({ service, onSubmit, busy, email, setEmail,
     ad: !d.promote.trim() ? (['motion-ad', 'ad-launch'].includes(service) && service === 'motion-ad' ? 'Add your Instagram or website, or say what the ad is for.' : 'Say what the ad is for.') : 'Add the contact detail for your call to action.',
     flyer: d.flyerKind === 'pricelist' && !d.menu.trim() ? 'Add your items and prices.' : !d.promote.trim() && d.flyerKind !== 'pricelist' ? 'Say what the flyer is for.' : 'Add how customers reach you.',
     statement: 'Upload your bank statement.',
-    plan: 'Pick where the ads should run.', shots: 'Add at least one photo of the product.', buy: !d.items.trim() ? 'List what you want to buy.' : 'Add where it should be delivered.',
+    plan: 'Pick where the ads should run.', shots: 'Add at least one photo of the product.', buy: !d.items.trim() ? 'List what you want to buy.' : vagueItems(d.items) ? 'Name the product, e.g. "2 chest freezers, about 300 litres".' : 'Add where it should be delivered.',
   };
   const skip = (id: StepId) => saved && ((id === 'business' && valid.business) || (id === 'contact' && valid.contact));
   const flow = (FLOWS[service] ?? FLOWS.website).filter((f) => !skip(f.id));

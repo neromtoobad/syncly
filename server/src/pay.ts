@@ -398,9 +398,11 @@ export async function createInvoice(input: NewInvoice) {
   saveDoc(d);
   job.log('cfo', 'book', trusted ? `booking ${amountUsd.toFixed(2)} USDC on Arc, payee ${short(pay_to)}` : `waiting for ${b.name} to confirm by email before booking`);
   job.status = 'delivered'; job.deliverable = d.doc; job.save();
+  const confirmUrl = trusted ? undefined : await askToConfirm(b, d);
   if (trusted) await bookOnChain(d);
-  else await askToConfirm(b, d);
-  return { doc: getDoc(d.id)!, confirm: !trusted, desk: trusted ? `/pay/desk/${b.token}` : undefined };
+  // Demo mode sends no email, so the page shows the link the email would carry. Never in live mode: the link
+  // is the proof that the business's own inbox asked for this invoice.
+  return { doc: getDoc(d.id)!, confirm: !trusted, desk: trusted ? `/pay/desk/${b.token}` : undefined, demoConfirm: DRY ? confirmUrl : undefined };
 }
 
 // ---------------------------------------------------------------- bills (money out)
