@@ -433,6 +433,11 @@ export default function BusinessForm({ service, onSubmit, busy, email, setEmail,
           : <button type="button" className="btn primary" disabled={busy || !allValid || !!up} onClick={() => onSubmit(d)}>{busy ? 'The CFO is pricing it…' : cta}</button>}
       </div>
       {!valid[cur] && why[cur] && <p className="muted" style={{ fontSize: 13 }}>{why[cur]}</p>}
+      {/* on the last step, a step skipped earlier (the step chips let you jump) is the reason the button is off: say which */}
+      {last && valid[cur] && (() => {
+        const i = flow.findIndex((f) => !valid[f.id]);
+        return i >= 0 && <p className="muted" style={{ fontSize: 13 }}>Step {i + 1}, {flow[i].title}: {why[flow[i].id] ?? 'not finished yet.'} <button type="button" className="btn ghost sm" onClick={() => setStep(i)}>Go there</button></p>;
+      })()}
     </div>
   );
 }

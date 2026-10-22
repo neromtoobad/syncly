@@ -49,4 +49,6 @@ The rerun then caught a third problem, a race that had been there all along: **a
 
 After that, a sharper money-trail test caught one more: **the Audit trail stop hid a real, verified decision log** whenever the CFO was only observing, and showed a placeholder instead. The log is real either way. Only the weekly-plan line depends on the CFO acting, so now only that line does.
 
+The pinned validation test then found a dead end. A customer can jump straight to a later step with the step chips. If they do, **Get my quote** stays off on the last step with no reason given, because an earlier step was skipped. The last step now names the unfinished step and links back to it.
+
 The other blocked test was the books page. That was the PRD's mistake (it said the books were public), and the PRD and the test were corrected.
