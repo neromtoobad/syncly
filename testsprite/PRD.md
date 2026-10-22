@@ -32,7 +32,12 @@ Syncly is a company staffed by AI agents. Small businesses hire it for fixed-pri
 At `/hire/website`, the form is **Tell us about your business**. It asks for the business details instead of a free-text brief, and its button is **Get my quote**. A quote appears in the same way as above.
 
 ### 3. Follow the money and read the books
-- The home page's **follow the money** section (`/#money`) shows a number at every stop.
+- The home page's **Follow the money** section (`/#money`, labelled 06) shows five stops in order: Invoices, Treasury, Contractors, Payments, Audit trail.
+  - Each stop has a heading and a status line.
+  - Invoices shows "N jobs delivered".
+  - Audit trail shows "N entries · verified ✓".
+  - In demo mode some stops show their rule instead of a number. For example, Treasury reads "A plan sealed on Arc each week" until a plan exists.
+- "How a job works" is a different section, so don't confuse the two.
 - `/books` is the owner's private ledger. Without the owner passcode it shows "The books are private." and asks for the passcode. That is correct: a test must not try to get past it.
 - The public view of the money is `GET /api/cfo`. It returns JSON with `policy`, `verify` and `metrics`, and `verify.ok` is `true`.
 
