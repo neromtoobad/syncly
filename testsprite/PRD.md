@@ -33,11 +33,8 @@ At `/hire/website`, the form is **Tell us about your business**. It asks for the
 
 ### 3. Follow the money and read the books
 - The home page's **follow the money** section (`/#money`) shows a number at every stop.
-- `/books` shows:
-  - the vault's buckets (operating, tools, bond, reserve, promo);
-  - each agent's balance and weekly allowance;
-  - the CFO's decision log.
-- `GET /api/cfo` returns JSON with `policy`, `verify` and `metrics`. `verify.ok` is `true`.
+- `/books` is the owner's private ledger. Without the owner passcode it shows "The books are private." and asks for the passcode. That is correct: a test must not try to get past it.
+- The public view of the money is `GET /api/cfo`. It returns JSON with `policy`, `verify` and `metrics`, and `verify.ok` is `true`.
 
 ### 4. Syncly Pay
 - `/pay` explains Syncly Pay (invoices in, supplier bills out, autopay inside the owner's limits).
