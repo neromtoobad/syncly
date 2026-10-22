@@ -51,4 +51,8 @@ After that, a sharper money-trail test caught one more: **the Audit trail stop h
 
 The pinned validation test then found a dead end. A customer can jump straight to a later step with the step chips. If they do, **Get my quote** stays off on the last step with no reason given, because an earlier step was skipped. The last step now names the unfinished step and links back to it.
 
+Last, **a demo invoice always came out as the sample "Party tray (20 guests)"**, whatever the owner typed. Demo mode has no model, so the Writer now reads the usual "Ada, 2 party trays at ₦25,000 each" shape by hand and keeps the sample only as a fallback.
+
+The suite's tests are written by an AI agent, so some first runs read the PRD too loosely: one checked the wrong section, and one chose a different "too short" example each time. Those tests were pinned to exact inputs and expectations, so they now check the same thing on every run.
+
 The other blocked test was the books page. That was the PRD's mistake (it said the books were public), and the PRD and the test were corrected.

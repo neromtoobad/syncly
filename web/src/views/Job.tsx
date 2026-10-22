@@ -322,7 +322,7 @@ export default function Job({ id }: { id: string }) {
     } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   }
 
-  if (err && !o) return <main className="wrap section center"><h1 className="h1">Couldn't find this job.</h1><p className="muted" style={{ margin: '12px 0 24px' }}>{err}</p><Link href="/" className="btn secondary">Back to Syncly</Link></main>;
+  if (err && !o) return <main className="wrap section center"><h1 className="h1">Couldn't find this job.</h1><p className="muted" style={{ margin: '12px 0 24px' }}>{/not found/i.test(err) ? 'No job has this number. Check the link in your email, or start a new one.' : err}</p><Link href="/" className="btn primary">Back to Syncly</Link></main>;
   if (!o) return <main className="wrap section"><div className="skel" style={{ height: 480 }} /></main>;
   const q = o.quote;
 
