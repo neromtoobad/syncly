@@ -238,7 +238,7 @@ function Money({ stats, cfo }: { stats: Stats | null; cfo: Cfo | null }) {
       k: 'Audit trail', h: 'Every decision is signed',
       p: "Each decision is hash-chained to the one before and signed by the CFO's key, and its hash rides on the vault transaction. Anyone can replay the log.",
       vis: <span className="mf__hash mono">{shortHash(latest?.hash)}</span>,
-      stat: cfo ? `${cfo.verify.entries} entries · ${cfo.verify.ok ? 'verified ✓' : 'not verified'}` : 'The decision log',
+      stat: cfo ? `${cfo.verify.entries} ${cfo.verify.entries === 1 ? 'entry' : 'entries'} · ${cfo.verify.ok ? 'verified ✓' : 'not verified'}` : 'The decision log',
     },
   ];
   return (
