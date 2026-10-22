@@ -41,4 +41,10 @@ Both were fixed in the same PR:
 - A shopping list must name a product, and a brief must be a short sentence. The form says what's missing.
 - In demo mode only, the page shows the confirmation link that the email would carry.
 
+The rerun then caught a third problem, a race that had been there all along: **a paid Business Website order stayed on its form instead of opening the job page.**
+- Website orders are private, so their job link carries a key.
+- The job page restored that key into the address bar during render, and on a client-side navigation that render happens while the address is still `/hire/website`.
+- So it rewrote the hire page's URL and cancelled the move.
+- It now only touches the address once the address is that job's.
+
 The other blocked test was the books page. That was the PRD's mistake (it said the books were public), and the PRD and the test were corrected.
