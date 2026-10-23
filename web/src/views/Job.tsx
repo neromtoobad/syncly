@@ -284,8 +284,10 @@ export default function Job({ id }: { id: string }) {
   const { data: services } = useApi<{ services: Service[] }>('/api/services');
   const cfg = escCfg?.enabled ? escCfg : null;
 
-  // back from Bachs, or a later visit on this device, without ?k: the key kept here puts it back in the address
-  if (typeof window !== 'undefined') { try { const k = orderKey(); if (k) localStorage.setItem(`syncly:key:${id}`, k); else { const s = localStorage.getItem(`syncly:key:${id}`) ?? sessionStorage.getItem(`syncly:key:${id}`); if (s) { const u = new URL(window.location.href); u.searchParams.set('k', s); window.history.replaceState(null, '', u.toString()); } } } catch {} }
+  // back from Bachs, or a later visit on this device, without ?k: the key kept here puts it back in the address.
+  // Only once the address is this job's: while the router is still on the hire page, writing ?k there cancelled
+  // the move to the job (TestSprite caught a paid website order stuck on its form).
+  if (typeof window !== 'undefined' && window.location.pathname === `/job/${id}`) { try { const k = orderKey(); if (k) localStorage.setItem(`syncly:key:${id}`, k); else { const s = localStorage.getItem(`syncly:key:${id}`) ?? sessionStorage.getItem(`syncly:key:${id}`); if (s) { const u = new URL(window.location.href); u.searchParams.set('k', s); window.history.replaceState(null, '', u.toString()); } } } catch {} }
   const load = () => api<Order>(withK(`/api/orders/${id}`)).then(setO).catch((e) => setErr(e.message));
   useEffect(() => { load(); }, [id]);
   const active = o && ['queued', 'running', 'revision'].includes(o.status);
@@ -320,7 +322,7 @@ export default function Job({ id }: { id: string }) {
     } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   }
 
-  if (err && !o) return <main className="wrap section center"><h1 className="h1">Couldn't find this job.</h1><p className="muted" style={{ margin: '12px 0 24px' }}>{err}</p><Link href="/" className="btn secondary">Back to Syncly</Link></main>;
+  if (err && !o) return <main className="wrap section center"><h1 className="h1">Couldn't find this job.</h1><p className="muted" style={{ margin: '12px 0 24px' }}>{/not found/i.test(err) ? 'No job has this number. Check the link in your email, or start a new one.' : err}</p><Link href="/" className="btn primary">Back to Syncly</Link></main>;
   if (!o) return <main className="wrap section"><div className="skel" style={{ height: 480 }} /></main>;
   const q = o.quote;
 

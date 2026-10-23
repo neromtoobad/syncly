@@ -103,13 +103,24 @@ const POLICY = { budgetUsd: 0.2, allowHosts: [HOSTS.blockrun] };
 const today = () => new Date().toISOString().slice(0, 10);
 
 /** The Writer turns a sentence into invoice lines. Amounts in USDC; naira is converted at the shown rate. */
+/** Demo mode has no model, so read the usual "Ada, 2 party trays at ₦25,000 each" shape by hand: the demo
+ *  invoice is then the one the owner typed. Anything else gets a sample line. */
+function dryInvoice(text: string) {
+  const m = text.match(/^\s*([A-Z][\w'’.-]*(?:\s+[A-Z][\w'’.-]*)?)\s*,\s*(\d+)?\s*([^,]*?)\s+(?:at|@|for)\s*(₦|NGN\s*|\$|USDC\s*)?([\d,.]+)\s*(k\b)?/i);
+  if (!m) return { customer: { name: 'Ada' }, lines: [{ what: 'Party tray (20 guests)', qty: 2, unitUsd: 18.8 }], due: null, note: '' };
+  const [, name, qty, what, cur, num, k] = m;
+  const amount = Number(num.replace(/,/g, '')) * (k ? 1000 : 1);
+  const naira = cur ? /₦|NGN/i.test(cur) : amount >= 500;
+  const unitUsd = naira ? Math.round((amount / NGN_PER_USD) * 100) / 100 : amount;
+  return { customer: { name }, lines: [{ what: what.trim() || 'Item', qty: Number(qty) || 1, unitUsd }], due: null, note: naira ? `₦${amount.toLocaleString('en-NG')} each at ${NGN_PER_USD} naira per USDC` : '' };
+}
 async function writeInvoice(job: Job, text: string): Promise<{ customer?: { name?: string; email?: string }; lines: Line[]; due?: string; note?: string }> {
   job.log('writer', 'invoice', 'turning the description into invoice lines');
   const r = parseJson<any>(await llm(job, 'writer', [
     { role: 'system', content: `You turn a small business's description of a sale into an invoice. Today is ${today()}. Reply JSON only: {"customer":{"name":"","email":""},"lines":[{"what":"","qty":1,"unitUsd":0}],"due":"YYYY-MM-DD" or null,"note":""}. Amounts are USDC (1 USDC = 1 US dollar). If the text gives naira (₦, NGN, "k" meaning thousand naira), convert at ${NGN_PER_USD} naira per USDC, round to 2 decimals, and say the naira amount in note. Use only what the text says; never invent items, prices or emails.` },
     { role: 'user', content: text.slice(0, 1200) },
   ], 'write the invoice', { model: MODELS.fast, maxTokens: 500, json: true, maxUsd: 0.02,
-    dry: () => JSON.stringify({ customer: { name: 'Ada' }, lines: [{ what: 'Party tray (20 guests)', qty: 2, unitUsd: 18.8 }], due: null, note: '' }) }), {});
+    dry: () => JSON.stringify(dryInvoice(text)) }), {});
   const lines = (Array.isArray(r.lines) ? r.lines : []).map((l: any) => ({ what: String(l.what ?? '').slice(0, 120), qty: Math.max(1, Math.round(Number(l.qty) || 1)), unitUsd: usd(Number(l.unitUsd) || 0) })).filter((l: Line) => l.what && l.unitUsd > 0).slice(0, 20);
   return { customer: r.customer, lines, due: /^\d{4}-\d{2}-\d{2}$/.test(r.due ?? '') ? r.due : undefined, note: r.note ? String(r.note).slice(0, 240) : undefined };
 }
@@ -398,9 +409,11 @@ export async function createInvoice(input: NewInvoice) {
   saveDoc(d);
   job.log('cfo', 'book', trusted ? `booking ${amountUsd.toFixed(2)} USDC on Arc, payee ${short(pay_to)}` : `waiting for ${b.name} to confirm by email before booking`);
   job.status = 'delivered'; job.deliverable = d.doc; job.save();
+  const confirmUrl = trusted ? undefined : await askToConfirm(b, d);
   if (trusted) await bookOnChain(d);
-  else await askToConfirm(b, d);
-  return { doc: getDoc(d.id)!, confirm: !trusted, desk: trusted ? `/pay/desk/${b.token}` : undefined };
+  // Demo mode sends no email, so the page shows the link the email would carry. Never in live mode: the link
+  // is the proof that the business's own inbox asked for this invoice.
+  return { doc: getDoc(d.id)!, confirm: !trusted, desk: trusted ? `/pay/desk/${b.token}` : undefined, demoConfirm: DRY ? confirmUrl : undefined };
 }
 
 // ---------------------------------------------------------------- bills (money out)

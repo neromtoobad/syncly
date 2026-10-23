@@ -21,6 +21,8 @@ const EXAMPLES: Record<string, string[]> = {
 };
 
 type QuotedOrder = { id: string; status: string; quote: Quote; demo: boolean; brief?: string; privateKey?: string; customerKey?: string };
+// A brief the team can act on: a short sentence, not a couple of words (the API applies the same rule).
+const thinBrief = (s: string) => s.trim().length < 20 || s.trim().split(/\s+/).length < 4;
 /** The job page; a private order (a Money Report) carries its key, which only the customer who placed it receives. */
 const jobUrl = (o: { id: string; privateKey?: string; customerKey?: string }) => {
   const key = o.customerKey ?? o.privateKey;
@@ -243,6 +245,7 @@ export default function Hire({ service }: { service: string }) {
               <div className="form">
                 <label className="field">{service === 'find-customers' ? 'What you sell' : 'The job'}
                   <textarea value={brief} onChange={(e) => setBrief(e.target.value)} placeholder={examples[0] ?? 'Describe the job'} autoFocus={!brief} />
+                  {brief.trim() && thinBrief(brief) && <span className="hint">A bit more, please: say what you need and where, in a short sentence.</span>}
                 </label>
                 {examples.length > 0 && <div className="examples">{examples.map((x) => <button type="button" key={x} className="chip click" onClick={() => setBrief(x)}>{x}</button>)}</div>}
                 <label className="field">Your email <span className="hint">It's your key to this job: you confirm with it to accept, revise or reject.</span>
@@ -250,7 +253,7 @@ export default function Hire({ service }: { service: string }) {
                 </label>
                 {err && <div className="error">{err}</div>}
                 {order?.status === 'declined' && <div className="error">The CFO declined this job: it can't be done well at this price. {order.quote.reasons.at(-1)}</div>}
-                <button className="btn primary lg block" disabled={busy || brief.trim().length < 12 || !email.includes('@')} onClick={() => getQuote()}>{busy ? 'The CFO is pricing it…' : 'Get my quote'}</button>
+                <button className="btn primary lg block" disabled={busy || thinBrief(brief) || !email.includes('@')} onClick={() => getQuote()}>{busy ? 'The CFO is pricing it…' : 'Get my quote'}</button>
                 <p className="muted center" style={{ fontSize: 13 }}>You see the price first · no card · refund + bond if you reject</p>
               </div>
             </div>

@@ -98,6 +98,9 @@ const RELEVANT: Record<string, (keyof BusinessDetails)[]> = {
   'money-report': ['statements', 'notes'],
 };
 const AD_SERVICES = ['motion-ad', 'video-ad', 'ad-launch'];
+// A shopping list has to name a product: "Buy it" or "two items" gives the Researcher nothing to price.
+const FILLER = /^(buy|get|me|it|this|that|these|those|something|stuff|things?|items?|some|an?|the|one|two|three|four|five|six|seven|eight|nine|ten|few|many|\d+)$/;
+export const vagueItems = (s: string) => !s.toLowerCase().split(/[^a-z0-9]+/).some((w) => w.length >= 2 && !FILLER.test(w));
 
 /** Links the site knows how to use (one per integration), from a list or pasted text. */
 function linkList(raw: unknown): string[] | undefined {
@@ -160,6 +163,7 @@ export function cleanDetails(raw: any, service = 'website'): BusinessDetails {
   if ((service === 'ai-answer-audit' || service === 'get-found') && !d.city && !d.area) throw new Error('Add the area or city: Google and the AI assistants are searched from there.');
   if (service === 'product-photos' && !d.photos?.length) throw new Error('Upload at least one photo of the product.');
   if (service === 'buy-smart' && !d.items) throw new Error('List what you want to buy.');
+  if (service === 'buy-smart' && vagueItems(d.items!)) throw new Error('Name what you want to buy, e.g. "2 chest freezers, about 300 litres".');
   if (service === 'buy-smart' && !d.deliverTo && !d.city && !d.area) throw new Error('Add where it should be delivered.');
   if (service === 'flyers') {
     d.flyerKind ??= d.menu && !d.promote ? 'pricelist' : 'promo';

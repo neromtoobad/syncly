@@ -219,7 +219,8 @@ function Money({ stats, cfo }: { stats: Stats | null; cfo: Cfo | null }) {
       k: 'Treasury', h: 'The vault splits it by rule',
       p: 'Released money lands in SynclyVault. The CFO puts it to work across five buckets, and keeps the reserve above its floor.',
       vis: <span className="mf__buckets">{BUCKETS.map(([key, label, color]) => <i key={key} title={label} style={{ background: color }} />)}<span className="mono">5 buckets</span></span>,
-      stat: cfo?.snapshot?.epoch ? `Week ${cfo.snapshot.epoch}’s plan sealed on Arc` : 'A plan sealed on Arc each week',
+      // only a CFO that acts seals a plan; the log below is real (and verifiable) even while it only observes
+      stat: cfo?.enabled && cfo.snapshot?.epoch ? `Week ${cfo.snapshot.epoch}’s plan sealed on Arc` : 'A plan sealed on Arc each week',
     },
     {
       k: 'Contractors', h: 'Each agent gets an allowance',
@@ -237,7 +238,7 @@ function Money({ stats, cfo }: { stats: Stats | null; cfo: Cfo | null }) {
       k: 'Audit trail', h: 'Every decision is signed',
       p: "Each decision is hash-chained to the one before and signed by the CFO's key, and its hash rides on the vault transaction. Anyone can replay the log.",
       vis: <span className="mf__hash mono">{shortHash(latest?.hash)}</span>,
-      stat: cfo ? `${cfo.verify.entries} entries · ${cfo.verify.ok ? 'verified ✓' : 'not verified'}` : 'The decision log',
+      stat: cfo ? `${cfo.verify.entries} ${cfo.verify.entries === 1 ? 'entry' : 'entries'} · ${cfo.verify.ok ? 'verified ✓' : 'not verified'}` : 'The decision log',
     },
   ];
   return (
@@ -344,7 +345,7 @@ export default function Home() {
       <RealWork stats={stats} />
       <PayYourWay />
       <Cfo cfo={cfo?.enabled ? cfo : null} />
-      <Money stats={stats} cfo={cfo?.enabled ? cfo : null} />
+      <Money stats={stats} cfo={cfo ?? null} />
       <Team agents={team?.agents ?? {}} />
       <TheOffice />
       <Questions />

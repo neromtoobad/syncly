@@ -22,23 +22,33 @@ function InvoiceForm() {
   const [f, setF] = useState({ name: '', email: '', payee: '', customerEmail: '', text: '' });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [sent, setSent] = useState<string | null>(null);
+  const [sent, setSent] = useState<{ email: string; demoConfirm?: string } | null>(null);
   useEffect(() => { const d = readDesk(); if (d) { setDesk(d); setF((x) => ({ ...x, name: d.name, email: d.email, payee: d.payee })); } }, []);
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF((x) => ({ ...x, [k]: e.target.value }));
 
   async function submit(e: FormEvent) {
     e.preventDefault(); setErr(null); setBusy(true);
     try {
-      const r = await api<{ doc: { id: string }; confirm: boolean }>('/api/pay/invoices', { method: 'POST', body: JSON.stringify({ business: { name: f.name, email: f.email, payee: f.payee }, customer: { email: f.customerEmail || undefined }, text: f.text, token: desk?.token }) });
-      if (r.confirm) setSent(f.email);
+      const r = await api<{ doc: { id: string }; confirm: boolean; demoConfirm?: string }>('/api/pay/invoices', { method: 'POST', body: JSON.stringify({ business: { name: f.name, email: f.email, payee: f.payee }, customer: { email: f.customerEmail || undefined }, text: f.text, token: desk?.token }) });
+      if (r.confirm) setSent({ email: f.email, demoConfirm: r.demoConfirm });
       else router.push(`/pay/${r.doc.id}`);
     } catch (x: any) { setErr(x.message); } finally { setBusy(false); }
   }
 
+  if (sent?.demoConfirm) {
+    const u = new URL(sent.demoConfirm);
+    return (
+      <div className="card pad paybox">
+        <b>Confirm your invoice</b>
+        <p>This is the demo, so no email goes out. The link below is the one we’d send to <b>{sent.email}</b>. One click and the agents book your invoice. Nothing is booked until you confirm.</p>
+        <p><Link href={`${u.pathname}${u.search}`} className="btn primary">Confirm and book the invoice →</Link></p>
+      </div>
+    );
+  }
   if (sent) return (
     <div className="card pad paybox">
       <b>Check your inbox</b>
-      <p>We sent a confirmation link to <b>{sent}</b>. One click and the agents book your invoice on Arc and email it to your customer. Nothing is booked until you confirm.</p>
+      <p>We sent a confirmation link to <b>{sent.email}</b>. One click and the agents book your invoice on Arc and email it to your customer. Nothing is booked until you confirm.</p>
       <p className="muted" style={{ fontSize: 13 }}>You’ll also get your private desk link, so next time invoices go out straight away.</p>
     </div>
   );
