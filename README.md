@@ -1,21 +1,23 @@
 # Syncly
 
-**AI agents do the work. An AI CFO runs the money.** Syncly is a real business staffed by AI agents, with its own treasury on Arc. Small businesses hire the agents for paid work from 1 USDC a job. An AI CFO prices every job, holds customer payments in escrow, pays every agent and supplier in USDC, and signs every decision, inside limits a smart contract enforces and only a human can lift.
+**AI agents do the work. An AI CFO runs the money.**
 
-**Live on Arc mainnet:** [hiresyncly.site](https://hiresyncly.site) · [follow the money](https://hiresyncly.site/#money) · [the CFO's signed log](https://hiresyncly.site/api/cfo) · [the office, live](https://hiresyncly.site/live) · [traction](TRACTION.md) ([live copy](https://hiresyncly.site/api/traction.md))
+Syncly is a company staffed by AI agents, with its own treasury on Arc. Small businesses hire it for websites, promo videos, ad campaigns, flyers and market reports. Specialist agents do the work and pay for their own tools in USDC. An AI CFO prices every job, holds the customer's payment in escrow, funds the agents and signs every decision. It works inside limits a smart contract enforces, and only a human can lift them.
 
-Built for the [Tameion Agents Hackathon](https://tameion.thecanteenapp.com) (Canteen × Circle), Sep 27 – Oct 10, 2026. Everything here was built during the event: the `tameion-kickoff` tag marks the first commit.
+**[hiresyncly.site](https://hiresyncly.site)** · [follow the money](https://hiresyncly.site/#money) · [the CFO's signed log](https://hiresyncly.site/api/cfo) · [the office, live](https://hiresyncly.site/live) · [traction](https://hiresyncly.site/api/traction.md)
 
-## What it does, in the hackathon's terms
+In production on Arc mainnet since Sep 28, 2026: 25 jobs for 15 businesses, 232 tool payments made by agents, and 157 CFO decisions carried out on-chain. Customers pay in USDC or in naira.
 
-Tameion asks for AI agents that manage a business's money: the treasury, invoices, contractors, autonomous operations, and the audit trail behind all of it. Syncly is that business, and its customers' payments are the money being managed.
+## How it works
 
-| The brief | In Syncly | Code |
+Syncly runs a small company's whole finance stack on itself, and offers the same stack to its customers through Syncly Pay.
+
+| Capability | How Syncly does it | Code |
 |---|---|---|
 | **Treasury** | SynclyVault holds the company's USDC in five buckets: operating, tools, bond, reserve and promo. Every 10 minutes (and within a minute of new money landing) the CFO reads the vault, plans the week, re-plans mid-week when an agent runs dry, puts revenue to work and keeps the reserve above its floor. The owner funds the team by sending USDC to the vault; nobody splits money by hand. | [`SynclyVault.sol`](contracts/src/SynclyVault.sol), [`treasury.ts`](server/src/cfo/treasury.ts) |
 | **AP / AR** | *Syncly's own:* every order is a fixed-price bill paid into JobEscrow, released only when the customer accepts; the agents' tool bills are paid per call with x402 and settled on Arc. *A customer business's:* [Syncly Pay](https://hiresyncly.site/pay) books its invoices and supplier bills on InvoiceBook (paid once, straight to the booked payee), chases what it's owed, pays approved suppliers by itself from the business's own PayVault account, and emails it a CFO's report every Monday. | [`JobEscrow.sol`](contracts/src/JobEscrow.sol), [`InvoiceBook.sol`](contracts/src/InvoiceBook.sol), [`PayVault.sol`](contracts/src/PayVault.sol), [`pay.ts`](server/src/pay.ts), [`x402.ts`](server/src/x402.ts) |
 | **Contractor & vendor network** | The ten agents are contractors: each has its own wallet, a weekly allowance set from what it really spends per job, and top-ups from the CFO. Their vendors' payout addresses are pinned per service; a Pay business's suppliers are pinned after the first payment, and a changed address is stopped. | [`treasury.ts`](server/src/cfo/treasury.ts), [`payees.json`](server/src/payees.json), [`pay.ts`](server/src/pay.ts) |
-| **Autonomous operator** | The CFO acts alone, inside limits the owner sets on the vault contract (now 7 USDC per vault move and a 10 USDC weekly tool budget for the agents), and for a Pay business only its approved suppliers under its own per-bill and weekly caps. Anything beyond is an on-chain proposal a human approves from their wallet. No language model touches the money. | [`SynclyVault.sol`](contracts/src/SynclyVault.sol), [`PayVault.sol`](contracts/src/PayVault.sol), [`quote.ts`](server/src/cfo/quote.ts) |
+| **Autonomous operator** | The CFO acts alone, inside limits the owner sets on the vault contract (today 7 USDC per vault move and a 30 USDC weekly tool budget for the agents), and for a Pay business only its approved suppliers under its own per-bill and weekly caps. Anything beyond is an on-chain proposal a human approves from their wallet. No language model touches the money. | [`SynclyVault.sol`](contracts/src/SynclyVault.sol), [`PayVault.sol`](contracts/src/PayVault.sol), [`quote.ts`](server/src/cfo/quote.ts) |
 | **Compliance intelligence** | Every address we or a Pay business deal with (suppliers, payers, tool vendors) is re-screened daily against Circle's USDC blacklist, and watched one hop out: the other side of every USDC transfer they make on Arc is screened too. A hit stops payments or holds autopay for a person. | [`screen.ts`](server/src/screen.ts), [`payees.ts`](server/src/payees.ts) |
 | **Audit trail** | Every CFO decision is hash-chained to the one before and signed by its key, and the hash rides in the vault transaction's `reason` field. Every payment links to its Arc transaction; each escrow and invoice seals the hash of its document. | [`log.ts`](server/src/cfo/log.ts), [/api/cfo](https://hiresyncly.site/api/cfo) |
 
@@ -30,7 +32,7 @@ Syncly's CFO doesn't only run Syncly's money. [**Syncly Pay**](https://hiresyncl
 - **Screening, daily and one hop out.** Suppliers, payers and the business's own address are re-checked every day against Circle's USDC blacklist, and the other side of every USDC transfer they make on Arc is screened too. A hit stops payment or holds autopay.
 - **A CFO's report every Monday:** the week's money in and out, overdue invoices, a 7-day cash forecast, whether autopay covers next week's bills (and how much to add), and what's waiting for the owner.
 
-## Try it (for judges)
+## Try it
 
 1. **Follow the money** on the home page ([/#money](https://hiresyncly.site/#money)): each stop has a live number from the running company.
 2. **Read the CFO's log** at [/api/cfo](https://hiresyncly.site/api/cfo): the vault's buckets, each agent's balance and allowance, this week's plan, and every decision with what the CFO saw, signed and hash-chained. `verify.ok` means every hash and signature checks out.
@@ -62,7 +64,7 @@ Every 10 minutes, and soon after any job is accepted, delivered or refunded, the
 
 1. **Reads** the vault's five buckets, each agent's Gateway balance, and the past week's spend per agent per job, measured from receipts.
 2. **Plans the week.** Each agent's allowance is its measured spend per job times the jobs expected, scaled to fit the vault's weekly tool budget. The plan's hash is sealed on-chain (`openEpoch`) before any money moves.
-3. **Puts revenue to work**, in order: TOOLS for the week's remaining allowances, then BOND up to 3 USDC of cover, then RESERVE up to its floor. The rest stays in OPERATING.
+3. **Puts revenue to work**, in order: TOOLS for the week's remaining allowances, then BOND up to 6 USDC of cover (about 26 undecided $1 jobs at once), then RESERVE up to its floor. The rest stays in OPERATING.
 4. **Tops up** any agent that can afford fewer than two of its usual jobs, or less than one job of the most expensive service it works on, within its allowance. Readiness for every service is planned first each week; the Books page shows which services the team is funded for.
 5. **Re-plans mid-week** when an agent has used its whole allowance and is running low: more from the week's unplanned budget, then from allowance fully stocked agents won't need. The vault's `setAllowance` still enforces the weekly budget, so a re-plan can't overspend the week.
 6. **Escalates** when it can't act: TOOLS is empty, its gas is low, or a move exceeds what it may do alone.
@@ -70,20 +72,20 @@ Every 10 minutes, and soon after any job is accepted, delivered or refunded, the
 
 New money in the vault is acted on within a minute. The owner funds the team by sending USDC to the vault (the **Fund the team** box on the books page), and the CFO credits it, moves what the week needs into TOOLS and tops the agents up.
 
-It also prices every job ([`server/src/cfo/quote.ts`](server/src/cfo/quote.ts)). The cost comes from the median measured cost. p(accept) comes from a Beta(4,1) prior updated with the service's acceptance history. The bond is 10–30% of the price, higher when confidence is higher, and capped by what the BOND bucket can cover. Every service is priced at 1 USDC on purpose (a large customer base over profit), so the CFO takes a job unless it is expected to lose more than 3.50 USDC. Every number is on the quote, which only the owner sees in full.
+It also prices every job ([`server/src/cfo/quote.ts`](server/src/cfo/quote.ts)). The cost comes from the median measured cost. p(accept) comes from a Beta(4,1) prior updated with the service's acceptance history. The bond is 10–30% of the price, higher when confidence is higher, and capped by what the BOND bucket can cover. Every service has a 1 USDC launch price, set to grow the customer base first, so the CFO takes a job unless it is expected to lose more than 3.50 USDC. Every number is on the quote, which only the owner sees in full.
 
 **Limits it cannot talk its way past** (enforced by [`SynclyVault.sol`](contracts/src/SynclyVault.sol), not by a prompt):
 
 - The CFO key can only move money between the vault's buckets, top up registered agents' Gateway balances within their allowance, and pay approved human reviewers. There is no function that sends vault money anywhere else.
 - It moves at most `maxMove` (7 USDC today; the Boss sets it on-chain) in one step. Anything bigger has to be a `propose`, which only the Boss can `coSign`. The CFO's own policy also caps itself at `maxMove` per bucket pair per week; past that it moves what it may and proposes the rest for the Boss to co-sign. The Boss changes these limits on-chain from the Books page.
-- Weekly allowances can't exceed the 3 USDC tool budget. The reserve can't go under its floor. Bonds outstanding must always be covered.
+- Weekly allowances can't exceed the tool budget set on-chain (30 USDC today). The reserve can't go under its floor. Bonds outstanding must always be covered.
 - **No language model touches money.** Pricing, allocation and top-ups are computed. The Auditor model only flags the work, and the customer's wallet is the only thing that releases a payment.
 
 **The decision log** ([`server/src/cfo/log.ts`](server/src/cfo/log.ts)) is append-only. Each entry is hash-chained to the one before and signed by the CFO's key, and the vault transaction's `reason` field carries the hash of the decision. Anyone can replay the log from [/api/cfo](https://hiresyncly.site/api/cfo); `verify.ok` means every hash and signature checks out.
 
-## Controls against the failure modes in "Agents and Ledgers in 2026"
+## Failure modes it's built against
 
-Canteen's [essay](https://thecanteenapp.com/analysis/2026/09/12/agents-and-ledgers.html) lists the errors an AI can make that still balance the books. Here is how Syncly handles each:
+An AI bookkeeper can make mistakes that still balance the books ([Agents and Ledgers in 2026](https://thecanteenapp.com/analysis/2026/09/12/agents-and-ledgers.html) catalogues them). Each one has a control:
 
 | Failure | Control in Syncly |
 |---|---|
@@ -140,7 +142,7 @@ Key transactions: [vault deployed](https://explorer.arc.io/tx/0x77d94e018c642a80
 
 ## Where the money comes from: the work the agents sell
 
-Real money has to flow for the CFO to manage it, so Syncly sells work small businesses already pay freelancers for. A business fills in a short form about itself and the job (*"party trays for 20 guests, ₦25,000, orders on WhatsApp, ₦5,000 a day for ads"*), the CFO prices it, the agents do it, and the customer decides whether to pay.
+Syncly sells work that small businesses already pay freelancers and agencies for. A business fills in a short form about itself and the job (*"party trays for 20 guests, ₦25,000, orders on WhatsApp, ₦5,000 a day for ads"*), the CFO prices it, the agents do it, and the customer decides whether to pay.
 
 | Service | Price | What you get |
 |---|---|---|
@@ -182,7 +184,7 @@ The menu comes from research into what small businesses already pay agencies and
 | [`server/assets/reel/`](server/assets/reel) | The UI-reel engine (for apps and software) and the synthesised sound design (whooshes, impacts; a full score only as a fallback): one-shape morph reels with springs and a cursor |
 | [`server/src/music.ts`](server/src/music.ts) | Promo Video's licensed music: 15 Mixkit tracks (fetched on first use, never committed), each with a beat grid measured by [`server/src/beats.ts`](server/src/beats.ts) so scenes cut on the beat |
 | [`web/`](web) | The site (Next.js 16): hire, job pages, books, the CFO's desk, the office (PixiJS) with a marimba soundtrack |
-| [`contracts/`](contracts) | SynclyVault, JobEscrow, InvoiceBook and PayVault, with tests (Foundry) |
+| [`contracts/`](contracts) | SynclyVault, JobEscrow, InvoiceBook, PayVault and NairaDesk, with 52 tests (Foundry) |
 | [`deployments/`](deployments) | Mainnet addresses and deploy transactions |
 | [`assets/`](assets) | The cast (generated with Higgsfield), sliced sprites and the office scene; [`STYLE.md`](assets/STYLE.md) logs every generation credit |
 | [`proto/`](proto) | The day-1 office prototype |
@@ -197,7 +199,7 @@ cd web && npm ci && npm run dev                                    # http://loca
 Tests:
 
 ```bash
-cd contracts && forge test                                   # 30 contract tests
+cd contracts && forge test                                   # 52 contract tests
 cd server && node scripts/pay-safety.ts                      # no double pay, payee pinning (fake local seller)
 anvil --port 8645 &                                          # local chain with a mock USDC at Arc's address
 LOCAL_RPC=http://127.0.0.1:8645 node scripts/escrow-local.ts # deploy contracts, fund a bond pool
@@ -207,14 +209,18 @@ node scripts/escrow-e2e.ts http://localhost:8790 accept      # also: reject | ex
 
 Live mode needs the agents' mnemonic (`OUTLAY_MNEMONIC`) and `deployments/arc.json`. `ONRAMP_API_KEY` (a live key from the Circle console) switches on card and bank purchases. `OUTLAY_CFO=live` lets the CFO act; the default `observe` makes it log what it would do.
 
-## Honest status
+## Status
 
-- **Live since Sep 28:** the first job was delivered and accepted, with every tool payment settled on Arc. Escrow and the CFO went live on Sep 29. Outside customers are the next step; [TRACTION.md](TRACTION.md) is generated from the live books and never includes demo data.
-- **Not used, and why:**
+- **In production since Sep 28, 2026.** Escrow and the CFO went live on Sep 29. The [traction record](https://hiresyncly.site/api/traction.md) is generated from the live books, links every payment to its Arc transaction, and never includes demo data.
+- **Payments:** customers pay in USDC from any wallet (bridged from other chains or swapped from ETH or USDT at [/arc](https://hiresyncly.site/arc)) or in naira through NairaDesk.
+- **Email** goes out from hello@hiresyncly.site through Resend. The Messenger can also pay AgentMail per email by x402 (`OUTLAY_MAIL=aisa`).
+- **Not used yet:**
   - **USYC:** it needs an allowlist, and mainnet has a $100k minimum.
   - **Paymaster:** it isn't deployed on Arc.
-- **Email delivery** goes out from hello@hiresyncly.site through Resend. The Messenger can also pay AgentMail per email by x402 (`OUTLAY_MAIL=aisa`).
-- **Paying customers need a wallet with USDC on Arc.** /arc brings it from another chain, swaps it from ETH or USDT, or lists the exchanges that withdraw to Arc.
+
+## Background
+
+Syncly started at the [Tameion Agents Hackathon](https://tameion.thecanteenapp.com) (Canteen × Circle) in September 2026 and has run in production since. The `tameion-kickoff` tag marks the first commit.
 
 ## License
 
