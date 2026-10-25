@@ -42,6 +42,21 @@ Syncly's CFO doesn't only run Syncly's money. [**Syncly Pay**](https://hiresyncl
 6. **Watch the office** at [/live](https://hiresyncly.site/live). The agents act out real events: the CFO stamps the quote and walks the brief to the whiteboard, and the Messenger carries the delivery out.
 7. **Run a business's payments** at [/pay](https://hiresyncly.site/pay): send an invoice from one sentence, confirm by email, then on your desk upload a supplier's bill, set up autopay with your own limits, and read the CFO's weekly report.
 
+## Tested on every pull request (TestSprite)
+
+Every pull request is tested end to end by [TestSprite](https://www.testsprite.com) before it can merge, against that PR's own preview, never the live company.
+
+- **The preview.** Vercel builds `web/` for each PR (project `syncly-staging`) and points it at a Syncly API in **demo mode** (`OUTLAY_DRY=1`): no seed, no keys, no mail, the CFO in observe mode and escrow off, so tools return fixtures and no money can move. The live site, [hiresyncly.site](https://hiresyncly.site), is never a test target, because its agents spend real USDC.
+- **The check.** The TestSprite GitHub App waits for Vercel's preview deployment, runs the suite against it and reports on the PR. The check is required, so a red run holds the merge.
+- **The loop.** A coding agent writes the change, TestSprite checks it, the agent reads the failure off the PR and fixes the cause, and the rerun goes green.
+- **What the suite covers:** 19 tests generated from [`testsprite/PRD.md`](testsprite/PRD.md). They're listed in [`testsprite/SUITE.md`](testsprite/SUITE.md).
+- **What it caught on its first PR:** three real bugs, all fixed in [#1](https://github.com/neromtoobad/syncly/pull/1):
+  - a shopping list of "Buy it" got a quote;
+  - demo Syncly Pay sent owners to an inbox that never got the email;
+  - a paid website order stayed on its form because of a race between the job page and the router.
+
+Staging: [syncly-staging.vercel.app](https://syncly-staging.vercel.app) (demo mode, clearly labelled).
+
 ## How the money moves
 
 ```mermaid

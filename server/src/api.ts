@@ -131,7 +131,7 @@ app.post('/api/quote', async (c) => {
     try { details = cleanDetails(b.details, service); } catch (e: any) { return c.json({ error: e.message }, 400); }
     brief = `${detailsBrief(details, service)}${brief.trim() ? `\n\n${brief.trim()}` : ''}`;
   }
-  if (brief.trim().length < 12) return c.json({ error: 'Tell us a bit more: at least a sentence.' }, 400);
+  if (brief.trim().length < 20 || brief.trim().split(/\s+/).length < 4) return c.json({ error: 'Tell us a bit more: at least a sentence.' }, 400);
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return c.json({ error: 'A valid email is needed so we can deliver.' }, 400);
   try {
     const unfunded = await teamShortfall(service);
