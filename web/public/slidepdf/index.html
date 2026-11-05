@@ -9,8 +9,8 @@
 html,body{height:100%;background:#0C1A12;overflow:hidden}
 .stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
 .deck{position:relative;width:1920px;height:1080px;flex:none;transform-origin:center center}
-section{position:absolute;inset:0;width:1920px;height:1080px;overflow:hidden;display:none;border-radius:6px}
-section.on{display:flex}
+section{position:absolute;inset:0;width:1920px;height:1080px;overflow:hidden;visibility:hidden;border-radius:6px}
+section.on{visibility:visible}
 section div{display:flex;flex-direction:column;min-width:0}
 h1{line-height:1.1}h2{line-height:1.15}h3{line-height:1.2}p,li{line-height:1.4}
 img{display:block}
@@ -19,7 +19,7 @@ img{display:block}
 .hud a.pdf{background:#B6E37E;color:#13271C;border-color:#B6E37E}
 .hud span{padding:8px 6px}
 .print .stage{position:static;display:block}.print .deck{transform:none!important;width:auto;height:auto}
-.print section{position:relative;display:flex;border-radius:0;break-after:page}.print .hud{display:none}
+.print section{position:relative;visibility:visible;border-radius:0;break-after:page}.print .hud{display:none}
 .print,.print body{overflow:visible;height:auto}
 @page{size:1920px 1080px;margin:0}
 </style></head>
