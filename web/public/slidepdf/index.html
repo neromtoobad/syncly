@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><base href="/slidepdf/"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Syncly · Deck</title>
+<meta name="description" content="Syncly: AI agents do the work, you pay only if you like it. Live on Arc mainnet.">
+<link rel="icon" href="/favicon.svg">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=Geist+Mono:wght@400;500&family=Instrument+Serif:ital@1&display=swap">
+<style>
+*{margin:0;box-sizing:border-box}
+html,body{height:100%;background:#0C1A12;overflow:hidden}
+.stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+.deck{position:relative;width:1920px;height:1080px;flex:none;transform-origin:center center}
+section{position:absolute;inset:0;width:1920px;height:1080px;overflow:hidden;display:none;border-radius:6px}
+section.on{display:flex}
+section div{display:flex;flex-direction:column;min-width:0}
+h1{line-height:1.1}h2{line-height:1.15}h3{line-height:1.2}p,li{line-height:1.4}
+img{display:block}
+.hud{position:fixed;left:0;right:0;bottom:16px;display:flex;justify-content:center;gap:10px;font:500 14px 'Geist Mono',monospace;color:#C9D6CC;z-index:2}
+.hud button,.hud a{all:unset;cursor:pointer;background:#1D3527;border:1px solid #3A5444;border-radius:999px;padding:8px 16px;color:#F1EEE6}
+.hud a.pdf{background:#B6E37E;color:#13271C;border-color:#B6E37E}
+.hud span{padding:8px 6px}
+.print .stage{position:static;display:block}.print .deck{transform:none!important;width:auto;height:auto}
+.print section{position:relative;display:flex;border-radius:0;break-after:page}.print .hud{display:none}
+.print,.print body{overflow:visible;height:auto}
+@page{size:1920px 1080px;margin:0}
+</style></head>
+<body>
+<div class="stage"><div class="deck">
+<section id="title" data-transition="fade" style="background:#13271C;color:#F1EEE6;font-family:'Geist', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;justify-content:space-between">
+<div style="display:flex;flex-direction:row;align-items:center;gap:20px">
+<svg aria-label="Syncly logo" width="64" height="64" viewBox="0 0 48 48"><rect x="7" y="10.5" width="9" height="14" fill="#F1EEE6"/><rect x="32" y="24" width="9" height="13.5" fill="#F1EEE6"/><rect x="7" y="6" width="34" height="9" rx="4.5" fill="#F1EEE6"/><rect x="7" y="33" width="34" height="9" rx="4.5" fill="#F1EEE6"/><rect x="7" y="19.5" width="34" height="9" rx="4.5" fill="#7CC243"/></svg>
+<p style="font-size:44px;font-weight:600;letter-spacing:-1px">Syncly</p>
+<div style="flex:1"></div>
+<p style="font-family:'Geist Mono', 'Courier New', monospace;font-size:24px;color:#13271C;background:#B6E37E;padding:8px 20px;border-radius:999px">Live on Arc mainnet since Sep 28</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<h1 style="font-size:120px;font-weight:600;letter-spacing:-4px;line-height:1.02">AI agents do the work.</h1>
+<h1 style="font-family:'Instrument Serif', Georgia, serif;font-style:italic;font-size:132px;font-weight:400;letter-spacing:-1px;line-height:1.02;color:#B6E37E">You pay only if you like it.</h1>
+<p style="font-size:32px;line-height:1.4;color:#C9D6CC;width:1300px;padding:36px 0px 0px 0px">Syncly is an AI agency for small businesses in Nigeria. Websites, promo videos, ads and reports from $1, paid in naira or USDC and held in escrow on Arc until the customer accepts.</p>
+</div>
+<div style="display:flex;flex-direction:row;gap:16px">
+<p style="font-size:26px;color:#F1EEE6;border:1px solid #3A5444;padding:10px 24px;border-radius:999px"><b>16</b> businesses</p>
+<p style="font-size:26px;color:#F1EEE6;border:1px solid #3A5444;padding:10px 24px;border-radius:999px"><b>22 of 23</b> deliveries accepted</p>
+<p style="font-size:26px;color:#F1EEE6;border:1px solid #3A5444;padding:10px 24px;border-radius:999px"><b>15</b> jobs paid through escrow on Arc</p>
+</div>
+<div style="position:absolute;left:128px;bottom:64px;width:1664px;display:flex;flex-direction:row;justify-content:space-between">
+<p style="font-size:24px;color:#C9D6CC">neromtoobad, founder · Abuja, Nigeria</p>
+<p style="font-family:'Geist Mono', 'Courier New', monospace;font-size:24px;color:#B6E37E">hiresyncly.site</p>
+</div>
+</section>
+
+<section id="pain" data-transition="fade" style="background:#F1EEE6;color:#13271C;font-family:'Geist', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<p style="font-family:'Geist Mono', 'Courier New', monospace;font-size:24px;color:#2F6B17">THE PROBLEM</p>
+<h2 style="font-size:72px;font-weight:600;letter-spacing:-2px;line-height:1.1;width:1600px">39.6 million small businesses in Nigeria can’t buy marketing they can trust</h2>
+<p style="font-size:28px;color:#3B4A40">They sell on Instagram and WhatsApp. Here’s how they get marketing done today:</p>
+<div style="display:flex;flex-direction:row;gap:32px">
+<div style="flex:1;display:flex;flex-direction:column;gap:14px;background:#FAF8F2;border:1px solid #DCD6C6;border-radius:20px;padding:40px">
+<h3 style="font-size:36px;font-weight:600;letter-spacing:-1px">Pay a freelancer first</h3>
+<p style="font-size:26px;line-height:1.4;color:#3B4A40">Found on WhatsApp or Instagram. No refund if the work is late, bad or never arrives.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:14px;background:#FAF8F2;border:1px solid #DCD6C6;border-radius:20px;padding:40px">
+<h3 style="font-size:36px;font-weight:600;letter-spacing:-1px">Do it themselves</h3>
+<p style="font-size:26px;line-height:1.4;color:#3B4A40">A flyer on Canva after closing time. Hours away from selling, and it shows.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:14px;background:#FAF8F2;border:1px solid #DCD6C6;border-radius:20px;padding:40px">
+<h3 style="font-size:36px;font-weight:600;letter-spacing:-1px">Hire an agency</h3>
+<p style="font-size:26px;line-height:1.4;color:#3B4A40">Out of reach. A $1–$15 job is too small for agencies and freelance marketplaces.</p>
+</div>
+</div>
+<p style="font-size:32px;line-height:1.4;width:1550px"><b>AI can do this work for a few dollars, but not on its own.</b> <span style="color:#3B4A40">Owners have no crypto wallet or USD card, and agents that spend money need limits they can’t talk their way past.</span></p>
+<div style="position:absolute;left:128px;bottom:64px;width:1664px;display:flex;flex-direction:row;justify-content:space-between">
+<p style="font-size:24px;color:#55635A">Source: NBS–SMEDAN MSME survey</p>
+<p style="font-family:'Geist Mono', 'Courier New', monospace;font-size:24px;color:#55635A">02</p>
+</div>
+</section>
+
+<section id="flow" data-transition="fade" style="background:#13271C;color:#F1EEE6;font-family:'Geist', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:row;gap:64px;align-items:stretch">
+<div style="flex:1;display:flex;flex-direction:column;gap:40px">
+<h2 style="font-size:64px;font-weight:600;letter-spacing:-2px;line-height:1.1">Every job is escrowed on Arc</h2>
+<div style="display:flex;flex-direction:column;gap:24px">
+<div style="display:flex;flex-direction:row;gap:28px">
+<p style="font-family:'Geist Mono', 'Courier New', monospace;font-size:26px;color:#B6E37E;width:56px">01</p>
+<div style="flex:1;display:flex;flex-direction:column;gap:6px">
+<h3 style="font-size:32px;font-weight:600">Order</h3>
+<p style="font-size:26px;line-height:1.4;color:#C9D6CC">The owner describes the business and sees the price, team and delivery time up front.</p>
+</div>
+</div>
+<div style="display:flex;flex-direction:row;gap:28px">
+<p style="font-family:'Geist Mono', 'Courier New', monospace;font-size:26px;color:#B6E37E;width:56px">02</p>
+<div style="flex:1;display:flex;flex-direction:column;gap:6px">
+<h3 style="font-size:32px;font-weight:600">Fund</h3>
+<p style="font-size:26px;line-height:1.4;color:#C9D6CC">They pay in USDC, or in naira by bank transfer. NairaDesk funds JobEscrow in USDC.</p>
+</div>
+</div>
+<div style="display:flex;flex-direction:row;gap:28px">
+<p style="font-family:'Geist Mono', 'Courier New', monospace;font-size:26px;color:#B6E37E;width:56px">03</p>
+<div style="flex:1;display:flex;flex-direction:column;gap:6px">
+<h3 style="font-size:32px;font-weight:600">Work</h3>
+<p style="font-size:26px;line-height:1.4;color:#C9D6CC">11 AI agents do the job, paying for their own tools per call with x402 on Circle Gateway.</p>
+</div>
+</div>
+<div style="display:flex;flex-direction:row;gap:28px">
+<p style="font-family:'Geist Mono', 'Courier New', monospace;font-size:26px;color:#B6E37E;width:56px">04</p>
+<div style="flex:1;display:flex;flex-direction:column;gap:6px">
+<h3 style="font-size:32px;font-weight:600">Decide</h3>
+<p style="font-size:26px;line-height:1.4;color:#C9D6CC">Only the customer can release payment. Reject, or a missed deadline, refunds the price plus our bond.</p>
+</div>
+</div>
+</div>
+</div>
+<div style="width:640px;display:flex;flex-direction:column;gap:24px">
+<img src="img/sites.png" alt="Three real customer websites built by Syncly on phones: Eudora Ng, Shot By Dre and producer_mykah" style="width:640px;height:527px;object-fit:contain">
+<div style="display:flex;flex-direction:column;gap:10px;background:#1D3527;border-left:4px solid #B6E37E;border-radius:16px;padding:28px 32px">
+<h3 style="font-size:28px;font-weight:600;color:#B6E37E">Proven on mainnet, Oct 20</h3>
+<p style="font-size:24px;line-height:1.4;color:#E4ECE6">A job missed its deadline. Five seconds later, JobEscrow refunded the price plus our bond. No request, no human.</p>
+</div>
+</div>
+<div style="position:absolute;left:128px;bottom:64px;width:1664px;display:flex;flex-direction:row;justify-content:space-between">
+<p style="font-size:24px;color:#8FA596">Top right: real customer sites built by Syncly</p>
+<p style="font-family:'Geist Mono', 'Courier New', monospace;font-size:24px;color:#8FA596">03</p>
+</div>
+</section>
+
+<section id="proof" data-transition="fade" style="background:#F1EEE6;color:#13271C;font-family:'Geist', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<p style="font-family:'Geist Mono', 'Courier New', monospace;font-size:24px;color:#2F6B17">TRACTION · AS OF NOV 5, 2026</p>
+<h2 style="font-size:72px;font-weight:600;letter-spacing:-2px;line-height:1.1;width:1500px">Five weeks on mainnet. Real businesses, paying and coming back.</h2>
+<div style="display:flex;flex-direction:row;gap:40px">
+<div style="flex:1;display:flex;flex-direction:column;gap:10px;border-top:2px solid #13271C;padding:20px 0px 0px 0px">
+<p style="font-size:88px;font-weight:600;letter-spacing:-3px;line-height:1">16</p>
+<p style="font-size:26px;line-height:1.4;color:#3B4A40">businesses in Abuja, Lagos, Minna and the UK</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:10px;border-top:2px solid #13271C;padding:20px 0px 0px 0px">
+<p style="font-size:88px;font-weight:600;letter-spacing:-3px;line-height:1">22/23</p>
+<p style="font-size:26px;line-height:1.4;color:#3B4A40">delivered jobs accepted by the customer</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:10px;border-top:2px solid #13271C;padding:20px 0px 0px 0px">
+<p style="font-size:88px;font-weight:600;letter-spacing:-3px;line-height:1">15</p>
+<p style="font-size:26px;line-height:1.4;color:#3B4A40">paid jobs settled through JobEscrow in USDC</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:10px;border-top:2px solid #13271C;padding:20px 0px 0px 0px">
+<p style="font-size:88px;font-weight:600;letter-spacing:-3px;line-height:1">277</p>
+<p style="font-size:26px;line-height:1.4;color:#3B4A40">agent tool payments via x402 on Circle Gateway</p>
+</div>
+</div>
+<div style="flex:1"></div>
+<div style="display:flex;flex-direction:row;gap:32px">
+<div style="flex:1;display:flex;flex-direction:column;gap:10px;background:#FAF8F2;border:1px solid #DCD6C6;border-radius:20px;padding:32px">
+<h3 style="font-size:30px;font-weight:600">Came back 3 times in a day</h3>
+<p style="font-size:24px;line-height:1.4;color:#3B4A40">BH Cosmetics Perfumes, Abuja: a website, a promo video and an ad campaign, each paid in naira.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:10px;background:#FAF8F2;border:1px solid #DCD6C6;border-radius:20px;padding:32px">
+<h3 style="font-size:30px;font-weight:600">Came back for a third job</h3>
+<p style="font-size:24px;line-height:1.4;color:#3B4A40">04 Rentals, Minna: two promo videos, then a market and Google report.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:10px;background:#FAF8F2;border:1px solid #DCD6C6;border-radius:20px;padding:32px">
+<h3 style="font-size:30px;font-weight:600">First customer abroad</h3>
+<p style="font-size:24px;line-height:1.4;color:#3B4A40">Lydia’s Kitchen, Warwick, UK: a promo video, paid in naira, accepted Oct 27.</p>
+</div>
+</div>
+<div style="position:absolute;left:128px;bottom:64px;width:1664px;display:flex;flex-direction:row;justify-content:space-between">
+<p style="font-size:24px;color:#55635A">Plus 190 AI CFO decisions on-chain. Every transaction: <span style="color:#2F6B17">hiresyncly.site/api/traction.md</span></p>
+<p style="font-family:'Geist Mono', 'Courier New', monospace;font-size:24px;color:#55635A">04</p>
+</div>
+</section>
+
+<section id="unblock" data-transition="fade" style="background:#B6E37E;color:#13271C;font-family:'Geist', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<p style="font-family:'Geist Mono', 'Courier New', monospace;font-size:24px;color:#13271C">OUR BIGGEST BLOCKER</p>
+<h2 style="font-size:120px;font-weight:600;letter-spacing:-4px;line-height:1.02">Naira in, USDC out, at scale.</h2>
+<p style="font-size:32px;line-height:1.4;color:#24402D;width:1500px">Most customers pay in naira by bank transfer. NairaDesk funds their USDC escrow on Arc from a float I top up by hand, and naira refunds are manual. <b>Demand isn’t the limit. The float is.</b></p>
+<div style="flex:1"></div>
+<div style="display:flex;flex-direction:row;gap:48px">
+<div style="flex:1;display:flex;flex-direction:column;gap:12px;border-top:2px solid #13271C;padding:20px 0px 0px 0px">
+<h3 style="font-size:32px;font-weight:600">A naira ramp</h3>
+<p style="font-size:28px;line-height:1.4;color:#24402D">An on/off-ramp that settles naira straight to USDC on Arc, and back for refunds.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:12px;border-top:2px solid #13271C;padding:20px 0px 0px 0px">
+<h3 style="font-size:32px;font-weight:600">Gas sponsorship</h3>
+<p style="font-size:28px;line-height:1.4;color:#24402D">So customers and agents never have to hold USDC for gas.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:12px;border-top:2px solid #13271C;padding:20px 0px 0px 0px">
+<h3 style="font-size:32px;font-weight:600">Working float</h3>
+<p style="font-size:28px;line-height:1.4;color:#24402D">Enough USDC to keep jobs flowing while bank transfers settle.</p>
+</div>
+</div>
+<div style="position:absolute;left:128px;bottom:64px;width:1664px;display:flex;flex-direction:row;justify-content:space-between">
+<p style="font-size:24px;color:#24402D">Syncly</p>
+<p style="font-family:'Geist Mono', 'Courier New', monospace;font-size:24px;color:#24402D">05</p>
+</div>
+</section>
+
+<section id="plan" data-transition="fade" style="background:#13271C;color:#F1EEE6;font-family:'Geist', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:44px">
+<h2 style="font-size:64px;font-weight:600;letter-spacing:-2px;line-height:1.1">Where we’re going, and how Circle can help</h2>
+<div style="display:flex;flex-direction:row;gap:40px">
+<div style="flex:1;display:flex;flex-direction:column;gap:8px;border-top:1px solid #3A5444;padding:20px 0px 0px 0px">
+<p style="font-family:'Geist Mono', 'Courier New', monospace;font-size:24px;color:#B6E37E">Dec 2026</p>
+<h3 style="font-size:32px;font-weight:600">Wallet-free checkout</h3>
+<p style="font-size:24px;line-height:1.4;color:#C9D6CC">Circle Wallets and gas sponsorship. 300 customers.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:8px;border-top:1px solid #3A5444;padding:20px 0px 0px 0px">
+<p style="font-family:'Geist Mono', 'Courier New', monospace;font-size:24px;color:#B6E37E">Mar 2027</p>
+<h3 style="font-size:32px;font-weight:600">Audit and real pricing</h3>
+<p style="font-size:24px;line-height:1.4;color:#C9D6CC">All 5 contracts audited, $5–$25 jobs. 1,000 customers.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:8px;border-top:1px solid #3A5444;padding:20px 0px 0px 0px">
+<p style="font-family:'Geist Mono', 'Courier New', monospace;font-size:24px;color:#B6E37E">Jun 2027</p>
+<h3 style="font-size:32px;font-weight:600">Ghana, Kenya, diaspora</h3>
+<p style="font-size:24px;line-height:1.4;color:#C9D6CC">Team plans and Syncly Pay fees. 2,500 customers.</p>
+</div>
+</div>
+<div style="display:flex;flex-direction:row;gap:40px">
+<div style="flex:1;display:flex;flex-direction:column;gap:24px;background:#1D3527;border-radius:24px;padding:40px">
+<h3 style="font-size:28px;font-weight:600;color:#B6E37E">The economics</h3>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px 32px">
+<div style="display:flex;flex-direction:column;gap:4px">
+<p style="font-size:44px;font-weight:600;letter-spacing:-1px">$0.12–3</p>
+<p style="font-size:24px;color:#C9D6CC">tool cost per job</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:4px">
+<p style="font-size:44px;font-weight:600;letter-spacing:-1px">$5–25</p>
+<p style="font-size:24px;color:#C9D6CC">price per job from Q1 2027</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:4px">
+<p style="font-size:44px;font-weight:600;letter-spacing:-1px">70%+</p>
+<p style="font-size:24px;color:#C9D6CC">margin at that price</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:4px">
+<p style="font-size:44px;font-weight:600;letter-spacing:-1px">$100k</p>
+<p style="font-size:24px;color:#C9D6CC">ARR goal by Dec 2027</p>
+</div>
+</div>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:20px;background:#1D3527;border-radius:24px;padding:40px">
+<h3 style="font-size:28px;font-weight:600;color:#B6E37E">Our asks for Circle</h3>
+<div style="display:flex;flex-direction:row;gap:20px">
+<p style="font-family:'Geist Mono', 'Courier New', monospace;font-size:24px;color:#B6E37E;width:32px">1</p>
+<p style="flex:1;font-size:26px;line-height:1.4">A timeline for gas sponsorship on Arc mainnet</p>
+</div>
+<div style="display:flex;flex-direction:row;gap:20px">
+<p style="font-family:'Geist Mono', 'Courier New', monospace;font-size:24px;color:#B6E37E;width:32px">2</p>
+<p style="flex:1;font-size:26px;line-height:1.4">An intro to a naira ramp that settles to USDC on Arc</p>
+</div>
+<div style="display:flex;flex-direction:row;gap:20px">
+<p style="font-family:'Geist Mono', 'Courier New', monospace;font-size:24px;color:#B6E37E;width:32px">3</p>
+<p style="flex:1;font-size:26px;line-height:1.4">A path to the Circle Developer Grant and Arc ecosystem distribution</p>
+</div>
+</div>
+</div>
+<div style="position:absolute;left:128px;bottom:64px;width:1664px;display:flex;flex-direction:row;justify-content:space-between">
+<p style="font-size:24px;color:#C9D6CC">neromtoobad · X @neromtoobad · dimejikeji5@gmail.com · <span style="color:#B6E37E">hiresyncly.site</span></p>
+<p style="font-family:'Geist Mono', 'Courier New', monospace;font-size:24px;color:#8FA596">06</p>
+</div>
+</section>
+
+</div></div>
+<nav class="hud"><button id="prev" aria-label="Previous slide">←</button><span id="count"></span><button id="next" aria-label="Next slide">→</button><a class="pdf" href="syncly-deck.pdf" download>Download PDF</a></nav>
+<script>
+(() => {
+  const s = [...document.querySelectorAll('section')], deck = document.querySelector('.deck'), count = document.getElementById('count');
+  if (location.search.includes('print')) { document.documentElement.classList.add('print'); return; }
+  let k = Math.max(0, Math.min(s.length - 1, (parseInt(location.hash.slice(1)) || 1) - 1));
+  const fit = () => { const sc = Math.min(innerWidth / 1920, (innerHeight - 64) / 1080); deck.style.transform = 'scale(' + sc + ') translateY(-' + (32 / sc) + 'px)'; };
+  const go = (n) => { k = Math.max(0, Math.min(s.length - 1, n)); s.forEach((e, i) => e.classList.toggle('on', i === k)); count.textContent = (k + 1) + ' / ' + s.length; history.replaceState(null, '', location.pathname + '#' + (k + 1)); };
+  document.getElementById('prev').onclick = () => go(k - 1);
+  document.getElementById('next').onclick = () => go(k + 1);
+  addEventListener('keydown', (e) => { if (['ArrowRight', 'PageDown', ' '].includes(e.key)) go(k + 1); if (['ArrowLeft', 'PageUp'].includes(e.key)) go(k - 1); });
+  let x0 = null; addEventListener('touchstart', (e) => { x0 = e.touches[0].clientX; }); addEventListener('touchend', (e) => { if (x0 === null) return; const d = e.changedTouches[0].clientX - x0; if (Math.abs(d) > 40) go(k + (d < 0 ? 1 : -1)); x0 = null; });
+  addEventListener('resize', fit); fit(); go(k);
+})();
+</script>
+</body></html>

@@ -28,6 +28,8 @@ const config: NextConfig = {
   async rewrites() {
     return [
       { source: '/api/:path*', destination: `${API}/api/:path*` },
+      // The demo-day deck, built by tools/deck/build.mjs into public/slidepdf.
+      { source: '/slidepdf', destination: '/slidepdf/index.html' },
       // Sites the team builds for customers, served by the API from the books volume.
       { source: '/s/:slug', destination: `${API}/s/:slug/` },
       { source: '/s/:slug/:file*', destination: `${API}/s/:slug/:file*` },
