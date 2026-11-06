@@ -20,7 +20,7 @@ const EXAMPLES: Record<string, string[]> = {
   'research-brief': ['Competitors and pricing for a small bakery in Lekki that wants to add cake delivery', 'Is there demand for solar inverter rentals in Ibadan?', 'How do Lagos co-working spaces price day passes?'],
 };
 
-type QuotedOrder = { id: string; status: string; quote: Quote; demo: boolean; brief?: string; privateKey?: string; customerKey?: string };
+type QuotedOrder = { id: string; status: string; quote: Quote; demo: boolean; brief?: string; privateKey?: string; customerKey?: string; referral?: { kind: 'invited' | 'reward'; code: string }; codeNote?: string };
 // A brief the team can act on: a short sentence, not a couple of words (the API applies the same rule).
 const thinBrief = (s: string) => s.trim().length < 20 || s.trim().split(/\s+/).length < 4;
 /** The job page; a private order (a Money Report) carries its key, which only the customer who placed it receives. */
@@ -33,7 +33,9 @@ const jobUrl = (o: { id: string; privateKey?: string; customerKey?: string }) =>
 
 
 function QuoteDoc({ s, order }: { s: Service; order: QuotedOrder }) {
-  const q = order.quote;
+  const q = order.quote, ref = order.referral;
+  const freeWhy = ref?.kind === 'invited' ? `Free with promo code ${ref.code}` : ref?.kind === 'reward' ? 'Earned by referring a business' : 'Your first job is on us';
+  const freeRow = ref?.kind === 'invited' ? `Promo code ${ref.code}` : ref?.kind === 'reward' ? 'Referral reward' : 'First job free';
   return (
     <motion.div className="quotedoc" initial={{ opacity: 0, y: 40, rotate: -1.5 }} animate={{ opacity: 1, y: 0, rotate: 0 }} transition={{ type: 'spring', stiffness: 140, damping: 18 }}>
       <div className="top">
@@ -41,10 +43,10 @@ function QuoteDoc({ s, order }: { s: Service; order: QuotedOrder }) {
       </div>
       <motion.span className="stamp" initial={{ scale: 2.4, opacity: 0, rotate: -30 }} animate={{ scale: 1, opacity: 0.95, rotate: -12 }} transition={{ delay: 0.55, type: 'spring', stiffness: 420, damping: 16 }}><Seal size={78} /></motion.span>
       <div className="price">{q.promo ? 'Free' : usd(q.priceUsd)}{!q.promo && <small>USDC</small>}</div>
-      <div className="ngn">{q.promo ? 'Your first job is on us' : ngn(q.priceUsd)}</div>
+      <div className="ngn">{q.promo ? freeWhy : ngn(q.priceUsd)}</div>
       <Stagger className="lines">
         <div className="srow"><span className="lbl">{s.name}</span><span className="fill" /><span className="v">{usd(s.priceUsd)}</span></div>
-        {q.promo && <div className="srow"><span className="lbl">First job free</span><span className="fill" /><span className="v">({usd(s.priceUsd)})</span></div>}
+        {q.promo && <div className="srow"><span className="lbl">{freeRow}</span><span className="fill" /><span className="v">({usd(s.priceUsd)})</span></div>}
         <div className="srow"><span className="lbl">Bond paid to you if you reject<small>{q.promo ? 'n/a on free jobs' : `${Math.round(q.bondBps / 100)}% of price`}</small></span><span className="fill" /><span className="v">{q.promo ? '—' : `+${usd(q.bondUsd)}`}</span></div>
         <div className="srow"><span className="lbl">Delivery</span><span className="fill" /><span className="v">~{s.etaMin} min</span></div>
         <div className="srow total"><span className="lbl">You pay, only if you accept</span><span className="fill" /><span className="v">{q.promo ? '0.00' : usd(q.priceUsd)} USDC</span></div>
@@ -177,6 +179,23 @@ export default function Hire({ service }: { service: string }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [order, setOrder] = useState<QuotedOrder | null>(null);
+  // A promo code from a business that uses Syncly (typed, or from their ?ref= link): checked as it's typed.
+  const [code, setCodeRaw] = useStored('syncly:ref');
+  const setCode = (v: string) => { const c = v.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16); setCodeRaw(c); try { localStorage.setItem('syncly:ref', c); } catch {} };
+  const [codeSays, setCodeSays] = useState<{ ok: boolean; text: string } | null>(null);
+  useEffect(() => {
+    if (code.length < 4) { setCodeSays(null); return; }
+    const t = setTimeout(() => api<{ code: string; from: string | null }>(`/api/referral/${code}`)
+      .then((r) => setCodeSays({ ok: true, text: `Code from ${r.from ?? 'a Syncly customer'}: your first job is free.` }))
+      .catch((e) => setCodeSays({ ok: false, text: e.message })), 350);
+    return () => clearTimeout(t);
+  }, [code]);
+  const codeField = (
+    <label className="field">Promo code <span className="hint">Optional. Got one from a business that uses Syncly? Your first job is free.</span>
+      <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="e.g. LYDIAS27" autoCapitalize="characters" spellCheck={false} />
+      {codeSays && <span className="hint" style={{ color: codeSays.ok ? '#2f6b17' : '#b3261e' }}>{codeSays.text}</span>}
+    </label>
+  );
 
   if (data && !s) return <main className="wrap section center"><h1 className="h1">We don't do that one.</h1><p className="lede" style={{ marginTop: 12 }}>Syncly now does 7 things for businesses, and does them properly.</p><p style={{ margin: '14px 0 24px' }}><Link href="/#services" className="btn secondary">See the services</Link></p></main>;
   if (!s) return <main className="wrap section"><div className="skel" style={{ height: 420 }} /></main>;
@@ -185,7 +204,7 @@ export default function Hire({ service }: { service: string }) {
     setBusy(true); setErr(null); setOrder(null);
     try {
       localStorage.setItem('outlay:email', email);
-      const o = await api<QuotedOrder>('/api/quote', { method: 'POST', body: JSON.stringify({ service, brief: details ? '' : brief, email, details }) });
+      const o = await api<QuotedOrder>('/api/quote', { method: 'POST', body: JSON.stringify({ service, brief: details ? '' : brief, email, details, code: code || undefined }) });
       if (details && o.brief) setBrief(o.brief);
       setOrder(o);
     } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
@@ -234,7 +253,7 @@ export default function Hire({ service }: { service: string }) {
             <div className="card pad formcard">
               <h3>Tell us about your business</h3>
               <p className="muted">{service === 'website' ? 'Four short steps. We build from exactly this, your Google listing and your Instagram.' : 'A few short steps. The team works from exactly this, so the result is yours, not generic.'} You'll see the price before anything starts.</p>
-              <BusinessForm service={service} onSubmit={(d) => getQuote(d)} busy={busy} email={email} setEmail={setEmail} cta="Get my quote" />
+              <BusinessForm service={service} onSubmit={(d) => getQuote(d)} busy={busy} email={email} setEmail={setEmail} cta="Get my quote" extra={codeField} />
               {err && <div className="error" style={{ marginTop: 14 }}>{err}</div>}
               {order?.status === 'declined' && <div className="error" style={{ marginTop: 14 }}>The CFO declined this job: {order.quote.reasons.at(-1)}</div>}
             </div>
@@ -251,6 +270,7 @@ export default function Hire({ service }: { service: string }) {
                 <label className="field">Your email <span className="hint">It's your key to this job: you confirm with it to accept, revise or reject.</span>
                   <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@business.com" />
                 </label>
+                {codeField}
                 {err && <div className="error">{err}</div>}
                 {order?.status === 'declined' && <div className="error">The CFO declined this job: it can't be done well at this price. {order.quote.reasons.at(-1)}</div>}
                 <button className="btn primary lg block" disabled={busy || thinBrief(brief) || !email.includes('@')} onClick={() => getQuote()}>{busy ? 'The CFO is pricing it…' : 'Get my quote'}</button>
@@ -261,6 +281,7 @@ export default function Hire({ service }: { service: string }) {
           ) : (
             <div className="form">
               <QuoteDoc s={s} order={order} />
+              {order.codeNote && <div className="note">{order.codeNote}</div>}
               <div className="note" style={{ whiteSpace: 'pre-line' }}><b>Your brief:</b> {brief}</div>
               {err && <div className="error">{err}</div>}
               {q!.promo ? (

@@ -15,6 +15,7 @@ export type QuoteInput = {
   bondPoolFreeUsd: number; // BOND bucket − bonds already outstanding
   firstJobForCustomer: boolean;
   promoLeftUsd: number;
+  referral?: { why: string; leftUsd: number }; // a promo code from a friend, or a free job earned by referring
   deliverHours: number;
 };
 export type Quote = {
@@ -64,6 +65,15 @@ export function quote(q: QuoteInput): Quote {
     return { service: q.service, priceUsd: 0, promo: true, bondUsd: 0, bondBps: 0, estCostUsd: r4(estCost), pAccept, expectedProfitUsd: r4(-estCost), decision: 'quote', deliverHours: q.deliverHours, reasons };
   }
   if (q.firstJobForCustomer) reasons.push('first job not free: promo budget or cost cap exceeded');
+
+  // Referral: free the same way, paid from the referral budget, if the cost fits.
+  if (q.referral && q.referral.leftUsd >= estCost && estCost <= POLICY.promoMaxCost) {
+    reasons.push(q.referral.why, `referral promo covers ${r4(estCost)} (promo left ${r2(q.referral.leftUsd)})`);
+    return { service: q.service, priceUsd: 0, promo: true, bondUsd: 0, bondBps: 0, estCostUsd: r4(estCost), pAccept, expectedProfitUsd: r4(-estCost), decision: 'quote', deliverHours: q.deliverHours, reasons };
+  }
+  if (q.referral) reasons.push(estCost > POLICY.promoMaxCost
+    ? 'This service costs the team too much to give away, so a free referral job doesn\'t cover it. Try a Website, Flyer or Promo Video.'
+    : 'Free referral jobs are used up for this week. Your code still works: try again in a few days.');
 
   // Bond grows with confidence: 10% at p≤0.7, 30% at p≥0.95
   const t = Math.min(1, Math.max(0, (pAccept - 0.7) / 0.25));

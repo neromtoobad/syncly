@@ -26,6 +26,8 @@ export default function Nav() {
     return () => window.removeEventListener('scroll', on);
   }, []);
   useEffect(() => setMenu(false), [path]);
+  // a ?ref= link a customer shared: the order form fills the promo code in
+  useEffect(() => { try { const r = new URLSearchParams(location.search).get('ref')?.toUpperCase().replace(/[^A-Z0-9]/g, ''); if (r) localStorage.setItem('syncly:ref', r); } catch {} }, [path]);
   return (
     <header className={`nav${scrolled ? ' scrolled' : ''}${menu ? ' open' : ''}`}>
       <div className="nav__bar">

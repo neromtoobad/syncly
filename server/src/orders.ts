@@ -17,7 +17,8 @@ import { quote, type Quote } from './cfo/quote.ts';
 import type { BusinessDetails } from './details.ts';
 import { CATALOG, SERVICES, findService } from './services/index.ts';
 import * as chain from './escrow.ts';
-import { emailDelivery, emailRelease } from './mail.ts';
+import { emailDelivery, emailRelease, emailReferralEarned } from './mail.ts';
+import { creditsOf, ownerOf, referralFor, referralLeftUsd, stillValid } from './referrals.ts';
 import { jobDir, makePreviews } from './release.ts';
 import { isPrivate } from './private.ts';
 import { blacklisted } from './payees.ts';
@@ -35,6 +36,8 @@ export type Order = {
   quote: Quote;
   status: OrderStatus;
   payment?: { mode: 'promo' | 'simulated' | 'escrow'; at: string; tx?: string };
+  referral?: { kind: 'invited' | 'reward'; code: string }; // free through a friend's promo code, or earned by referring (referrals.ts)
+  codeNote?: string; // why a promo code typed on the order didn't apply
   runs: string[];
   revisionNote?: string;
   deliveredAt?: string;
@@ -83,6 +86,8 @@ export function saveOrder(o: Order) {
   // The moment a paid job is accepted its files are the customer's: the Messenger sends them.
   if (was !== 'accepted' && o.status === 'accepted' && o.payment?.mode === 'escrow') { const d = jobDir(o); if (d) void emailRelease(o, d); }
   if (was !== 'delivered' && o.status === 'delivered') makePreviews(o);
+  // A friend accepted the job they got free with a customer's code: that customer has earned a free job.
+  if (was !== 'accepted' && o.status === 'accepted' && o.referral?.kind === 'invited') { const by = ownerOf(o.referral.code); if (by) void emailReferralEarned(by, o, creditsOf(by).left); }
   // A bank statement stays only while the customer may still ask for a revision: gone once they decide, or the order ends.
   if (was !== o.status && ['accepted', 'rejected', 'expired'].includes(o.status) || (o.status === 'failed' && o.refund)) { const st = (o.details as any)?.statements; if (Array.isArray(st) && st.length) deleteStatements(st); }
   publish({ type: 'order', orderId: o.id, data: orderEventData(o) });
@@ -157,25 +162,33 @@ function bondPoolFree(): number {
 /** Free jobs get 2 USDC of tools a week (a rolling 7 days, the CFO's planning period). */
 function promoLeft(): number {
   const since = Date.now() - 7 * 86400_000;
-  const used = listOrders().filter((o) => o.demo === DRY && o.payment?.mode === 'promo' && o.status !== 'failed' && Date.parse(o.payment.at) > since).reduce((s, o) => s + o.quote.estCostUsd, 0);
+  const used = listOrders().filter((o) => o.demo === DRY && o.payment?.mode === 'promo' && !o.referral && o.status !== 'failed' && Date.parse(o.payment.at) > since).reduce((s, o) => s + o.quote.estCostUsd, 0);
   return Math.max(0, 2 - used);
 }
 
-export function createQuote(input: { service: string; brief: string; email: string; details?: BusinessDetails }): Order {
+export function createQuote(input: { service: string; brief: string; email: string; details?: BusinessDetails; code?: string; referrals?: boolean }): Order {
   const item = CATALOG.find((c) => c.id === input.service);
   if (!item || !item.live) throw new Error('unknown or not-yet-live service');
   const email = input.email.trim().toLowerCase();
   // One free job per email, on the services marked freeFirst (the Website). Demo orders, and free jobs we
   // failed to deliver, never use it up.
-  const firstJob = 'freeFirst' in item && item.freeFirst && !listOrders().some((o) => o.demo === DRY && o.email === email && o.payment?.mode === 'promo' && o.status !== 'failed');
+  let firstJob = 'freeFirst' in item && item.freeFirst && !listOrders().some((o) => o.demo === DRY && o.email === email && o.payment?.mode === 'promo' && o.status !== 'failed');
+  // A friend's promo code beats the free first job (so the friend earns too); a free job earned by referring is used
+  // only when nothing else makes this one free.
+  const ref = input.referrals === false ? undefined : referralFor(email, input.code);
+  const free = ref && 'kind' in ref && (ref.kind === 'invited' || !firstJob) ? ref : undefined;
+  if (free?.kind === 'invited') firstJob = false;
   const q = quote({
     service: item.id, priceUsd: item.priceUsd, listedCostUsd: item.listedCostUsd, history: historyFor(item.id),
     bondPoolFreeUsd: bondPoolFree(), firstJobForCustomer: firstJob, promoLeftUsd: promoLeft(), deliverHours: 1,
+    ...(free ? { referral: { why: free.why, leftUsd: referralLeftUsd() } } : {}),
   });
   const o: Order = {
     id: `ord_${Date.now().toString(36)}_${randomBytes(2).toString('hex')}`,
     service: item.id, brief: input.brief.trim().slice(0, 6000), ...(input.details ? { details: input.details } : {}), email, createdAt: new Date().toISOString(),
     quote: q, status: q.decision === 'decline' ? 'declined' : 'quoted', runs: [], demo: DRY,
+    ...(free && q.promo && q.reasons.includes(free.why) ? { referral: { kind: free.kind, code: free.code } } : {}),
+    ...(ref && 'note' in ref ? { codeNote: ref.note } : {}),
   };
   // One key per order, given only to whoever placed it (the quote response) and in their emails. A private order
   // opens with the same key, so one link does both.
@@ -196,7 +209,7 @@ export function redoOnTheHouse(from: Order, fix: { name?: string; instagram?: st
     if (fix.instagram !== undefined) details.instagram = fix.instagram.replace(/^@/, '').trim() || undefined;
     if (fix.website !== undefined) details.website = fix.website.trim() || undefined;
   }
-  const o = createQuote({ service: from.service, brief, email: from.email, details });
+  const o = createQuote({ service: from.service, brief, email: from.email, details, referrals: false });
   if (o.status !== 'quoted') throw new Error("The CFO can't take it right now: the team isn't funded for this service.");
   o.quote = { ...o.quote, promo: true, reasons: [...o.quote.reasons, `On the house: a free redo of ${from.id}, given by the owner`] };
   saveOrder(o);
@@ -209,6 +222,7 @@ export function redoOnTheHouse(from: Order, fix: { name?: string; instagram?: st
 export async function start(o: Order, mode: 'promo' | 'simulated' | 'escrow', tx?: string) {
   if (o.status !== 'quoted') throw new Error(`order is ${o.status}`);
   if (mode === 'promo' && !o.quote.promo) throw new Error('this quote is not free');
+  if (mode === 'promo') { const no = stillValid(o); if (no) throw new Error(no); }
   if (mode === 'simulated' && !DRY) throw new Error('simulated payment only exists in demo mode');
   o.payment = { mode, at: new Date().toISOString(), tx };
   o.status = 'queued';

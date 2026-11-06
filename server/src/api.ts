@@ -24,7 +24,8 @@ import { LINKS, chowdeckHours, readChowdeck, samePhone } from './site/links.ts';
 import { FORMATS, countScan, posterHtml, posterTargets, scanStats, type PosterOpts } from './site/poster.ts';
 import { renderPoster } from './browser.ts';
 import { nairaDecide, nairaFollowUp, nairaQuote, nairaStatus, onBachsEvent, startNaira, verifyBachs } from './naira.ts';
-import { autoAcceptDue, createQuote, decide, isCustomer, saveOrder, NOT_CUSTOMER, publicBrief, sameSecret, redoOnTheHouse, escrowPending, getOrder, noteForRevision, openEscrow, readJob, replay, resumeInterrupted, retry, start, syncEscrow, type Order } from './orders.ts';
+import { autoAcceptDue, createQuote, decide, isCustomer, saveOrder, NOT_CUSTOMER, publicBrief, sameSecret, redoOnTheHouse, escrowPending, getOrder, listOrders, noteForRevision, openEscrow, readJob, replay, resumeInterrupted, retry, start, syncEscrow, type Order } from './orders.ts';
+import { cleanCode, creditsOf, issueCode, ownerOf, referralLeftUsd, referralReport, REFERRAL_WEEKLY_USD } from './referrals.ts';
 import { escrowConfig, refreshBondFree } from './escrow.ts';
 import { MODE as CFO_MODE, POLICY as CFO_POLICY, freshSnapshot, reclaimSurplus, startTreasury, teamShortfall, tick as cfoTick } from './cfo/treasury.ts';
 import { decisions as cfoDecisions, verifyLog } from './cfo/log.ts';
@@ -121,10 +122,18 @@ app.get('/api/owner', (c) => {
   return c.json({ error: 'That key doesn\'t open the books.' }, 401);
 });
 app.get('/api/escrow', (c) => c.json(escrowConfig()));
+// Referrals: anyone can check a promo code (it names the business that shared it); the owner sees them all.
+app.get('/api/referral/:code', (c) => {
+  const code = cleanCode(c.req.param('code')), by = ownerOf(code);
+  if (!by) return c.json({ error: `There's no promo code ${code}.` }, 404);
+  const name = listOrders().filter((o) => o.email === by).map((o) => String((o.details as any)?.name ?? '')).find(Boolean) ?? null;
+  return c.json({ code, from: name });
+});
+app.get('/api/referrals', (c) => (isOwner(c) ? c.json({ weeklyUsd: REFERRAL_WEEKLY_USD, leftUsd: referralLeftUsd(), codes: referralReport() }) : c.json({ error: 'owner only' }, 401)));
 
 app.post('/api/quote', async (c) => {
   const b = await c.req.json().catch(() => ({}));
-  const service = String(b.service ?? ''), email = String(b.email ?? '');
+  const service = String(b.service ?? ''), email = String(b.email ?? ''), code = b.code ? String(b.code) : undefined;
   let brief = String(b.brief ?? '');
   let details: BusinessDetails | undefined;
   if (b.details) {
@@ -136,7 +145,7 @@ app.post('/api/quote', async (c) => {
   try {
     const unfunded = await teamShortfall(service);
     if (unfunded) return c.json({ error: unfunded }, 409);
-    return c.json(shown(c, createQuote({ service, brief, email, details })));
+    return c.json(shown(c, createQuote({ service, brief, email, details, code })));
   } catch (e: any) {
     return c.json({ error: e.message }, 400);
   }
@@ -200,7 +209,10 @@ function view(id: string, c?: any) {
   const runs = o.runs.map((r) => readJob(r)).filter(Boolean).map((r: any) => (open ? r : { ...r, deliverable: teaser(r.deliverable ?? '', WHAT[o.service] ?? 'work') }));
   const mask = (e: string) => e.replace(/^(.).*(@.*)$/, '$1•••$2');
   const details = o.details && (o.details as any).email && !(c && isOwner(c)) ? { ...o.details, email: mask(String((o.details as any).email)) } : o.details;
-  const base = { ...o, privateKey: undefined, customerKey: undefined, keyed: !!o.customerKey, details, email: mask(o.email), runs, live: liveJobs.get(o.id) ?? null, team: [...(findService(o.service)?.team ?? [])], released: open, withdrawn: withdrawn(o), private: !!o.privateKey, unlocked: unlocked(o, c) };
+  // the customer's own promo code, once they have accepted work (only on their keyed link)
+  const mineView = o.status === 'accepted' && !!c && (isOwner(c) || (!!o.customerKey && sameSecret(keyOf(c), o.customerKey)));
+  const refer = mineView ? (() => { const code = issueCode(o.email); return code ? { ...creditsOf(o.email), code } : null; })() : null;
+  const base = { ...o, refer, privateKey: undefined, customerKey: undefined, keyed: !!o.customerKey, details, email: mask(o.email), runs, live: liveJobs.get(o.id) ?? null, team: [...(findService(o.service)?.team ?? [])], released: open, withdrawn: withdrawn(o), private: !!o.privateKey, unlocked: unlocked(o, c) };
   if (unlocked(o, c)) return base;
   const quiet = (st: any[] = []) => st.map((x) => ({ ...x, note: '' }));
   return {

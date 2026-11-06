@@ -50,6 +50,30 @@ function Timeline({ steps }: { steps: Step[] }) {
 
 /** Every call the team made for this job, each linked to its settlement on Arc. Costs show only to the owner. */
 /** One tap to another service for the same business: its details become this device's form draft. */
+/** The customer's own promo code, once they've accepted work: a friend's first job free, and theirs once the friend accepts. */
+function ReferCard({ r }: { r: NonNullable<Order['refer']> }) {
+  const [copied, setCopied] = useState(false);
+  const link = `https://hiresyncly.site/?ref=${r.code}`;
+  const msg = `I use Syncly: AI agents make websites, promo videos and flyers for small businesses, and you only pay if you like the work. Use my code ${r.code} and your first job is free: ${link}`;
+  const copy = () => { try { void navigator.clipboard.writeText(msg); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch {} };
+  return (
+    <section className="card pad" style={{ display: 'grid', gap: 10 }}>
+      <h3 className="t" style={{ margin: 0 }}>Get a free job for every business you send us</h3>
+      <p className="muted" style={{ margin: 0, fontSize: 14.5 }}>Share your promo code. Their first job is free, and when they accept it, your next job is free too.</p>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
+        <span style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 22, letterSpacing: '.08em', border: '1.5px dashed currentColor', borderRadius: 10, padding: '6px 14px' }}>{r.code}</span>
+        <a className="btn primary sm" href={`https://wa.me/?text=${encodeURIComponent(msg)}`} target="_blank" rel="noreferrer">Share on WhatsApp</a>
+        <button type="button" className="btn secondary sm" onClick={copy}>{copied ? 'Copied' : 'Copy message'}</button>
+      </div>
+      {(r.left > 0 || r.pending > 0 || r.earned > 0) && <p className="muted" style={{ margin: 0, fontSize: 13.5 }}>
+        {r.left > 0 ? <><b>{r.left} free job{r.left === 1 ? '' : 's'} waiting.</b> Order with the same email and the CFO applies it for you. </> : null}
+        {r.pending > 0 ? `${r.pending} business${r.pending === 1 ? '' : 'es'} ordered with your code and ${r.pending === 1 ? "hasn't" : "haven't"} accepted yet. ` : ''}
+        {r.earned > 0 ? `${r.earned} referral${r.earned === 1 ? '' : 's'} so far.` : ''}
+      </p>}
+    </section>
+  );
+}
+
 function MoreFor({ o }: { o: Order }) {
   const router = useRouter();
   const { data } = useApi<{ services: Service[] }>('/api/services');
@@ -466,6 +490,7 @@ export default function Job({ id }: { id: string }) {
           {o.status === 'delivered' && <section className="card pad decisioncard" id="decide"><h3 className="t">Your decision</h3>{decisionPanel()}</section>}
           {o.status === 'accepted' && <div className="qa pass"><Avatar role="cfo" /><div>Accepted {o.decision?.by === 'auto' ? 'automatically after 48 h' : 'by you'} · {timeAgo(o.decision!.at)}. Thank you.{o.escrow?.closeTx && <> <Tx cfg={cfg} hash={o.escrow.closeTx}>Payment released on Arc</Tx></>}</div></div>}
           {o.status === 'rejected' && <div className="qa revise"><Avatar role="cfo" /><div>Rejected{o.naira?.refund ? `: ${naira(o.naira.refund.ngn)} ${o.naira.refund.status === 'paid' ? 'refunded' : 'being refunded'} through Bachs${o.naira.refund.bondNgn ? `, and the ${naira(o.naira.refund.bondNgn)} bond is owed to you (we'll send it to your bank account)` : ''}` : o.refund ? `: ${usd(o.refund.priceUsd)} refunded + ${usd(o.refund.bondUsd)} bond paid` : ''}. The CFO will learn from this.{o.refund?.tx && <> <Tx cfg={cfg} hash={o.refund.tx}>Refund on Arc</Tx></>}</div></div>}
+          {o.status === 'accepted' && o.refer && <ReferCard r={o.refer} />}
           {o.status === 'accepted' && o.details?.name && <MoreFor o={o} />}
         </>
       ) : o.status === 'expired' ? (

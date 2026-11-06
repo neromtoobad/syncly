@@ -15,6 +15,7 @@ import type { Job } from './job.ts';
 import type { Order } from './orders.ts';
 import { editLinkFor } from './site/edit.ts';
 import { teaser } from './release.ts';
+import { issueCode } from './referrals.ts';
 
 const PRESETS = {
   aisa: { vendor: 'AgentMail (AIsa)', base: 'https://api.aisa.one/apis/v2/agentmail', inboxUsd: 0.1, sendUsd: 0.1 },
@@ -85,7 +86,10 @@ export function compose(job: Pick<Job, 'deliverable' | 'files'>, o: Order) {
     : o.escrow
     ? `Your ${o.quote.priceUsd.toFixed(2)} USDC is waiting in escrow on Arc. On the job page, from the wallet that paid, accept to release it, ask for your one free revision, or reject it and get it back plus a ${o.quote.bondUsd.toFixed(2)} USDC bond. Silence for 48 hours counts as acceptance.`
     : o.quote.promo
-      ? (o.quote.reasons?.some((r) => /^On the house/.test(r)) ? 'This one is a free redo, on us. Tell us on the job page if it is right this time.' : 'This one was your free first job. Tell us on the job page if it was good.')
+      ? (o.quote.reasons?.some((r) => /^On the house/.test(r)) ? 'This one is a free redo, on us. Tell us on the job page if it is right this time.'
+        : o.referral?.kind === 'invited' ? `This one is free with promo code ${o.referral.code}. Accept it on the job page if it's good: the friend who sent the code then gets a free job too.`
+        : o.referral?.kind === 'reward' ? 'This one is free: you earned it by referring a business to Syncly. Tell us on the job page if it was good.'
+        : 'This one was your free first job. Tell us on the job page if it was good.')
       : 'Accept, revise or reject it on the job page.';
   const unlock = locked ? ' What you see here and on the job page is a preview; the full work and the full-quality files are emailed to you the moment you accept.' : '';
   const subject = `${revised ? 'Revised: ' : ''}your ${name} is ready · ${brief}`;
@@ -122,17 +126,42 @@ export async function emailRelease(o: Order, dir: string) {
   const url = (f: string) => `${PUBLIC_URL}/api/orders/${o.id}/files/${f}?download${o.privateKey ? `&k=${o.privateKey}` : ''}`;
   const about = String((o as any).details?.name || o.brief).replace(/\s+/g, ' ').trim();
   const subject = `Your ${name} is yours · ${about.length > 60 ? about.slice(0, 58) + '…' : about}`;
-  const text = `Thanks for accepting the work. Your files are unlocked in full quality:\n\n${media.map((f) => `${f}: ${url(f)}`).join('\n')}${texts.length ? `\n\nAttached: ${texts.map((t) => t.name).join(', ')}` : ''}\n\nThey stay on your job page too: ${link}\n${deliverable.trim() ? `\n---\n\n${deliverable}\n` : ''}`;
+  const code = issueCode(o.email);
+  const refer = code ? `Know another business that needs this? Send them your promo code ${code}. Their first job is free, and when they accept it, your next job is free too. Link: ${PUBLIC_URL}/?ref=${code}` : '';
+  const text = `Thanks for accepting the work. Your files are unlocked in full quality:\n\n${media.map((f) => `${f}: ${url(f)}`).join('\n')}${texts.length ? `\n\nAttached: ${texts.map((t) => t.name).join(', ')}` : ''}\n\nThey stay on your job page too: ${link}\n${refer ? `\n${refer}\n` : ''}${deliverable.trim() ? `\n---\n\n${deliverable}\n` : ''}`;
   const html = `<div style="background:#faf7f1;padding:28px 12px;font-family:Inter,Segoe UI,Helvetica,Arial,sans-serif;color:#1b1a17"><div style="max-width:640px;margin:0 auto;background:#fff;border:1px solid #ebe5d8;border-radius:18px;padding:28px">
 <div style="font-family:Georgia,serif;letter-spacing:.18em;font-size:14px;color:#17473b;margin-bottom:18px">SYNCLY</div>
 <p style="font-size:16px;margin:0 0 14px">Thanks for accepting the work. Your ${esc(name)} is unlocked in full quality.</p>
 ${media.map((f) => `<p style="margin:0 0 10px"><a href="${url(f)}" style="display:inline-block;background:#17473b;color:#fff;text-decoration:none;padding:10px 18px;border-radius:999px;font-weight:600;font-size:14px">Download ${esc(f)} ↓</a></p>`).join('')}
 ${texts.length ? `<p style="font-size:13.5px;color:#4b4841">Attached: ${texts.map((t) => esc(t.name)).join(', ')}</p>` : ''}
+${code ? referBox(code) : ''}
 ${deliverable.trim() ? `<div style="font-size:14px;line-height:1.55;border-top:1px solid #ebe5d8;padding-top:14px;margin-top:18px">${render(deliverable)}</div>` : ''}
 <p style="font-size:12px;color:#847d70;margin:18px 0 0">Everything stays on your <a href="${link}" style="color:#17473b">job page</a> too.</p></div></div>`;
   const attachments = textAttachments(texts).map(({ filename, content }) => ({ filename, content }));
   try { await resend({ to: o.email, subject, text, html, attachments }); }
   catch (e: any) { console.error(`release email ${o.id}: ${e?.message ?? e}`); }
+}
+
+/** The customer's promo code, as a card: a friend's first job free, and theirs too once the friend accepts. */
+const referBox = (code: string) => `<div style="background:#f3f7ee;border:1px solid #d9e6cc;border-radius:14px;padding:16px 18px;margin:18px 0 0">
+<p style="font-size:14px;margin:0 0 6px;color:#17473b;font-weight:600">Get a free job for every business you send us</p>
+<p style="font-size:13.5px;margin:0 0 10px;color:#4b4841">Share your promo code. Their first job is free, and when they accept it, your next job is free too.</p>
+<p style="margin:0"><span style="font-family:Menlo,Consolas,monospace;font-size:18px;letter-spacing:.08em;background:#fff;border:1px dashed #17473b;border-radius:8px;padding:6px 12px;color:#17473b">${esc(code)}</span>
+<a href="${PUBLIC_URL}/?ref=${encodeURIComponent(code)}" style="font-size:13px;color:#17473b;margin-left:10px">${PUBLIC_URL.replace(/^https?:\/\//, '')}/?ref=${esc(code)}</a></p></div>`;
+
+/** A business the customer referred accepted its free job: the customer has a free job waiting. */
+export async function emailReferralEarned(to: string, friend: Order, left: number) {
+  if (MAILER !== 'resend') return;
+  const who = String((friend as any).details?.name || 'A business you referred').replace(/\s+/g, ' ').trim().slice(0, 60);
+  const subject = `${who} used your code: your next job is free`;
+  const text = `${who} ordered with your promo code and accepted the work. Your next Syncly job is free (${left} free job${left === 1 ? '' : 's'} waiting). Order with the same email and the CFO applies it for you: ${PUBLIC_URL}/#services`;
+  const html = `<div style="background:#faf7f1;padding:28px 12px;font-family:Inter,Segoe UI,Helvetica,Arial,sans-serif;color:#1b1a17"><div style="max-width:640px;margin:0 auto;background:#fff;border:1px solid #ebe5d8;border-radius:18px;padding:28px">
+<div style="font-family:Georgia,serif;letter-spacing:.18em;font-size:14px;color:#17473b;margin-bottom:18px">SYNCLY</div>
+<p style="font-size:16px;margin:0 0 14px"><b>${esc(who)}</b> ordered with your promo code and accepted the work. Thank you for sending them.</p>
+<p style="font-size:15px;margin:0 0 18px">Your next job is free: ${left} free job${left === 1 ? '' : 's'} waiting. Order with this email and the CFO applies it for you.</p>
+<p style="margin:0"><a href="${PUBLIC_URL}/#services" style="display:inline-block;background:#17473b;color:#fff;text-decoration:none;padding:10px 18px;border-radius:999px;font-weight:600;font-size:14px">Pick your free job →</a></p></div></div>`;
+  try { await resend({ to, subject, text, html }); }
+  catch (e: any) { console.error(`referral email ${friend.id}: ${e?.message ?? e}`); }
 }
 
 /** Send one email through Resend. Demo mode never sends. */

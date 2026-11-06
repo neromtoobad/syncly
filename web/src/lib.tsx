@@ -116,6 +116,8 @@ export type Order = {
   escrow?: Escrow;
   details?: Record<string, unknown> & { name?: string };
   naira?: { ngn: number; rate: number; status: string; paidAt?: string; fundTx?: string; refund?: { ngn: number; status: string; bondNgn?: number } };
+  referral?: { kind: 'invited' | 'reward'; code: string }; // free through a friend's promo code, or earned by referring
+  refer?: { code: string; left: number; earned: number; pending: number } | null; // the customer's own code, once they accept
 };
 /** A paid job's escrow on Arc. `spec` is the exact text whose keccak256 is sealed on-chain as specHash. */
 export type Escrow = {

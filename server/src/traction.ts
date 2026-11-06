@@ -69,7 +69,7 @@ ${money ? `| Revenue (accepted, paid jobs) | ${revenue.toFixed(2)} USDC |
 
 | Created | Order | Service | Status | Payment | Brief |
 |---|---|---|---|---|---|
-${orders.map((o) => `| ${o.createdAt.slice(0, 16).replace('T', ' ')} | [${o.id}](https://hiresyncly.site/job/${o.id}) | ${NAME[o.service] ?? o.service} | ${o.status} | ${o.payment?.mode === 'promo' ? (isRedo(o) ? 'free redo, on the house' : 'free first job') : o.escrow ? `${money ? `${o.quote.priceUsd} USDC ` : ''}escrow ${tx(o.escrow.fundTx)}` : o.payment?.mode ?? ''} | ${cell(publicBrief(o, 70))} |`).join('\n')}
+${orders.map((o) => `| ${o.createdAt.slice(0, 16).replace('T', ' ')} | [${o.id}](https://hiresyncly.site/job/${o.id}) | ${NAME[o.service] ?? o.service} | ${o.status} | ${o.payment?.mode === 'promo' ? (isRedo(o) ? 'free redo, on the house' : o.referral?.kind === 'invited' ? 'free with a referral code' : o.referral?.kind === 'reward' ? 'free, earned by referring' : 'free first job') : o.escrow ? `${money ? `${o.quote.priceUsd} USDC ` : ''}escrow ${tx(o.escrow.fundTx)}` : o.payment?.mode ?? ''} | ${cell(publicBrief(o, 70))} |`).join('\n')}
 
 ## The CFO's decisions
 

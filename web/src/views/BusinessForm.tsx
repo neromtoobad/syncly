@@ -2,7 +2,7 @@
 // The business form: who you are, how customers reach you, what you sell (with your own photos), and what
 // this job needs. Two to four short steps per service, saved as one draft on this device so nothing is typed twice.
 // Photos are shrunk in the browser before upload, so it stays quick on mobile data.
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 export type Details = {
   name: string; kind: string; offer: string; area: string; city: string;
@@ -103,7 +103,7 @@ export async function upload(files: File[]): Promise<string[]> {
   return j.uploads.map((u: { id: string }) => u.id);
 }
 
-export default function BusinessForm({ service, onSubmit, busy, email, setEmail, cta }: { service: string; onSubmit: (d: Details) => void; busy: boolean; email: string; setEmail: (v: string) => void; cta: string }) {
+export default function BusinessForm({ service, onSubmit, busy, email, setEmail, cta, extra }: { service: string; onSubmit: (d: Details) => void; busy: boolean; email: string; setEmail: (v: string) => void; cta: string; extra?: ReactNode }) {
   const [d, setD] = useState<Details>(EMPTY);
   const [step, setStep] = useState(0);
   // A business saved on this device (an earlier order): start from the service's own questions.
@@ -424,6 +424,7 @@ export default function BusinessForm({ service, onSubmit, busy, email, setEmail,
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@business.com" />
         </label>
       )}
+      {last && extra}
 
       {err && <div className="error">{err}</div>}
       <div className="bnav">
