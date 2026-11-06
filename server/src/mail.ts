@@ -149,6 +149,21 @@ const referBox = (code: string) => `<div style="background:#f3f7ee;border:1px so
 <p style="margin:0"><span style="font-family:Menlo,Consolas,monospace;font-size:18px;letter-spacing:.08em;background:#fff;border:1px dashed #17473b;border-radius:8px;padding:6px 12px;color:#17473b">${esc(code)}</span>
 <a href="${PUBLIC_URL}/?ref=${encodeURIComponent(code)}" style="font-size:13px;color:#17473b;margin-left:10px">${PUBLIC_URL.replace(/^https?:\/\//, '')}/?ref=${esc(code)}</a></p></div>`;
 
+/** A customer asked for their promo code (on /refer): it goes to their own inbox, never onto the page. */
+export async function emailReferralCode(to: string, r: { code: string; left: number; pending: number; earned: number }) {
+  if (MAILER !== 'resend') throw new Error('Email is not set up right now. Try again later.');
+  const link = `${PUBLIC_URL}/?ref=${encodeURIComponent(r.code)}`;
+  const status = `${r.left > 0 ? `You have ${r.left} free job${r.left === 1 ? '' : 's'} waiting: order with this email and the CFO applies it. ` : ''}${r.pending > 0 ? `${r.pending} business${r.pending === 1 ? '' : 'es'} ordered with your code and ${r.pending === 1 ? "hasn't" : "haven't"} accepted yet. ` : ''}`;
+  const text = `Your Syncly promo code is ${r.code}.\n\nSend it to another business: their first job is free, and when they accept the work, your next job is free too.\n\nShare this link and the code fills itself in: ${link}\n\n${status}`;
+  const html = `<div style="background:#faf7f1;padding:28px 12px;font-family:Inter,Segoe UI,Helvetica,Arial,sans-serif;color:#1b1a17"><div style="max-width:640px;margin:0 auto;background:#fff;border:1px solid #ebe5d8;border-radius:18px;padding:28px">
+<div style="font-family:Georgia,serif;letter-spacing:.18em;font-size:14px;color:#17473b;margin-bottom:18px">SYNCLY</div>
+<p style="font-size:16px;margin:0 0 4px">Here's your promo code.</p>
+${referBox(r.code)}
+${status ? `<p style="font-size:14px;margin:16px 0 0;color:#4b4841">${esc(status)}</p>` : ''}
+<p style="margin:18px 0 0"><a href="https://wa.me/?text=${encodeURIComponent(`I use Syncly: AI agents make websites, promo videos and flyers for small businesses, and you only pay if you like the work. Use my code ${r.code} and your first job is free: ${link}`)}" style="display:inline-block;background:#17473b;color:#fff;text-decoration:none;padding:10px 18px;border-radius:999px;font-weight:600;font-size:14px">Share on WhatsApp</a></p></div></div>`;
+  await resend({ to, subject: `Your Syncly promo code: ${r.code}`, text, html });
+}
+
 /** A business the customer referred accepted its free job: the customer has a free job waiting. */
 export async function emailReferralEarned(to: string, friend: Order, left: number) {
   if (MAILER !== 'resend') return;

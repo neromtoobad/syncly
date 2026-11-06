@@ -35,7 +35,7 @@ import { vendorPayees } from './payees.ts';
 import { screeningStatus, startScreening } from './screen.ts';
 import { books, beancount, team } from './books.ts';
 import { resolveSettlements } from './settle.ts';
-import { MAILER, MAIL_FROM, PUBLIC_URL, resend } from './mail.ts';
+import { MAILER, MAIL_FROM, PUBLIC_URL, emailReferralCode, resend } from './mail.ts';
 
 process.env.OUTLAY_QUIET ??= '1';
 
@@ -128,6 +128,18 @@ app.get('/api/referral/:code', (c) => {
   if (!by) return c.json({ error: `There's no promo code ${code}.` }, 404);
   const name = listOrders().filter((o) => o.email === by).map((o) => String((o.details as any)?.name ?? '')).find(Boolean) ?? null;
   return c.json({ code, from: name });
+});
+// A customer gets their own code by email (the page never shows it, so nobody can look up who our customers are).
+const codeAsks = new Map<string, number[]>();
+app.post('/api/referral/request', async (c) => {
+  const email = String((await c.req.json().catch(() => ({})))?.email ?? '').trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return c.json({ error: 'Enter the email you ordered with.' }, 400);
+  const ip = clientIp(c), recent = (codeAsks.get(ip) ?? []).filter((t) => Date.now() - t < 3600_000);
+  if (recent.length >= 5) return c.json({ error: 'Too many requests from here. Try again in an hour.' }, 429);
+  codeAsks.set(ip, [...recent, Date.now()]);
+  const code = issueCode(email);
+  if (code) { try { await emailReferralCode(email, { ...creditsOf(email), code }); } catch (e: any) { console.error(`referral code email: ${e?.message ?? e}`); return c.json({ error: 'We couldn\'t send the email just now. Try again in a few minutes.' }, 502); } }
+  return c.json({ ok: true });
 });
 app.get('/api/referrals', (c) => (isOwner(c) ? c.json({ weeklyUsd: REFERRAL_WEEKLY_USD, leftUsd: referralLeftUsd(), codes: referralReport() }) : c.json({ error: 'owner only' }, 401)));
 

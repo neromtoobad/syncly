@@ -9,7 +9,7 @@ import Logo from '@/components/Logo.tsx';
 const LINKS: [string, string][] = [['/#services', 'Services'], ['/#how', 'How it works'], ['/#work', 'Real work'], ['/#cfo', 'The AI CFO'], ['/pay', 'Syncly Pay'], ['/arc', 'Get USDC'], ['/docs', 'Docs']];
 // The phone menu: everything, grouped by what you came for.
 const GROUPS: { title: string; items: [string, string, string?][] }[] = [
-  { title: 'Hire the team', items: [['/#services', 'Services', '10 jobs, $1 each'], ['/#how', 'How it works'], ['/#work', 'Real work'], ['/#pay', 'Pay in naira or USDC'], ['/#questions', 'Questions']] },
+  { title: 'Hire the team', items: [['/#services', 'Services', '10 jobs, $1 each'], ['/#how', 'How it works'], ['/#work', 'Real work'], ['/#pay', 'Pay in naira or USDC'], ['/refer', 'Refer a business', 'you both get a free job'], ['/#questions', 'Questions']] },
   { title: 'How Syncly runs', items: [['/#cfo', 'The AI CFO'], ['/#money', 'Follow the money'], ['/#team', 'The team'], ['/office', 'The office']] },
   { title: 'Tools', items: [['/pay', 'Syncly Pay', 'invoices and bills'], ['/arc', 'Get USDC on Arc'], ['/docs', 'Docs']] },
 ];

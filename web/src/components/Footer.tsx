@@ -18,6 +18,7 @@ export default function Footer() {
             <li><Link href="/#work">Real work</Link></li>
             <li><Link href="/#pay">Pay in naira or USDC</Link></li>
             <li><Link href="/#questions">Questions</Link></li>
+            <li><Link href="/refer">Refer a business, get a free job</Link></li>
           </ul>
         </div>
         <div>

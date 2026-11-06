@@ -59,7 +59,7 @@ function ReferCard({ r }: { r: NonNullable<Order['refer']> }) {
   return (
     <section className="card pad" style={{ display: 'grid', gap: 10 }}>
       <h3 className="t" style={{ margin: 0 }}>Get a free job for every business you send us</h3>
-      <p className="muted" style={{ margin: 0, fontSize: 14.5 }}>Share your promo code. Their first job is free, and when they accept it, your next job is free too.</p>
+      <p className="muted" style={{ margin: 0, fontSize: 14.5 }}>Share your promo code. Their first job is free, and when they accept it, your next job is free too. Lost it later? Get it again at <Link href="/refer">hiresyncly.site/refer</Link>.</p>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
         <span style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 22, letterSpacing: '.08em', border: '1.5px dashed currentColor', borderRadius: 10, padding: '6px 14px' }}>{r.code}</span>
         <a className="btn primary sm" href={`https://wa.me/?text=${encodeURIComponent(msg)}`} target="_blank" rel="noreferrer">Share on WhatsApp</a>
