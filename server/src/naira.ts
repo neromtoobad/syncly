@@ -250,10 +250,23 @@ async function refundNaira(orderId: string, reason: string, bondNgn = 0): Promis
  * CFO's key relays the decision through the desk. A rejection refunds the naira; the bond, owed in naira too, is
  * recorded for a bank payout.
  */
+// One decision at a time per order. The order still reads Submitted until the transaction confirms and the escrow
+// syncs, so a second press (a refresh, a second tab) used to pass the check below and revert on-chain with
+// BadState (0xe7ec536e) after the first one had already gone through.
+const deciding = new Set<string>();
+
 export async function nairaDecide(orderId: string, who: { key?: string | null; email?: string | null }, action: 'accept' | 'revise' | 'reject', note?: string) {
+  if (deciding.has(orderId)) throw new Error('Your decision is already going through on Arc. Give it a few seconds.');
+  deciding.add(orderId);
+  try { return await decideOnce(orderId, who, action, note); } finally { deciding.delete(orderId); }
+}
+
+async function decideOnce(orderId: string, who: { key?: string | null; email?: string | null }, action: 'accept' | 'revise' | 'reject', note?: string) {
+  await syncEscrow(orderId).catch(() => {}); // read the chain first: the job may already be decided
   const o = getOrder(orderId);
   if (!o?.naira || !o.escrow) throw new Error('This order was not paid in naira.');
   if (!isCustomer(o, who)) throw new Error(NOT_CUSTOMER);
+  if (action === 'accept' && o.escrow.state === 'Accepted') return o; // already accepted: a repeat press is fine
   if (o.status !== 'delivered' || o.escrow.state !== 'Submitted') throw new Error('There is nothing to decide on this order right now.');
   if (action === 'revise') {
     if (o.revisionNote !== undefined) throw new Error('This order already had its free revision.');
