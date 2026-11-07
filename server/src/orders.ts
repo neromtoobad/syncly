@@ -414,7 +414,7 @@ export function syncEscrow(orderId: string, tx?: string) {
     const e = o.escrow, from = BigInt(e.openBlock);
     const [c, now] = await Promise.all([chain.readEscrow(e.id), chain.chainNow()]);
     const theirs = async (ev: 'JobFunded' | 'RevisionRequested' | 'JobAccepted' | 'JobRejected') =>
-      tx && (await chain.txEmitted(tx, ev, e.id)) ? (tx as Hex) : await chain.txOf(ev, e.id, from);
+      tx && (await chain.txEmitted(tx, ev, e.id)) ? (tx as Hex) : await chain.txOf(ev, e.id, from).catch(() => undefined); // the hash is a nicety: never let it block the state change
     e.state = c.state;
 
     if (o.status === 'quoted') {

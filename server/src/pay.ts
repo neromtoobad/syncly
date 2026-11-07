@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { getAddress, isAddress, keccak256, parseAbi, parseEventLogs, toBytes, type Address, type Hex } from 'viem';
 import { DATA_DIR, DRY, MODELS } from './config.ts';
-import { DEP, cfoWrite, pub } from './escrow.ts';
+import { DEP, cfoWrite, lastLogSince, pub } from './escrow.ts';
 import { Job } from './job.ts';
 import { HOSTS, llm, parseJson } from './tools.ts';
 import { blacklisted } from './payees.ts';
@@ -270,7 +270,7 @@ export async function syncPaid(d: PayDoc, opts: { tx?: string; demoPayer?: strin
     if (!ev) {
       const latest = await pub.getBlockNumber().catch(() => FROM_BLOCK);
       const from = latest > FROM_BLOCK + 90_000n ? latest - 90_000n : FROM_BLOCK;
-      ev = (await pub.getLogs({ address: BOOK, event: PAID as any, args: { id: d.key } as any, fromBlock: from, toBlock: 'latest' }).catch(() => []))[0];
+      ev = await lastLogSince(from, (a, b) => pub.getLogs({ address: BOOK, event: PAID as any, args: { id: d.key } as any, fromBlock: a, toBlock: b })).catch(() => undefined);
     }
     Object.assign(d, { status: 'paid', payer: ev?.args.payer, payTx: ev?.transactionHash, paidAt: new Date().toISOString(), feeUsd: ev ? Number(ev.args.fee) / 1e6 : usd((d.amountUsd * d.feeBps) / 10_000) });
   }

@@ -118,9 +118,28 @@ export async function waitFunded(id: Hex, tx: string, ms = 20_000): Promise<Escr
 }
 
 /** The transaction that emitted `event` for this job (the customer's fund / accept / reject / revision). */
+/** Arc's RPC answers log queries over at most 10,000 blocks; anything wider fails ("requested range too large"). */
+export const LOG_SPAN = 9_999n;
+
+/**
+ * The newest matching log between `fromBlock` and now, read in windows the RPC accepts, newest window first.
+ * `query(from, to)` runs one window. Jobs older than ~10,000 blocks (a few hours on Arc) used to fail here.
+ */
+export async function lastLogSince<T>(fromBlock: bigint, query: (from: bigint, to: bigint) => Promise<T[]>): Promise<T | undefined> {
+  let to = await pub.getBlockNumber();
+  while (to >= fromBlock) {
+    const from = to - LOG_SPAN > fromBlock ? to - LOG_SPAN : fromBlock;
+    const logs = await query(from, to);
+    if (logs.length) return logs.at(-1);
+    if (from === fromBlock) break;
+    to = from - 1n;
+  }
+  return undefined;
+}
+
 export async function txOf(event: 'JobFunded' | 'RevisionRequested' | 'JobAccepted' | 'JobRejected', id: Hex, fromBlock: bigint): Promise<Hex | undefined> {
-  const logs = await pub.getContractEvents({ address: DEP!.escrow, abi: ESCROW_ABI, eventName: event, args: { id } as any, fromBlock, toBlock: 'latest' });
-  return logs.at(-1)?.transactionHash ?? undefined;
+  const log = await lastLogSince(fromBlock, (from, to) => pub.getContractEvents({ address: DEP!.escrow, abi: ESCROW_ABI, eventName: event, args: { id } as any, fromBlock: from, toBlock: to }));
+  return log?.transactionHash ?? undefined;
 }
 
 /** A transaction hash the browser reported, checked on-chain: it must have emitted `event` for this job. */
