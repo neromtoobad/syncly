@@ -22,7 +22,7 @@ import { MAILER, PUBLIC_URL, resend } from './mail.ts';
 import { readUpload } from './uploads.ts';
 import { record } from './cfo/log.ts';
 
-export const NGN_PER_USD = 1330; // shown as an approximation only, like the site
+export const NGN_PER_USD = 1392; // the same rate the site shows (web/src/lib.tsx), so a ₦ invoice reads back as the ₦ it was written in
 const BOOK_ABI = parseAbi([
   'function book(bytes32 id, address payee, uint256 amount, uint64 due, bytes32 docHash)',
   'function cancel(bytes32 id)',
