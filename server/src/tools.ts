@@ -190,6 +190,16 @@ export type Msg = { role: 'system' | 'user' | 'assistant'; content: string | Par
 /** Models only BlockRun's Arc endpoint sells; it takes a direct USDC transfer, not a Gateway balance. */
 const ARC_ONLY = /claude-opus-5|claude-sonnet-5|claude-fable/;
 
+/** Default price cap for one call: 0.08 USDC, raised for big calls so a long prompt plus a long answer isn't
+ *  refused over a few cents (a find-customers writer call was quoted 0.0856). Sized at Sonnet-class prices
+ *  (about 3 USDC per million input tokens, 15 per million output) with half again as margin; at most 0.25.
+ *  The job's own budget still caps the whole job. */
+function callCap(messages: Msg[], maxTokens: number): number {
+  const inTokens = JSON.stringify(messages).length / 3.5;
+  const worst = (inTokens * 3 + maxTokens * 15) / 1e6;
+  return Math.min(0.25, Math.max(0.08, Math.round(worst * 1.5 * 1000) / 1000));
+}
+
 export async function llm(
   job: Job, agent: Role, messages: Msg[], reason: string,
   opts: { model?: string; fallback?: string; alt?: string | null; maxTokens?: number; maxUsd?: number; json?: boolean; dry?: () => string } = {},
@@ -201,7 +211,7 @@ export async function llm(
     const data = await buy<any>(job, {
       agent, vendor: `BlockRun ${model.split('/')[1]}`, url: `https://${direct ? HOSTS.blockrunArc : HOSTS.blockrun}/api/v1/chat/completions`,
       body: { model, messages, max_tokens: maxTokens, ...(opts.json ? { response_format: { type: 'json_object' } } : {}) },
-      reason, expectUsd: Math.max(0.01, (maxTokens * 12) / 1e6), maxUsd: opts.maxUsd ?? 0.08, direct,
+      reason, expectUsd: Math.max(0.01, (maxTokens * 12) / 1e6), maxUsd: opts.maxUsd ?? callCap(messages, maxTokens), direct,
       dryData: () => ({ choices: [{ message: { content: opts.dry ? opts.dry() : `(dry) ${reason}` } }] }),
     });
     return String(data?.choices?.[0]?.message?.content ?? '');

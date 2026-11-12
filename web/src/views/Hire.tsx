@@ -137,9 +137,9 @@ function EscrowPay({ order, cfg, onPaid }: { order: QuotedOrder; cfg: EscrowCfg;
   if (wallet === false) return (
     <div className="card pad paybox">
       <b>Pay {usd(q.priceUsd)} USDC from a crypto wallet</b>
-      <p>This browser has no wallet. Open this page in your wallet app's browser (MetaMask, Rabby, OKX or Coinbase Wallet) and pay from there. You'll need {usd(q.priceUsd)} USDC on Arc.</p>
+      <p style={{ margin: 0 }}>This browser has no wallet. Open this page in your wallet app's browser (MetaMask, Rabby, OKX or Coinbase Wallet) and pay from there. You'll need {usd(q.priceUsd)} USDC on Arc.</p>
       <button className="btn secondary block" onClick={() => { void navigator.clipboard?.writeText(location.href); setCopied(true); }}>{copied ? 'Link copied ✓' : 'Copy the link to this page'}</button>
-      <Link className="btn ghost block" href="/arc">No USDC on Arc yet? Get some with a card or from another chain →</Link>
+      <Link className="btn ghost block" href="/arc">Need USDC on Arc? Get some →</Link>
     </div>
   );
 

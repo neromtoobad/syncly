@@ -172,7 +172,7 @@ em { font-style: normal; }
 .btn[disabled] { opacity: .5; cursor: not-allowed; }
 .btn.sm { padding: 8px 14px; font-size: 13.5px; }
 .btn.lg { padding: 15px 26px; font-size: 16px; }
-.btn.block { width: 100%; }
+.btn.block { width: 100%; white-space: normal; text-align: center; } /* a full-width button wraps instead of pushing the page wider on a phone */
 label.field { display: grid; gap: 8px; font-size: 14px; font-weight: 600; color: var(--ink); }
 label.field .hint { font-weight: 400; color: var(--muted); font-size: 13px; }
 textarea, input[type="email"], input[type="text"] { width: 100%; font: inherit; font-size: 15.5px; color: var(--ink); background: #fff; border: 1px solid var(--line-2); border-radius: 14px; padding: 13px 15px; outline: none; transition: border-color .15s, box-shadow .15s; }
@@ -454,7 +454,7 @@ textarea { min-height: 130px; resize: vertical; line-height: 1.5; }
 @media (max-width: 560px) { .live-brand .wordmark { display: none; } .live-exit a, .live-exit button { padding: 8px 11px; font-size: 12px; } }
 
 /* ---------- escrow payment (hire page) and escrow record (job page) ---------- */
-.paybox { display: grid; gap: 14px; }
+.paybox { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 .paybox > b { font-size: 16px; }
 .paybox p { font-size: 14px; color: var(--ink-2); }
 .paysteps { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }

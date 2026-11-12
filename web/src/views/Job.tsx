@@ -440,7 +440,7 @@ export default function Job({ id }: { id: string }) {
       ) : o.status === 'failed' ? (
         <section className="card pad stage">
           <div className="form" style={{ gap: 12 }}>
-            <div className="qa revise"><Avatar role="cfo" /><div>We couldn't deliver this one{o.refund ? `: ${usd(o.refund.priceUsd)} refunded + ${usd(o.refund.bondUsd)} bond paid` : ''}. {last?.error}{o.refund?.tx && <> <Tx cfg={cfg} hash={o.refund.tx}>Refund on Arc</Tx></>}</div></div>
+            <div className="qa revise"><Avatar role="cfo" /><div>We couldn't deliver this one{o.refund ? `: ${usd(o.refund.priceUsd)} refunded + ${usd(o.refund.bondUsd)} bond paid` : ''}. {plainError(last?.error)}{o.refund?.tx && <> <Tx cfg={cfg} hash={o.refund.tx}>Refund on Arc</Tx></>}</div></div>
             {o.escrow && !o.refund && (o.naira
               ? <p style={{ fontSize: 14, color: 'var(--ink-2)', margin: 0 }}>Your {naira(o.naira.ngn)} is safe: the {usd(q.priceUsd)} USDC it paid for is held in escrow on Arc. If the job isn't delivered by the deadline ({when(o.escrow.deliverBy)}), the contract refunds it and we send your {naira(o.naira.ngn)} back through Bachs, plus a {naira(q.bondUsd * o.naira.rate)} bond.</p>
               : <p style={{ fontSize: 14, color: 'var(--ink-2)', margin: 0 }}>Your {usd(q.priceUsd)} USDC is safe in escrow. At the deadline ({when(o.escrow.deliverBy)}) the contract refunds it plus the {usd(q.bondUsd)} USDC bond. The CFO triggers the refund, and anyone can.</p>)}
@@ -555,4 +555,11 @@ function Progress({ startedAt, etaMin, steps }: { startedAt: number; etaMin?: nu
       <div className="lbls"><span>{steps} step{steps === 1 ? '' : 's'} so far · {Math.floor(mins)}:{String(Math.floor((mins % 1) * 60)).padStart(2, '0')} elapsed</span><span>{left > 0.5 ? `usually about ${Math.ceil(left)} min more` : 'finishing up: big renders take a little longer'}</span></div>
     </div>
   );
+}
+
+/** A run's error in words a customer reads: a refused spend is the team keeping to its limits, not a crash. */
+function plainError(e?: string): string {
+  if (!e) return '';
+  if (/refused .*> cap|budget .* would be exceeded/.test(e)) return 'A tool the team needed cost more than its spending limit, so it stopped instead of overspending your money.';
+  return e;
 }
