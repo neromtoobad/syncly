@@ -16,6 +16,10 @@ const STEP: Record<string, string> = { approve: 'Approved', burn: 'Sent', fetchA
 type Tab = 'bridge' | 'swap' | 'card' | 'exchange';
 type Step = { label: string; tx?: string; url?: string };
 type Kit = { kit: any; adapter: any };
+/** Plain transactions only: a normal approve, then the swap or burn, each confirmed in the wallet. Circle's kits
+ *  otherwise ask for a permit signature or bundle the steps into one wallet_sendCalls request, which needs an
+ *  account upgrade (EIP-7702) on a normal wallet; OKX Wallet calls that "risky" and cancels it. */
+const SWAP_PLAIN = { allowanceStrategy: 'approve', batchTransactions: false } as any;
 
 const fmt = (n: number) => (Math.round(n * 100) / 100).toFixed(2);
 const sum = (fees: { token: string; amount: string }[] | undefined, token: string) => (fees ?? []).filter((f) => f.token === token).reduce((t, f) => t + Number(f.amount), 0);
@@ -64,11 +68,11 @@ export function BringMoneyPanel({ cfg, need, onArrived }: { cfg: EscrowCfg; need
       try {
         const { kit: k, adapter } = await kit();
         if (tab === 'bridge') {
-          const e = await k.estimateBridge({ from: { adapter, chain: from }, to: { chain: 'Arc', recipientAddress: who, useForwarder: true }, amount, config: { transferSpeed: 'FAST' } });
+          const e = await k.estimateBridge({ from: { adapter, chain: from }, to: { chain: 'Arc', recipientAddress: who, useForwarder: true }, amount, config: { transferSpeed: 'FAST', batchTransactions: false } });
           const fee = sum(e.fees, 'USDC');
           if (live) setEstimate(`You get about ${fmt(Number(amount) - fee)} USDC on Arc in under a minute. Fees: ${fee.toFixed(3)} USDC, plus a little ${from === 'Polygon' ? 'POL' : from === 'Avalanche' ? 'AVAX' : 'ETH'} for gas on ${label(from)}.`);
         } else {
-          const e = await k.estimateSwap({ from: { adapter, chain: swapFrom }, tokenIn: token, tokenOut: 'USDC', amountIn: amount, to: { chain: 'Arc', recipientAddress: who } });
+          const e = await k.estimateSwap({ from: { adapter, chain: swapFrom }, tokenIn: token, tokenOut: 'USDC', amountIn: amount, to: { chain: 'Arc', recipientAddress: who }, config: SWAP_PLAIN });
           if (live) setEstimate(`You get about ${fmt(Number(e.estimatedOutput?.amount ?? 0))} USDC on Arc.`);
         }
       } catch (e: any) {
@@ -91,13 +95,13 @@ export function BringMoneyPanel({ cfg, need, onArrived }: { cfg: EscrowCfg; need
       try {
         if (tab === 'bridge') {
           setBusy(`Confirm in your wallet (on ${label(from)})…`);
-          let r = await k.bridge({ from: { adapter, chain: from }, to: { chain: 'Arc', recipientAddress: a, useForwarder: true }, amount, config: { transferSpeed: 'FAST' } });
+          let r = await k.bridge({ from: { adapter, chain: from }, to: { chain: 'Arc', recipientAddress: a, useForwarder: true }, amount, config: { transferSpeed: 'FAST', batchTransactions: false } });
           if (r.state === 'error') { setBusy('Retrying the last step…'); r = await k.retryBridge(r, { from: adapter }); }
           if (r.state !== 'success') throw new Error(r.steps?.find((s: any) => s.state === 'error')?.errorMessage ?? 'The transfer did not finish. Your USDC is safe; try again in a minute.');
           setSteps((r.steps ?? []).map((s: any) => ({ label: STEP[s.name] ?? s.name, tx: s.txHash, url: s.explorerUrl })));
         } else {
           setBusy(`Confirm the swap in your wallet (on ${label(swapFrom)})…`);
-          const r = await k.swap({ from: { adapter, chain: swapFrom }, tokenIn: token, tokenOut: 'USDC', amountIn: amount, to: { chain: 'Arc', recipientAddress: a } });
+          const r = await k.swap({ from: { adapter, chain: swapFrom }, tokenIn: token, tokenOut: 'USDC', amountIn: amount, to: { chain: 'Arc', recipientAddress: a }, config: SWAP_PLAIN });
           setBusy('Swapping and moving it to Arc…');
           await k.waitForSwap({ result: r });
         }
