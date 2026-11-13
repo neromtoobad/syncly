@@ -27,7 +27,11 @@ const sum = (fees: { token: string; amount: string }[] | undefined, token: strin
 async function loadKit(): Promise<Kit> {
   const [{ AppKit }, { createViemAdapterFromProvider }] = await Promise.all([import('@circle-fin/app-kit'), import('@circle-fin/adapter-viem-v2')]);
   const kit = new AppKit();
-  const adapter = await createViemAdapterFromProvider({ provider: getProvider() as any });
+  const adapter: any = await createViemAdapterFromProvider({ provider: getProvider() as any });
+  // Circle's bridge grants its allowance with USDC's increaseAllowance(), which wallet security checks (OKX's
+  // among them) flag as a phishing pattern and cancel. Same spender, same amount, as a plain approve().
+  const prepare = adapter.prepareAction.bind(adapter);
+  adapter.prepareAction = (action: string, ...rest: unknown[]) => prepare(action === 'usdc.increaseAllowance' ? 'usdc.approve' : action, ...rest);
   return { kit, adapter };
 }
 
